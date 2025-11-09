@@ -24,3 +24,434 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+
+.user-hover-card {
+  position: fixed !important;
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+}
+
+/* Prevent hover card containers from clipping */
+.hover-card-container {
+  overflow: visible !important;
+  position: relative;
+  z-index: 9998;
+}
+
+/* ============================================
+   EMOJI PICKER FIX
+   ============================================ */
+.emoji-picker-container {
+  position: absolute;
+  z-index: 10002;
+  max-width: calc(100vw - 40px);
+}
+
+@media (max-width: 640px) {
+  .emoji-picker-container {
+    max-width: calc(100vw - 20px);
+    right: 10px !important;
+  }
+}
+
+/* ============================================
+   ACTION BUTTONS Z-INDEX FIX
+   ============================================ */
+.message-action-buttons {
+  z-index: 10001 !important;
+  pointer-events: auto !important;
+}
+
+.message-action-buttons button {
+  pointer-events: auto !important;
+}
+
+/* Ensure message bubbles don't overlap action buttons */
+.message-bubble-wrapper {
+  z-index: 1;
+  position: relative;
+}
+
+/* ============================================
+   HOVER CARD MOBILE OPTIMIZATIONS
+   ============================================ */
+@media (max-width: 767px) {
+  /* Reduce hover card padding on mobile */
+  .hover-card-mobile {
+    max-width: calc(100vw - 20px);
+  }
+  
+  /* Hide non-essential elements on mobile hover card */
+  .hover-card-bio-mobile {
+    display: none;
+  }
+  
+  /* Compact spacing */
+  .hover-card-compact {
+    padding: 12px !important;
+  }
+}
+
+/* ============================================
+   MESSAGE BUBBLE MAX WIDTH FIX
+   ============================================ */
+@media (max-width: 640px) {
+  .message-bubble {
+    max-width: calc(100vw - 100px) !important;
+  }
+  
+  .message-bubble-own {
+    max-width: calc(100vw - 80px) !important;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .message-bubble {
+    max-width: 75% !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .message-bubble {
+    max-width: 600px !important;
+  }
+}
+
+/* ============================================
+   PREVENT OVERFLOW IN ALL CONTAINERS
+   ============================================ */
+.message-content-wrapper * {
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.message-content-wrapper img,
+.message-content-wrapper video,
+.message-content-wrapper iframe {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+/* ============================================
+   PORTAL Z-INDEX MANAGEMENT
+   ============================================ */
+[data-portal-container] {
+  position: relative;
+  z-index: 9999;
+}
+
+/* Action buttons should be above everything */
+.action-buttons-portal {
+  z-index: 10001 !important;
+}
+
+/* Emoji picker should be above action buttons */
+.emoji-picker-portal {
+  z-index: 10002 !important;
+}
+
+/* Hover cards should be below action UI */
+.hover-card-portal {
+  z-index: 10000 !important;
+}
+
+/* ============================================
+   MOBILE TOUCH IMPROVEMENTS
+   ============================================ */
+@media (max-width: 1023px) {
+  /* Better touch targets */
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Prevent text selection on touch */
+  .no-select-mobile {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  
+  /* Smooth scrolling on mobile */
+  .mobile-scroll-smooth {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+}
+
+/* ============================================
+   RESPONSIVE GRID ADJUSTMENTS
+   ============================================ */
+@media (max-width: 1023px) {
+  .responsive-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+  }
+}
+
+/* ============================================
+   SAFE AREA INSETS FOR MOBILE
+   ============================================ */
+@supports (padding: max(0px)) {
+  .mobile-safe-bottom {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  
+  .mobile-safe-top {
+    padding-top: max(16px, env(safe-area-inset-top));
+  }
+  
+  .mobile-safe-left {
+    padding-left: max(16px, env(safe-area-inset-left));
+  }
+  
+  .mobile-safe-right {
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+}
+
+/* ============================================
+   ANIMATION PERFORMANCE
+   ============================================ */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* Disable animations on low-end devices */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================
+     MOBILE TOUCH OPTIMIZATIONS
+     ============================================ */
+  
+  /* Prevent text selection during long press */
+  .message-bubble-wrapper.selecting {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Long press visual feedback */
+  .message-bubble-wrapper.long-pressing {
+    background-color: rgba(17, 24, 39, 0.5);
+  }
+
+  /* Smooth transitions for mobile interactions */
+  .message-content-wrapper {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .message-bubble-wrapper.long-pressing .message-content-wrapper {
+    transform: scale(0.98);
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3);
+  }
+
+  /* Better tap targets for mobile */
+  @media (max-width: 1023px) {
+    button, a, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* Reaction buttons */
+    .reaction-button {
+      min-height: 36px;
+      min-width: 36px;
+      padding: 8px 12px;
+    }
+  }
+
+  /* Bottom sheet safe area */
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 24px);
+  }
+
+  /* Haptic feedback simulation */
+  @keyframes haptic-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(0.98); }
+  }
+
+  .haptic-feedback {
+    animation: haptic-pulse 0.15s ease-in-out;
+  }
+
+  /* Emoji picker mobile optimization */
+  .emoji-picker-container {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  @media (max-width: 640px) {
+    .emoji-picker-container {
+      max-height: 50vh;
+    }
+  }
+
+  /* Prevent iOS zoom on input focus */
+  @media (max-width: 1023px) {
+    input, textarea, select {
+      font-size: 16px !important;
+    }
+  }
+
+  /* Touch ripple effect */
+  @keyframes touch-ripple {
+    0% {
+      transform: scale(0);
+      opacity: 0.5;
+    }
+    100% {
+      transform: scale(2);
+      opacity: 0;
+    }
+  }
+
+  .touch-ripple {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .touch-ripple::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100px;
+    height: 100px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    animation: touch-ripple 0.6s ease-out;
+    pointer-events: none;
+  }
+
+  
+
+
+
+
+
+
+
+
+/* Add to existing <style jsx global> in ChatsComponent.tsx */
+
+/* ============================================
+   QUESTION MODAL Z-INDEX FIX
+   ============================================ */
+.question-modal-content {
+  position: relative;
+  z-index: 100;
+}
+
+/* Ensure modal appears above navbar */
+div[class*="z-[100]"] {
+  isolation: isolate;
+}
+
+/* ============================================
+   MOBILE QUESTION CARD IMPROVEMENTS
+   ============================================ */
+@media (max-width: 640px) {
+  .question-card {
+    padding: 12px !important;
+  }
+  
+  .question-card h3 {
+    font-size: 14px !important;
+    line-height: 1.4 !important;
+  }
+  
+  .question-card p {
+    font-size: 13px !important;
+  }
+}
+
+/* ============================================
+   ASK QUESTION BUTTON GLOW EFFECT
+   ============================================ */
+
+
+/* ============================================
+   MOBILE MODAL IMPROVEMENTS
+   ============================================ */
+@media (max-width: 640px) {
+  .question-modal-content {
+    margin: 8px !important;
+    border-radius: 16px !important;
+  }
+  
+  .question-modal-textarea {
+    min-height: 100px !important;
+    font-size: 14px !important;
+  }
+}
+
+/* ============================================
+   SAFE AREA FOR MOBILE NOTCHES
+   ============================================ */
+@supports (padding: max(0px)) {
+  .mobile-safe-top {
+    padding-top: max(env(safe-area-inset-top), 16px);
+  }
+  
+  .mobile-safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 16px);
+  }
+}
+
+/* ============================================
+   PREVENT BODY SCROLL WHEN MODAL OPEN
+   ============================================ */
+body:has(.question-modal-content) {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================
+   BETTER TOUCH TARGETS FOR MOBILE
+   ============================================ */
+
+  
+  /* Improve tap feedback */
+  
+
+
+/* ============================================
+   QUESTION STATS BADGES
+   ============================================ */
+
+
+/* ============================================
+   RESPONSIVE FONT SCALING
+   ============================================ */
+@media (max-width: 380px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 381px) and (max-width: 640px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 641px) {
+  html {
+    font-size: 16px;
+  }
+}
