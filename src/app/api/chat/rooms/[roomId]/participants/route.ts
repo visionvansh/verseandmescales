@@ -90,9 +90,9 @@ export async function GET(
     });
 
     // ✅ TRANSFORM PARTICIPANTS WITH AVATAR URLs
-    const transformedParticipants = participants.map(p => {
+    const transformedParticipants = participants.map((p: typeof participants[number]) => {
       const avatarUrl = getAvatarUrlFromUser(p.user, 64);
-      const primaryAvatar = p.user.avatars?.find(a => a.isPrimary) || p.user.avatars?.[0] || null;
+      const primaryAvatar = p.user.avatars?.find((a: any) => a.isPrimary) || p.user.avatars?.[0] || null;
 
       return {
         ...p,
@@ -105,7 +105,7 @@ export async function GET(
           seekers: p.user._count.followers,
           seeking: p.user._count.following,
           coursesMade: p.user._count.courses,
-          badges: p.user.badges.map(badge => ({
+          badges: p.user.badges.map((badge: any) => ({
             id: badge.id,
             name: badge.title,
             icon: badge.icon,
