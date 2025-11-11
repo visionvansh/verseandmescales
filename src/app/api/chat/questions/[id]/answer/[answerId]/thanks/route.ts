@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function POST(
   request: NextRequest,
@@ -77,7 +78,7 @@ export async function POST(
     }
 
     // Give thanks badge
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Update answer
       await tx.questionAnswer.update({
         where: { id: answerId },
@@ -168,7 +169,7 @@ export async function DELETE(
     }
 
     // Remove thanks badge
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Update answer
       await tx.questionAnswer.update({
         where: { id: answerId },
