@@ -2,6 +2,54 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
+
+// ✅ Define the type for the question query result
+type QuestionWithRelations = Prisma.QuestionGetPayload<{
+  include: {
+    user: {
+      select: {
+        id: true;
+        name: true;
+        username: true;
+        img: true;
+        avatars: {
+          orderBy: { createdAt: 'desc' };
+          take: 1;
+          select: {
+            avatarIndex: true;
+            avatarSeed: true;
+            avatarStyle: true;
+            isCustomUpload: true;
+            customImageUrl: true;
+          };
+        };
+      };
+    };
+    upvotes: {
+      where: { userId: string };
+      select: { id: true };
+    };
+    _count: {
+      select: { answers: true };
+    };
+  };
+}>;
+
+// ✅ Define the type for user with avatars
+type UserWithAvatars = {
+  id: string;
+  name: string | null;
+  username: string;
+  img: string | null;
+  avatars: Array<{
+    avatarIndex: number | null;
+    avatarSeed: string | null;
+    avatarStyle: string | null;
+    isCustomUpload: boolean;
+    customImageUrl: string | null;
+  }>;
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,11 +69,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Room ID required' }, { status: 400 });
     }
 
-    const where: any = { roomId };
+    const where: Prisma.QuestionWhereInput = { roomId };
     if (lessonId && lessonId !== 'all') where.lessonId = lessonId;
     if (moduleId && moduleId !== 'all') where.moduleId = moduleId;
     if (userId) where.userId = userId;
-    if (status && status !== 'all') where.status = status;
+    if (status && status !== 'all') where.status = status as any;
 
     const questions = await prisma.question.findMany({
       where,
@@ -63,8 +111,8 @@ export async function GET(request: NextRequest) {
       ]
     });
 
-    // ✅ Helper to get avatar data
-    const getAvatarData = (userData: any) => {
+    // ✅ Helper to get avatar data with proper typing
+    const getAvatarData = (userData: UserWithAvatars) => {
       const primaryAvatar = userData.avatars?.[0];
       
       return {
@@ -80,8 +128,8 @@ export async function GET(request: NextRequest) {
       };
     };
 
-    // ✅ Transform questions with avatar data
-    const transformedQuestions = questions.map(q => {
+    // ✅ Transform questions with avatar data - properly typed
+    const transformedQuestions = questions.map((q: QuestionWithRelations) => {
       const avatarData = getAvatarData(q.user);
       
       return {
