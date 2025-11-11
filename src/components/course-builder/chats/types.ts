@@ -8,13 +8,19 @@ export interface User {
   name: string;
   username?: string;
   avatar: string;
-  avatarObject?: any; // ✅ ADD THIS
+  avatarObject?: {
+    avatarIndex: number;
+    avatarSeed: string;
+    avatarStyle: string;
+    isCustomUpload: boolean;
+    customImageUrl?: string | null;
+  } | null;
+  customImageUrl?: string | null; // ✅ ADD THIS
   isOnline: boolean;
   lastSeen?: Date;
   role?: 'student' | 'mentor' | 'admin';
   isTyping?: boolean;
   
-  // ✅ ADD HOVER CARD DATA
   xp?: number;
   seekers?: number;
   seeking?: number;
@@ -215,13 +221,24 @@ export interface QuestionData {
   userId: string;
   userName: string;
   userAvatar: string;
+  
+  // ✅ ADD AVATAR OBJECT DATA
+  customImageUrl?: string | null;
+  userAvatarObject?: {
+    avatarIndex: number;
+    avatarSeed: string;
+    avatarStyle: string;
+    isCustomUpload: boolean;
+    customImageUrl?: string | null;
+  } | null;
+  
   lessonId: string;
   moduleId: string;
   hasUpvoted: boolean;
   hasViewed?: boolean;
   createdAt: Date;
-  thanksGivenCount: number; // ✅ NEW - Track how many thanks given (max 2)
-  canGiveThanks: boolean; // ✅ NEW - Can current user give thanks
+  thanksGivenCount: number;
+  canGiveThanks: boolean;
   updatedAt: Date;
   answers?: AnswerData[];
 }
@@ -232,18 +249,29 @@ export interface AnswerData {
   isAccepted: boolean;
   isMentorAnswer: boolean;
   upvoteCount: number;
-  replyCount: number;  // ✅ NEW
-  parentAnswerId?: string | null;  // ✅ NEW
+  replyCount: number;
+  parentAnswerId?: string | null;
   userId: string;
-  isThanked: boolean; // ✅ NEW - Has thanks badge
-  thankedAt?: Date; //
+  isThanked: boolean;
+  thankedAt?: Date;
   userName: string;
   userAvatar: string;
+  
+  // ✅ ADD AVATAR OBJECT DATA
+  customImageUrl?: string | null;
+  userAvatarObject?: {
+    avatarIndex: number;
+    avatarSeed: string;
+    avatarStyle: string;
+    isCustomUpload: boolean;
+    customImageUrl?: string | null;
+  } | null;
+  
   isMentor: boolean;
   hasUpvoted: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
-  replies?: AnswerData[];  // ✅ NEW: Nested replies
+  replies?: AnswerData[];
 }
 
 export interface LessonWithVideo extends Lesson {

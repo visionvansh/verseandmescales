@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { postId: string } }
+  { params }: { params: Promise<{ postId: string }> }
 ) {
   try {
     const user = await getAuthUser(request);
@@ -17,7 +17,8 @@ export async function POST(
       );
     }
 
-    const { postId } = params;
+    // Await params
+    const { postId } = await params;
 
     const existingLike = await prisma.postLike.findUnique({
       where: {

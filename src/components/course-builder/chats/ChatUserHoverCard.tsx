@@ -1,10 +1,11 @@
 // components/course-builder/chats/ChatUserHoverCard.tsx
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { User } from "@/components/course-builder/chats/types";
 import { FaStar, FaLock, FaGraduationCap, FaChalkboardTeacher } from "react-icons/fa";
 import { useRouter } from "next/navigation";
+import AvatarGenerator from "@/components/settings/AvatarGenerator";
 
 interface ChatUserHoverCardProps {
   user: User;
@@ -14,38 +15,58 @@ interface ChatUserHoverCardProps {
 
 export default function ChatUserHoverCard({ user, isVisible, position }: ChatUserHoverCardProps) {
   const router = useRouter();
+  const cardRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
   const [flipVertical, setFlipVertical] = useState(false);
+  const [arrowOffset, setArrowOffset] = useState(0); // ✅ Track arrow horizontal offset
 
   useEffect(() => {
-    if (isVisible) {
-      // Responsive card dimensions
+    if (isVisible && cardRef.current) {
       const isMobile = window.innerWidth < 640;
-      const cardHeight = isMobile ? 280 : user.isPrivate ? 200 : 320;
       const cardWidth = isMobile ? 280 : 320;
-      const viewportHeight = window.innerHeight;
+      const cardHeight = user.isPrivate ? (isMobile ? 200 : 220) : (isMobile ? 280 : 320);
+      
       const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      const padding = 16; // Minimum distance from screen edges
 
-      let newY = position.y - 20;
+      // ✅ Calculate horizontal position (try to center above avatar first)
+      let newX = position.x;
+      let cardLeft = newX - cardWidth / 2;
+      let originalCenterX = newX; // Store original center position
+      
+      // Check left boundary
+      if (cardLeft < padding) {
+        cardLeft = padding;
+        newX = cardLeft + cardWidth / 2;
+      }
+      // Check right boundary
+      else if (cardLeft + cardWidth > viewportWidth - padding) {
+        cardLeft = viewportWidth - cardWidth - padding;
+        newX = cardLeft + cardWidth / 2;
+      }
+
+      // ✅ Calculate arrow offset (distance from card center to avatar center)
+      const arrowOffsetPx = originalCenterX - newX;
+      setArrowOffset(arrowOffsetPx);
+
+      // ✅ Calculate vertical position (above avatar by default)
+      let newY = position.y - cardHeight - 16; // 16px gap above avatar
       let shouldFlip = false;
 
-      // Check if card would go off top
-      if (newY - cardHeight < 0) {
-        newY = position.y + 40;
+      // Check if card would go above viewport
+      if (newY < padding) {
+        // Flip to below avatar
+        newY = position.y + 16; // 16px gap below avatar
         shouldFlip = true;
       }
 
-      // Check if card would go off bottom
-      if (newY + cardHeight > viewportHeight) {
-        newY = viewportHeight - cardHeight - 20;
-      }
-
-      // Ensure X position stays in viewport
-      let newX = position.x;
-      if (newX - cardWidth / 2 < 10) {
-        newX = cardWidth / 2 + 10;
-      } else if (newX + cardWidth / 2 > viewportWidth - 10) {
-        newX = viewportWidth - cardWidth / 2 - 10;
+      // Check if card would go below viewport when flipped
+      if (shouldFlip && newY + cardHeight > viewportHeight - padding) {
+        // Position at bottom with padding
+        newY = viewportHeight - cardHeight - padding;
+        shouldFlip = false; // Don't show arrow if constrained
       }
 
       setAdjustedPosition({ x: newX, y: newY });
@@ -53,28 +74,76 @@ export default function ChatUserHoverCard({ user, isVisible, position }: ChatUse
     }
   }, [isVisible, position, user.isPrivate]);
 
+  // ✅ Helper to render avatar
+  const renderAvatar = () => {
+    if (user.customImageUrl) {
+      return (
+        <img
+          src={user.customImageUrl}
+          alt={user.name}
+          className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl border-2 border-black shadow-xl object-cover"
+        />
+      );
+    }
+
+    if (user.avatarObject?.isCustomUpload && user.avatarObject.customImageUrl) {
+      return (
+        <img
+          src={user.avatarObject.customImageUrl}
+          alt={user.name}
+          className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl border-2 border-black shadow-xl object-cover"
+        />
+      );
+    }
+
+    if (user.avatarObject && user.avatarObject.avatarIndex >= 0) {
+      return (
+        <AvatarGenerator
+          userId={user.id}
+          avatarIndex={user.avatarObject.avatarIndex}
+          size={56}
+          style={user.avatarObject.avatarStyle as "avataaars"}
+          className="border-2 border-black shadow-xl"
+        />
+      );
+    }
+
+    return (
+      <AvatarGenerator
+        userId={user.id}
+        avatarIndex={-1}
+        size={56}
+        useDefault={true}
+        className="border-2 border-black shadow-xl"
+      />
+    );
+  };
+
   return (
     <AnimatePresence>
       {isVisible && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.9, y: flipVertical ? -10 : 10 }}
+          ref={cardRef}
+          initial={{ opacity: 0, scale: 0.9, y: flipVertical ? 10 : -10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: flipVertical ? -10 : 10 }}
-          transition={{ duration: 0.2 }}
-          className="fixed z-[10000]"
+          exit={{ opacity: 0, scale: 0.9, y: flipVertical ? 10 : -10 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="fixed z-[10000] pointer-events-auto"
           style={{
-            left: adjustedPosition.x,
-            top: adjustedPosition.y,
-            transform: flipVertical ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)',
+            left: `${adjustedPosition.x}px`,
+            top: `${adjustedPosition.y}px`,
+            transform: 'translate(-50%, 0%)',
+            maxWidth: 'calc(100vw - 32px)',
           }}
         >
           <div className="relative w-[280px] sm:w-80">
-            <div className="absolute inset-0 bg-black/95 rounded-xl sm:rounded-2xl border border-red-500/40" />
+            {/* Card Background */}
+            <div className="absolute inset-0 bg-black/95 rounded-xl sm:rounded-2xl border border-red-500/40 shadow-2xl backdrop-blur-xl" />
             <div className="absolute inset-0 bg-gradient-to-br from-red-600/20 to-transparent rounded-xl sm:rounded-2xl" />
             
+            {/* Card Content */}
             <div className="relative p-4 sm:p-5">
               {user.isPrivate ? (
-                // Private Profile - Minimal
                 <div className="text-center py-3 sm:py-4">
                   <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-red-600/20 border-2 border-red-500/30 mb-2 sm:mb-3">
                     <FaLock className="text-xl sm:text-2xl text-red-500" />
@@ -86,16 +155,11 @@ export default function ChatUserHoverCard({ user, isVisible, position }: ChatUse
                   </div>
                 </div>
               ) : (
-                // Public Profile - Compact
                 <>
                   {/* Avatar & Name */}
                   <div className="flex items-center gap-3 mb-3 sm:mb-4">
                     <div className="relative flex-shrink-0">
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl border-2 border-black shadow-xl"
-                      />
+                      {renderAvatar()}
                       {user.badges && user.badges[0] && (
                         <div className={`absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-gradient-to-br ${user.badges[0].color || 'from-red-500 to-red-700'} border-2 border-black flex items-center justify-center text-xs shadow-lg`}>
                           {user.badges[0].icon}
@@ -111,14 +175,14 @@ export default function ChatUserHoverCard({ user, isVisible, position }: ChatUse
                     </div>
                   </div>
 
-                  {/* Bio - Compact */}
+                  {/* Bio */}
                   {user.bio && (
                     <p className="text-gray-400 text-xs line-clamp-2 mb-3">
                       {user.bio}
                     </p>
                   )}
 
-                  {/* Quick Stats - Compact Grid */}
+                  {/* Quick Stats */}
                   <div className="grid grid-cols-3 gap-2 mb-3">
                     <div className="text-center px-2 py-1.5 bg-gray-900/50 rounded-lg border border-gray-800">
                       <div className="text-sm sm:text-base font-black text-red-400 flex items-center justify-center gap-1">
@@ -137,7 +201,7 @@ export default function ChatUserHoverCard({ user, isVisible, position }: ChatUse
                     </div>
                   </div>
 
-                  {/* Courses - Compact */}
+                  {/* Courses */}
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="px-2 py-1.5 bg-purple-600/10 border border-purple-500/30 rounded-lg">
                       <div className="flex items-center gap-1.5 text-purple-400 text-xs font-bold">
@@ -153,7 +217,7 @@ export default function ChatUserHoverCard({ user, isVisible, position }: ChatUse
                     </div>
                   </div>
 
-                  {/* Badges - Compact Row */}
+                  {/* Badges */}
                   {user.badges && user.badges.length > 0 && (
                     <div className="flex items-center gap-1.5 mb-3 overflow-x-auto no-scrollbar pb-1">
                       <span className="text-[10px] text-gray-500 font-bold flex-shrink-0">Badges:</span>
@@ -192,14 +256,25 @@ export default function ChatUserHoverCard({ user, isVisible, position }: ChatUse
               )}
             </div>
 
-            {/* Arrow */}
+            {/* ✅ Arrow pointing directly at the avatar (offset from center) */}
             <div
-              className="absolute left-1/2 transform -translate-x-1/2"
+              className="absolute transform -translate-x-1/2 transition-all duration-200"
               style={{ 
+                left: `calc(50% + ${arrowOffset}px)`,
                 [flipVertical ? 'top' : 'bottom']: '-8px',
+                // Clamp arrow position within card bounds (with padding)
+                marginLeft: `clamp(-${(280/2) - 20}px, 0px, ${(280/2) - 20}px)`,
               }}
             >
-              <div className={`border-l-8 border-r-8 ${flipVertical ? 'border-b-8 border-b-red-500/40' : 'border-t-8 border-t-red-500/40'} border-l-transparent border-r-transparent`} />
+              <div 
+                className={`
+                  border-l-8 border-r-8 border-l-transparent border-r-transparent
+                  ${flipVertical 
+                    ? 'border-b-8 border-b-red-500/40' 
+                    : 'border-t-8 border-t-red-500/40'
+                  }
+                `} 
+              />
             </div>
           </div>
         </motion.div>

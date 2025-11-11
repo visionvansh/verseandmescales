@@ -1,3 +1,4 @@
+///Volumes/vision/codes/course/my-app/src/components/course-builder/chats/ChatQuestionComponents.tsx
 "use client";
 
 import React, {
@@ -330,44 +331,49 @@ const ProfileAvatar = ({
   size?: number;
   className?: string;
 }) => {
-  // Custom uploaded image
+  // ✅ 1. Custom uploaded HTTP image
   if (customImage && customImage.startsWith("http")) {
     return (
       <img
         src={customImage}
         alt="Profile"
-        className={`rounded-full ${className}`}
+        className={`rounded-full object-cover ${className}`}
         style={{ width: size, height: size }}
       />
     );
   }
 
-  // Avatar from avatarObject
+  // ✅ 2. Avatar from avatarObject - custom upload
   if (avatar?.isCustomUpload && avatar.customImageUrl) {
     return (
       <img
         src={avatar.customImageUrl}
         alt="Profile"
-        className={`rounded-full ${className}`}
+        className={`rounded-full object-cover ${className}`}
         style={{ width: size, height: size }}
       />
     );
   }
 
-  // Generated avatar
+  // ✅ 3. Generated avatar from avatarObject
   if (avatar && avatar.avatarIndex >= 0) {
     return (
       <AvatarGenerator
         userId={userId}
         avatarIndex={avatar.avatarIndex}
         size={size}
-        style={avatar.avatarStyle as "avataaars"}
+        style={(avatar.avatarStyle as "avataaars") || "avataaars"}
         className={className}
       />
     );
   }
 
-  // ✅ DEFAULT: Red user icon on white background
+  // ✅ 4. DEFAULT: Red user icon on white background
+  // This handles ALL remaining cases:
+  // - No customImage
+  // - No avatarObject
+  // - Invalid avatarObject data
+  // - Dicebear URLs (which we ignore now)
   return (
     <AvatarGenerator
       userId={userId}
@@ -378,7 +384,6 @@ const ProfileAvatar = ({
     />
   );
 };
-
 // ============================================
 // MESSAGE STATUS INDICATOR
 // ============================================
@@ -1617,6 +1622,8 @@ export const OnlineUsersList = memo(
     } = useUserHover();
 
     const [isMobile, setIsMobile] = useState(false);
+    const [adjustedPosition, setAdjustedPosition] = useState({ x: 0, y: 0 });
+    const hoverCardRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
       const checkMobile = () => setIsMobile(window.innerWidth < 1024);
@@ -1624,6 +1631,39 @@ export const OnlineUsersList = memo(
       window.addEventListener("resize", checkMobile);
       return () => window.removeEventListener("resize", checkMobile);
     }, []);
+
+    // ✅ SMART POSITIONING: Prevent hover card from going off-screen
+    useEffect(() => {
+      if (!showHoverCard || !hoverCardRef.current) return;
+
+      const card = hoverCardRef.current;
+      const cardRect = card.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      let adjustedX = hoverPosition.x;
+      let adjustedY = hoverPosition.y;
+
+      // Horizontal adjustment
+      if (cardRect.right > viewportWidth - 20) {
+        // Too far right - move left
+        adjustedX = viewportWidth - cardRect.width - 20;
+      } else if (cardRect.left < 20) {
+        // Too far left - move right
+        adjustedX = 20;
+      }
+
+      // Vertical adjustment
+      if (cardRect.bottom > viewportHeight - 20) {
+        // Too far down - position above
+        adjustedY = hoverPosition.y - cardRect.height - 20;
+      } else if (cardRect.top < 20) {
+        // Too far up - position below
+        adjustedY = 20;
+      }
+
+      setAdjustedPosition({ x: adjustedX, y: adjustedY });
+    }, [showHoverCard, hoverPosition]);
 
     const validUsers = useMemo(
       () => users.filter((user) => user && user.id && user.name),
@@ -1658,7 +1698,11 @@ export const OnlineUsersList = memo(
                     <button
                       key={user.id}
                       onClick={() => onUserClick?.(user.id)}
-                      onMouseEnter={(e) => handleUserHover(user, e)}
+                      onMouseEnter={(e) => {
+                        if (!isMobile) {
+                          handleUserHover(user, e);
+                        }
+                      }}
                       onMouseLeave={handleUserLeave}
                       className="w-full flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg sm:rounded-xl hover:bg-gray-900/50 transition-colors group"
                     >
@@ -1740,73 +1784,80 @@ export const OnlineUsersList = memo(
               )}
 
               {offlineUsers.length > 0 && (
-  <div className="space-y-1 sm:space-y-2 mt-3 sm:mt-4">
-    <div className="text-[10px] sm:text-xs text-gray-500 font-semibold px-2">
-      OFFLINE ({offlineUsers.length})
-    </div>
-    {offlineUsers.map((user) => (
-      <button
-        key={user.id}
-        onClick={() => onUserClick?.(user.id)}
-        onMouseEnter={(e) => handleUserHover(user, e)}
-        onMouseLeave={handleUserLeave}
-        className="w-full flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg sm:rounded-xl hover:bg-gray-900/50 transition-colors group"
-      >
-        <div className="relative flex-shrink-0">
-          <ProfileAvatar
-            customImage={user.avatar}
-            avatar={user.avatarObject}
-            userId={user.id}
-            size={isMobile ? 32 : 40}
-            className="border-2 border-gray-800 opacity-60 group-hover:opacity-100 transition-opacity"
-          />
-          <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-gray-600 rounded-full border-2 border-gray-950" />
-        </div>
-        <div className="flex-1 text-left min-w-0">
-          <div className="text-xs sm:text-sm font-semibold text-gray-400 group-hover:text-white transition-colors truncate">
-            {user.name}
-          </div>
-          {user.lastSeen && (
-            <div className="text-[10px] sm:text-xs text-gray-600">
-              {Math.floor((Date.now() - user.lastSeen.getTime()) / 60000)}m ago
-            </div>
-          )}
-        </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onMention(user.id);
-          }}
-          className="opacity-0 group-hover:opacity-100 p-1 sm:p-1.5 hover:bg-red-500/10 rounded transition-all"
-          title="Mention user"
-        >
-          <FaAt className="text-red-400 text-xs" />
-        </button>
-      </button>
-    ))}
-  </div>
-)}
+                <div className="space-y-1 sm:space-y-2 mt-3 sm:mt-4">
+                  <div className="text-[10px] sm:text-xs text-gray-500 font-semibold px-2">
+                    OFFLINE ({offlineUsers.length})
+                  </div>
+                  {offlineUsers.map((user) => (
+                    <button
+                      key={user.id}
+                      onClick={() => onUserClick?.(user.id)}
+                      onMouseEnter={(e) => {
+                        if (!isMobile) {
+                          handleUserHover(user, e);
+                        }
+                      }}
+                      onMouseLeave={handleUserLeave}
+                      className="w-full flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg sm:rounded-xl hover:bg-gray-900/50 transition-colors group"
+                    >
+                      <div className="relative flex-shrink-0">
+                        <ProfileAvatar
+                          customImage={user.avatar}
+                          avatar={user.avatarObject}
+                          userId={user.id}
+                          size={isMobile ? 32 : 40}
+                          className="border-2 border-gray-800 opacity-60 group-hover:opacity-100 transition-opacity"
+                        />
+                        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-gray-600 rounded-full border-2 border-gray-950" />
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="text-xs sm:text-sm font-semibold text-gray-400 group-hover:text-white transition-colors truncate">
+                          {user.name}
+                        </div>
+                        {user.lastSeen && (
+                          <div className="text-[10px] sm:text-xs text-gray-600">
+                            {Math.floor((Date.now() - user.lastSeen.getTime()) / 60000)}m ago
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMention(user.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 sm:p-1.5 hover:bg-red-500/10 rounded transition-all"
+                        title="Mention user"
+                      >
+                        <FaAt className="text-red-400 text-xs" />
+                      </button>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {showHoverCard && hoveredUser && (
+        {/* ✅ FIXED POSITIONING: Hover card stays on screen */}
+        {!isMobile && showHoverCard && hoveredUser && (
           <HoverCardPortal>
             <div
+              ref={hoverCardRef}
               onMouseEnter={keepHoverCardOpen}
               onMouseLeave={handleUserLeave}
               style={{
                 position: "fixed",
-                left: `${hoverPosition.x}px`,
-                top: `${hoverPosition.y}px`,
+                left: `${adjustedPosition.x}px`,
+                top: `${adjustedPosition.y}px`,
                 zIndex: 10000,
                 pointerEvents: "auto",
+                transition: "left 0.1s ease, top 0.1s ease",
               }}
             >
               <ChatUserHoverCard
                 user={hoveredUser}
                 isVisible={showHoverCard}
-                position={hoverPosition}
+                position={adjustedPosition}
               />
             </div>
           </HoverCardPortal>

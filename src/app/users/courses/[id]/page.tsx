@@ -26,6 +26,8 @@ import {
   FaHome,
 } from "react-icons/fa";
 import { useAuth } from "@/contexts/AuthContext";
+import { getCustomHomepage } from "@/components/custom-homepages";
+import dynamic from "next/dynamic";
 
 // ✅ Avatar Interface
 interface UserAvatar {
@@ -551,10 +553,13 @@ export default function PublicCoursePage() {
 
       const data = await response.json();
       console.log("✅ Course data received:", data);
-      console.log("✅ Owner avatar data:", data.owner);
+      
+      // ✅ NEW: Check homepage type
+      console.log("📄 Homepage Type:", data.homepageType);
+      console.log("📄 Custom File:", data.customHomepageFile);
+      
       setCourseData(data);
 
-      // ✅ Preload owner hover card data
       if (data.owner?.username) {
         await preloadCourseOwner(data.owner.username);
       }
@@ -564,6 +569,39 @@ export default function PublicCoursePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ NEW: Render appropriate homepage
+  const renderHomepage = () => {
+    if (!courseData) return null;
+
+    // Use custom homepage if specified
+    if (courseData.homepageType === "custom" && courseData.customHomepageFile) {
+      const CustomHomepage = getCustomHomepage(courseData.customHomepageFile);
+      
+      if (CustomHomepage) {
+        return (
+          <CustomHomepage
+            courseData={courseData}
+            enrollmentStatus={enrollmentStatus}
+            onEnroll={handleEnroll}
+            onStartLearning={handleStartLearning}
+            enrolling={enrolling}
+          />
+        );
+      }
+    }
+
+    // Default: Use LivePreview (builder homepage)
+    return (
+      <LivePreview
+        data={courseData}
+        enrollmentStatus={enrollmentStatus}
+        onEnroll={handleEnroll}
+        onStartLearning={handleStartLearning}
+        enrolling={enrolling}
+      />
+    );
   };
 
   // ✅ UPDATE: Check enrollment status
@@ -1361,15 +1399,9 @@ export default function PublicCoursePage() {
         </div>
       </motion.header>
 
-      {/* LivePreview */}
-      <LivePreview
-        data={courseData}
-        enrollmentStatus={enrollmentStatus}
-        onEnroll={handleEnroll}
-        onStartLearning={handleStartLearning}
-        enrolling={enrolling}
-      />
-
+      {/* ✅ Dynamic Homepage Rendering */}
+      {renderHomepage()}
+      
       {/* Floating Action Buttons */}
       {!user && (
         <motion.button

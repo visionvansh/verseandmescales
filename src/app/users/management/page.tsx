@@ -1,4 +1,4 @@
-// app/users/courses-management/page.tsx
+// app/users/management/page.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -32,6 +32,8 @@ interface Course {
   submittedAt?: string;
   completionPercentage: number;
   lastEditedSection?: string;
+  homepageType?: string; // ✅ ADDED
+  customHomepageFile?: string; // ✅ ADDED
   homepage?: {
     mainTitleLine1: string;
     videoUrl: string;
@@ -109,6 +111,7 @@ const CoursesManagementPage = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [showSubmitSuccess, setShowSubmitSuccess] = useState(false);
+  const [continuingId, setContinuingId] = useState<string | null>(null); // ✅ ADDED
 
   useEffect(() => {
     loadCourses();
@@ -200,9 +203,36 @@ const CoursesManagementPage = () => {
     }
   };
 
-  const continueEditing = (course: Course) => {
-    // ✅ Always start from card customization
-    router.push(`/users/card-customisation?courseId=${course.id}`);
+  // ✅ UPDATED: Continue editing with API check
+  const continueEditing = async (course: Course) => {
+    try {
+      setContinuingId(course.id);
+      
+      // Fetch full course details to check homepageType
+      const response = await fetch(`/api/course?id=${course.id}`);
+      
+      if (response.ok) {
+        const courseData = await response.json();
+        
+        // Check if course was created with a pre-made theme (custom homepage)
+        if (courseData.homepageType === 'custom' && courseData.customHomepageFile) {
+          // Redirect to studio card customization for custom-themed courses
+          router.push(`/users/studio/card-customisation?courseId=${course.id}`);
+        } else {
+          // Normal course - redirect to regular card customization
+          router.push(`/users/card-customisation?courseId=${course.id}`);
+        }
+      } else {
+        // Fallback if API fails - assume normal course
+        router.push(`/users/card-customisation?courseId=${course.id}`);
+      }
+    } catch (error) {
+      console.error("Error determining course type:", error);
+      // Fallback to regular card customization on error
+      router.push(`/users/card-customisation?courseId=${course.id}`);
+    } finally {
+      setContinuingId(null);
+    }
   };
 
   const getStatusConfig = (status: string) => {
@@ -463,15 +493,26 @@ const CoursesManagementPage = () => {
                             )}
 
                             <div className="flex items-center gap-2">
+                              {/* ✅ UPDATED: Continue button with loading state */}
                               <m.button
                                 onClick={() => continueEditing(course)}
-                                className="flex-1 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-medium text-xs sm:text-sm text-red-400 flex items-center justify-center gap-1.5 sm:gap-2 transition-colors"
+                                disabled={continuingId === course.id}
+                                className="flex-1 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-medium text-xs sm:text-sm text-red-400 flex items-center justify-center gap-1.5 sm:gap-2 transition-colors disabled:opacity-50"
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                               >
-                                <FaEdit className="text-xs" />
-                                <span>Continue</span>
-                                <FaChevronRight className="text-[10px]" />
+                                {continuingId === course.id ? (
+                                  <>
+                                    <FaSpinner className="text-xs animate-spin" />
+                                    <span>Loading...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <FaEdit className="text-xs" />
+                                    <span>Continue</span>
+                                    <FaChevronRight className="text-[10px]" />
+                                  </>
+                                )}
                               </m.button>
 
                               {(course.status === "DRAFT" || course.status === "PUBLISHED") && (

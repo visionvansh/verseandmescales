@@ -827,16 +827,6 @@ export const ModuleCardFull = memo(({
                 </div>
               )}
 
-              {/* Certificate Badge */}
-              {module.certificate && (
-                <div className="mt-4 p-3 bg-gradient-to-r from-red-900/20 to-red-800/20 border border-red-500/30 rounded-lg flex items-center gap-3">
-                  <FaCertificate className="text-red-400 text-2xl flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-bold text-white">Certificate of Completion</p>
-                    <p className="text-xs text-gray-400">Earn a certificate upon finishing this module</p>
-                  </div>
-                </div>
-              )}
             </motion.div>
           )}
         </AnimatePresence>

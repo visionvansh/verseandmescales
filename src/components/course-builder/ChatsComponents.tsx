@@ -113,60 +113,62 @@ import AvatarGenerator from "@/components/settings/AvatarGenerator";
 // ============================================
 // PROFILE AVATAR COMPONENT (handles default avatars)
 // ============================================
-
-const ProfileAvatar = ({ 
-  customImage, 
-  avatar, 
-  userId, 
+const ProfileAvatar = ({
+  customImage,
+  avatar,
+  userId,
   size = 32,
-  className = ""
-}: { 
+  className = "",
+}: {
   customImage?: string | null;
   avatar?: any | null;
   userId: string;
   size?: number;
   className?: string;
 }) => {
-  // Custom uploaded image
-  if (customImage) {
+  // ✅ 1. Custom uploaded HTTP image
+  if (customImage && customImage.startsWith("http")) {
     return (
-      <img 
-        src={customImage} 
-        alt="Profile" 
-        width={size} 
-        height={size} 
-        className={`object-cover rounded-full ${className}`}
+      <img
+        src={customImage}
+        alt="Profile"
+        className={`rounded-full object-cover ${className}`}
+        style={{ width: size, height: size }}
       />
     );
   }
 
-  // Avatar from avatarObject
+  // ✅ 2. Avatar from avatarObject - custom upload
   if (avatar?.isCustomUpload && avatar.customImageUrl) {
     return (
-      <img 
-        src={avatar.customImageUrl} 
-        alt="Profile" 
-        width={size} 
-        height={size} 
-        className={`object-cover rounded-full ${className}`}
+      <img
+        src={avatar.customImageUrl}
+        alt="Profile"
+        className={`rounded-full object-cover ${className}`}
+        style={{ width: size, height: size }}
       />
     );
   }
 
-  // Generated avatar
+  // ✅ 3. Generated avatar from avatarObject
   if (avatar && avatar.avatarIndex >= 0) {
     return (
       <AvatarGenerator
         userId={userId}
         avatarIndex={avatar.avatarIndex}
         size={size}
-        style={avatar.avatarStyle as 'avataaars'}
+        style={(avatar.avatarStyle as "avataaars") || "avataaars"}
         className={className}
       />
     );
   }
 
-  // ✅ DEFAULT: Red user icon on white background
+  // ✅ 4. DEFAULT: Red user icon on white background
+  // This handles ALL remaining cases:
+  // - No customImage
+  // - No avatarObject
+  // - Invalid avatarObject data
+  // - Dicebear URLs (which we ignore now)
   return (
     <AvatarGenerator
       userId={userId}
@@ -1173,16 +1175,19 @@ export const ChatRoom = memo(
     const transformedUsers: User[] = useMemo(
       () =>
         participants.map((p) => {
-          const avatar =
-            p.user?.avatar ||
-            p.user?.img ||
-            `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.userId}`;
+          // ✅ FIX: Don't generate fallback avatars here
+          // Let ProfileAvatar handle defaults
+          const hasCustomImage = p.user?.img && p.user.img.startsWith("http");
+          const hasAvatarObject =
+            p.user?.avatarObject &&
+            (p.user.avatarObject.isCustomUpload ||
+              p.user.avatarObject.avatarIndex >= 0);
 
           return {
             id: p.userId,
             name: p.user?.name || p.user?.username || "Unknown",
-            avatar: avatar,
-            avatarObject: p.user?.avatarObject || null,
+            avatar: hasCustomImage ? p.user.img : null, // ✅ Only set if valid HTTP URL
+            avatarObject: hasAvatarObject ? p.user.avatarObject : null, // ✅ Only set if valid
             isOnline: p.isOnline,
             lastSeen: p.lastSeen ? new Date(p.lastSeen) : undefined,
             role: p.role,
@@ -1195,6 +1200,7 @@ export const ChatRoom = memo(
             badges: p.user?.badges || [],
             bio: p.user?.bio || "",
             isPrivate: p.user?.isPrivate || false,
+            username: p.user?.username || `user${p.userId.slice(0, 6)}`,
           };
         }),
       [participants, typingUsers]
@@ -1763,12 +1769,8 @@ export const ChatRoom = memo(
                 exit={isMobile ? { x: -320 } : { opacity: 0 }}
                 transition={{ type: "spring", damping: 30, stiffness: 300 }}
                 className={`
-                  ${
-                    isMobile
-                      ? "fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[320px]"
-                      : ""
-                  }
-                `}
+        ${isMobile ? "fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[320px]" : ""}
+      `}
               >
                 {/* Mobile Backdrop */}
                 {isMobile && (
@@ -1780,9 +1782,9 @@ export const ChatRoom = memo(
 
                 <div
                   className={`
-                  relative
-                  ${isMobile ? "h-full" : "chat-container-responsive"}
-                `}
+        relative
+        ${isMobile ? "h-full" : "chat-container-responsive"}
+      `}
                 >
                   <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 rounded-r-2xl lg:rounded-2xl border-r lg:border border-red-500/30 backdrop-blur-2xl shadow-2xl" />
 
@@ -1809,21 +1811,21 @@ export const ChatRoom = memo(
                         <button
                           onClick={() => {
                             setViewMode("live-chat");
-                            setActiveTab("chat");
+                            setActiveTab("chat"); // ✅ Set active tab for mobile
                             setSelectedModule(null);
                             setSelectedLesson(null);
                             setSelectedUser(null);
                             if (isMobile) setShowMobileSidebar(false);
                           }}
                           className={`w-full text-left p-3 sm:p-4 rounded-xl transition-all flex items-center gap-3 active:scale-98 ${
-                            viewMode === "live-chat" && activeTab === "chat"
+                            viewMode === "live-chat"
                               ? "bg-red-600/20 border-2 border-red-500 shadow-lg shadow-red-500/20"
                               : "bg-gray-900/50 border border-gray-800 hover:border-red-500/30 hover:bg-gray-900/70"
                           }`}
                         >
                           <div
                             className={`p-2 sm:p-3 rounded-xl transition-colors ${
-                              viewMode === "live-chat" && activeTab === "chat"
+                              viewMode === "live-chat"
                                 ? "bg-red-500"
                                 : "bg-gray-800"
                             }`}
@@ -1838,7 +1840,7 @@ export const ChatRoom = memo(
                               Real-time chat
                             </div>
                           </div>
-                          {viewMode === "live-chat" && activeTab === "chat" && (
+                          {viewMode === "live-chat" && (
                             <FaCheckCircle className="text-red-500 text-lg flex-shrink-0" />
                           )}
                         </button>
@@ -1847,20 +1849,18 @@ export const ChatRoom = memo(
                         <button
                           onClick={() => {
                             setViewMode("ask-question");
-                            setActiveTab("questions");
+                            setActiveTab("questions"); // ✅ Set active tab for mobile
                             if (isMobile) setShowMobileSidebar(false);
                           }}
                           className={`w-full text-left p-3 sm:p-4 rounded-xl transition-all flex items-center gap-3 active:scale-98 ${
-                            viewMode === "ask-question" &&
-                            activeTab === "questions"
+                            viewMode === "ask-question"
                               ? "bg-red-600/20 border-2 border-red-500 shadow-lg shadow-red-500/20"
                               : "bg-gray-900/50 border border-gray-800 hover:border-red-500/30 hover:bg-gray-900/70"
                           }`}
                         >
                           <div
                             className={`p-2 sm:p-3 rounded-xl transition-colors ${
-                              viewMode === "ask-question" &&
-                              activeTab === "questions"
+                              viewMode === "ask-question"
                                 ? "bg-red-500"
                                 : "bg-gray-800"
                             }`}
@@ -1875,34 +1875,15 @@ export const ChatRoom = memo(
                               Browse & ask
                             </div>
                           </div>
-                          {viewMode === "ask-question" &&
-                            activeTab === "questions" && (
-                              <FaCheckCircle className="text-red-500 text-lg flex-shrink-0" />
-                            )}
+                          {viewMode === "ask-question" && (
+                            <FaCheckCircle className="text-red-500 text-lg flex-shrink-0" />
+                          )}
                         </button>
                       </div>
 
                       {/* Question Filters (when in question mode) */}
-                      {(activeTab === "questions" ||
-                        viewMode === "ask-question") && (
+                      {viewMode === "ask-question" && (
                         <div className="space-y-4">
-                          <div className="border-t border-gray-800 pt-4">
-                            <button
-                              onClick={() => {
-                                setSelectedModule(null);
-                                setSelectedLesson(null);
-                                setSelectedUser(null);
-                              }}
-                              className={`w-full text-left px-3 py-2 rounded-lg transition-colors mb-2 active:scale-98 ${
-                                !selectedModule && !selectedLesson
-                                  ? "bg-red-600/20 text-red-400 border border-red-500/30"
-                                  : "text-gray-400 hover:bg-gray-800/50"
-                              }`}
-                            >
-                              All Questions
-                            </button>
-                          </div>
-
                           {/* Module List */}
                           <div className="space-y-2">
                             <div className="text-xs text-gray-500 font-semibold px-2 flex items-center gap-2 uppercase tracking-wide">
@@ -2007,32 +1988,6 @@ export const ChatRoom = memo(
                               </div>
                             ))}
                           </div>
-
-                          {/* Stats */}
-                          <div className="border-t border-gray-800 pt-4 mt-4">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-3">
-                                <div className="text-2xl font-black text-white mb-1">
-                                  {questions.length}
-                                </div>
-                                <div className="text-xs text-gray-400">
-                                  Total Questions
-                                </div>
-                              </div>
-                              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-3">
-                                <div className="text-2xl font-black text-green-400 mb-1">
-                                  {
-                                    questions.filter(
-                                      (q) => q.status === "answered"
-                                    ).length
-                                  }
-                                </div>
-                                <div className="text-xs text-gray-400">
-                                  Answered
-                                </div>
-                              </div>
-                            </div>
-                          </div>
                         </div>
                       )}
                     </div>
@@ -2054,8 +2009,8 @@ export const ChatRoom = memo(
                   maxHeight: containerHeight,
                 }}
               >
-                {/* Mobile Tab Navigation */}
-                <div className="flex border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm flex-shrink-0">
+                {/* ✅ Mobile/Tablet Tab Navigation (< 1024px ONLY) */}
+                <div className="lg:hidden flex border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm flex-shrink-0">
                   <button
                     onClick={() => setActiveTab("chat")}
                     className={`flex-1 px-3 sm:px-6 py-3 sm:py-4 font-bold transition-all relative text-xs sm:text-sm active:scale-95 ${
@@ -2129,16 +2084,25 @@ export const ChatRoom = memo(
                   </button>
                 </div>
 
-                {/* Tab Content */}
-                <AnimatePresence mode="wait">
-                  {/* CHAT TAB */}
-                  {activeTab === "chat" && (
+                {/* ✅ DESKTOP: Always show CHAT content (no tabs) */}
+                {/* ✅ MOBILE/TABLET: Show content based on active tab */}
+                <div className="flex-1 flex flex-col min-h-0">
+                  {/* Show on Desktop OR when Chat tab is active on mobile */}
+                  <div
+                    className={`${
+                      isMobile
+                        ? activeTab === "chat"
+                          ? "flex"
+                          : "hidden"
+                        : viewMode === "live-chat"
+                        ? "flex"
+                        : "hidden"
+                    } flex-1 flex-col min-h-0`}
+                  >
+                    {/* CHAT CONTENT - Same as before */}
                     <m.div
                       key="chat"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.2 }}
+                      initial={false}
                       className="flex-1 flex flex-col min-h-0"
                     >
                       {/* Header */}
@@ -2182,7 +2146,7 @@ export const ChatRoom = memo(
                         </div>
                       </div>
 
-                      {/* Messages Area - FIXED OVERFLOW */}
+                      {/* Messages Area */}
                       <div
                         ref={messagesContainerRef}
                         className="relative flex-1 overflow-y-auto no-scrollbar hide-scrollbar scrollbar-hide messages-container"
@@ -2212,7 +2176,7 @@ export const ChatRoom = memo(
                         </div>
                       </div>
 
-                      {/* Input Area - FIXED FOR MOBILE */}
+                      {/* Input Area - Keep all existing code */}
                       <div className="relative z-10 border-t border-gray-800 p-2 sm:p-3 md:p-4 flex-shrink-0 bg-gray-900/50 mobile-safe-bottom chat-input-container">
                         {/* Edit Modal */}
                         <AnimatePresence>
@@ -2420,131 +2384,141 @@ export const ChatRoom = memo(
                         )}
                       </div>
                     </m.div>
+                  </div>
+
+                  {/* ✅ MOBILE/TABLET ONLY: Questions Tab Content */}
+                 {((isMobile && activeTab === "questions") || (!isMobile && viewMode === "ask-question")) && (
+                    <m.div
+                      key="questions"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex-1 flex flex-col min-h-0 relative"
+                    >
+                      {/* ✅ HEADER WITH DESKTOP BUTTON */}
+                      <div className="p-3 sm:p-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm flex-shrink-0">
+                        <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+                          {/* Title & Stats */}
+                          <div className="flex flex-col gap-3 flex-1">
+                            {/* Title */}
+                            <div className="flex items-center gap-2">
+                              <FaQuestionCircle className="text-red-500 text-lg sm:text-xl flex-shrink-0" />
+                              <h3 className="text-base sm:text-lg font-bold text-white">
+                                Questions & Answers
+                              </h3>
+                            </div>
+
+                            {/* Stats Row */}
+                            <div className="flex items-center gap-4 text-xs text-gray-400 flex-wrap">
+                              <span className="flex items-center gap-1.5">
+                                <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+                                <span className="font-semibold">
+                                  {
+                                    questions.filter((q) => q.status === "open")
+                                      .length
+                                  }{" "}
+                                  Open
+                                </span>
+                              </span>
+                              <span className="flex items-center gap-1.5">
+                                <div className="w-2 h-2 bg-green-500 rounded-full" />
+                                <span className="font-semibold">
+                                  {
+                                    questions.filter(
+                                      (q) => q.status === "answered"
+                                    ).length
+                                  }{" "}
+                                  Answered
+                                </span>
+                              </span>
+                              <span className="flex items-center gap-1.5">
+                                <FaEye className="text-gray-500" />
+                                <span className="font-semibold">
+                                  {questions.length} Total
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* ✅ DESKTOP BUTTON (Hidden on Mobile) */}
+                          <motion.button
+                            onClick={() => setIsNewQuestionOpen(true)}
+                            className="hidden lg:flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold rounded-xl transition-all shadow-lg border border-red-500/30"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <div className="p-1 bg-white/20 rounded-lg">
+                              <FaPlus className="text-sm" />
+                            </div>
+                            <span>Ask Question</span>
+                          </motion.button>
+                        </div>
+                      </div>
+
+                      {/* Questions List */}
+                      <div className="flex-1 overflow-y-auto no-scrollbar hide-scrollbar scrollbar-hide p-2 sm:p-4 space-y-2 sm:space-y-3 pb-20 lg:pb-4">
+                        {questionsLoading ? (
+                          <div className="flex items-center justify-center py-10 sm:py-20">
+                            <div className="w-8 h-8 sm:w-12 sm:h-12 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
+                          </div>
+                        ) : questions.length > 0 ? (
+                          questions.map((question) => (
+                            <QuestionCard
+                              key={question.id}
+                              question={question}
+                              onClick={() => setSelectedQuestion(question.id)}
+                              onUpvote={handleUpvoteQuestion}
+                            />
+                          ))
+                        ) : (
+                          <div className="flex flex-col items-center justify-center py-10 sm:py-20 text-center px-4">
+                            <FaQuestionCircle className="text-4xl sm:text-6xl text-gray-700 mb-3 sm:mb-4" />
+                            <p className="text-gray-400 text-base sm:text-lg mb-1 sm:mb-2">
+                              No questions yet
+                            </p>
+                            <p className="text-gray-500 text-sm mb-4 sm:mb-6">
+                              Be the first to ask a question!
+                            </p>
+                            <button
+                              onClick={() => setIsNewQuestionOpen(true)}
+                              className="px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold rounded-lg sm:rounded-xl transition-all text-sm sm:text-base flex items-center gap-2 active:scale-95"
+                              style={{ minHeight: "44px" }}
+                            >
+                              <FaPlus className="text-xs sm:text-sm" />
+                              <span>Ask Question</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ✅ MOBILE FAB (Hidden on Desktop) */}
+                      <AnimatePresence>
+                        {questions.length > 0 && (
+                          <motion.button
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0, opacity: 0 }}
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setIsNewQuestionOpen(true)}
+                            className="lg:hidden fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-40 p-4 sm:p-5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-full shadow-2xl border-2 border-red-500/50 backdrop-blur-sm group"
+                            style={{ minHeight: "56px", minWidth: "56px" }}
+                          >
+                            <FaPlus className="text-xl sm:text-2xl group-hover:rotate-90 transition-transform duration-300" />
+
+                            {/* Tooltip */}
+                            <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 border border-red-500/30 rounded-lg text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                              Ask Question
+                            </span>
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
+                    </m.div>
                   )}
 
-                  {/* Questions Tab - UPDATED HEADER */}
-                  {/* Questions Tab - UPDATED HEADER WITHOUT ASK QUESTION BUTTON */}
-                  {activeTab === "questions" && (
-  <m.div
-    key="questions"
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -20 }}
-    transition={{ duration: 0.2 }}
-    className="flex-1 flex flex-col min-h-0 relative"
-  >
-    {/* ✅ HEADER WITH DESKTOP BUTTON */}
-    <div className="p-3 sm:p-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm flex-shrink-0">
-      <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
-        {/* Title & Stats */}
-        <div className="flex flex-col gap-3 flex-1">
-          {/* Title */}
-          <div className="flex items-center gap-2">
-            <FaQuestionCircle className="text-red-500 text-lg sm:text-xl flex-shrink-0" />
-            <h3 className="text-base sm:text-lg font-bold text-white">
-              Questions & Answers
-            </h3>
-          </div>
-
-          {/* Stats Row */}
-          <div className="flex items-center gap-4 text-xs text-gray-400 flex-wrap">
-            <span className="flex items-center gap-1.5">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-              <span className="font-semibold">
-                {questions.filter((q) => q.status === "open").length} Open
-              </span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <div className="w-2 h-2 bg-green-500 rounded-full" />
-              <span className="font-semibold">
-                {questions.filter((q) => q.status === "answered").length} Answered
-              </span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <FaEye className="text-gray-500" />
-              <span className="font-semibold">{questions.length} Total</span>
-            </span>
-          </div>
-        </div>
-
-        {/* ✅ DESKTOP BUTTON (Hidden on Mobile) */}
-        <motion.button
-          onClick={() => setIsNewQuestionOpen(true)}
-          className="hidden lg:flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold rounded-xl transition-all shadow-lg border border-red-500/30"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <div className="p-1 bg-white/20 rounded-lg">
-            <FaPlus className="text-sm" />
-          </div>
-          <span>Ask Question</span>
-        </motion.button>
-      </div>
-    </div>
-
-    {/* Questions List */}
-    <div className="flex-1 overflow-y-auto no-scrollbar hide-scrollbar scrollbar-hide p-2 sm:p-4 space-y-2 sm:space-y-3 pb-20 lg:pb-4">
-      {questionsLoading ? (
-        <div className="flex items-center justify-center py-10 sm:py-20">
-          <div className="w-8 h-8 sm:w-12 sm:h-12 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
-        </div>
-      ) : questions.length > 0 ? (
-        questions.map((question) => (
-          <QuestionCard
-            key={question.id}
-            question={question}
-            onClick={() => setSelectedQuestion(question.id)}
-            onUpvote={handleUpvoteQuestion}
-          />
-        ))
-      ) : (
-        <div className="flex flex-col items-center justify-center py-10 sm:py-20 text-center px-4">
-          <FaQuestionCircle className="text-4xl sm:text-6xl text-gray-700 mb-3 sm:mb-4" />
-          <p className="text-gray-400 text-base sm:text-lg mb-1 sm:mb-2">
-            No questions yet
-          </p>
-          <p className="text-gray-500 text-sm mb-4 sm:mb-6">
-            Be the first to ask a question!
-          </p>
-          <button
-            onClick={() => setIsNewQuestionOpen(true)}
-            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold rounded-lg sm:rounded-xl transition-all text-sm sm:text-base flex items-center gap-2 active:scale-95"
-            style={{ minHeight: "44px" }}
-          >
-            <FaPlus className="text-xs sm:text-sm" />
-            <span>Ask Question</span>
-          </button>
-        </div>
-      )}
-    </div>
-
-    {/* ✅ MOBILE FAB (Hidden on Desktop) */}
-    <AnimatePresence>
-      {questions.length > 0 && (
-        <motion.button
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0, opacity: 0 }}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setIsNewQuestionOpen(true)}
-          className="lg:hidden fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-40 p-4 sm:p-5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-full shadow-2xl border-2 border-red-500/50 backdrop-blur-sm group"
-          style={{ minHeight: "56px", minWidth: "56px" }}
-        >
-          <FaPlus className="text-xl sm:text-2xl group-hover:rotate-90 transition-transform duration-300" />
-          
-          {/* Tooltip */}
-          <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 border border-red-500/30 rounded-lg text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            Ask Question
-          </span>
-        </motion.button>
-      )}
-    </AnimatePresence>
-  </m.div>
-)}
-
-                  {/* ONLINE TAB */}
-                  {activeTab === "online" && (
+                  {/* ✅ MOBILE/TABLET ONLY: Online Tab Content */}
+                  {isMobile && activeTab === "online" && (
                     <m.div
                       key="online"
                       initial={{ opacity: 0, y: 20 }}
@@ -2561,7 +2535,7 @@ export const ChatRoom = memo(
                       />
                     </m.div>
                   )}
-                </AnimatePresence>
+                </div>
               </div>
             </div>
           </div>
@@ -2572,171 +2546,13 @@ export const ChatRoom = memo(
               <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 rounded-2xl border border-red-500/30 backdrop-blur-2xl" />
 
               <div className="relative h-full flex flex-col overflow-hidden rounded-2xl">
-                {activeTab === "chat" ? (
-                  <OnlineUsersList
-                    users={transformedUsers}
-                    currentUserId={currentUser.id}
-                    onMention={handleMention}
-                    onUserClick={handleUserClick}
-                  />
-                ) : activeTab === "questions" ? (
-                  <>
-                    <div className="relative z-10 p-4 border-b border-gray-800 flex-shrink-0">
-                      <h3 className="text-white font-bold flex items-center gap-2 text-base">
-                        <FaListAlt className="text-red-500 text-lg" />
-                        Quick Filters
-                      </h3>
-                    </div>
-
-                    <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar hide-scrollbar scrollbar-hide p-4 space-y-4">
-                      {/* My Questions */}
-                      <button
-                        onClick={() => {
-                          setSelectedUser(
-                            selectedUser === currentUser.id
-                              ? null
-                              : currentUser.id
-                          );
-                          setSelectedModule(null);
-                          setSelectedLesson(null);
-                        }}
-                        className={`w-full text-left p-4 rounded-xl transition-all active:scale-98 ${
-                          selectedUser === currentUser.id
-                            ? "bg-red-600/20 border-2 border-red-500"
-                            : "bg-gray-900/50 border border-gray-800 hover:border-red-500/30"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={currentUser.avatar}
-                            alt="My Questions"
-                            className="w-10 h-10 rounded-full border-2 border-red-500/50"
-                          />
-                          <div className="flex-1">
-                            <div className="text-white font-bold text-sm">
-                              My Questions
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              {
-                                questions.filter(
-                                  (q) => q.userId === currentUser.id
-                                ).length
-                              }{" "}
-                              questions
-                            </div>
-                          </div>
-                          {selectedUser === currentUser.id && (
-                            <FaCheckCircle className="text-red-500 text-lg" />
-                          )}
-                        </div>
-                      </button>
-
-                      {/* Filter by User */}
-                      <div>
-                        <div className="text-xs text-gray-500 font-semibold px-2 mb-2 uppercase tracking-wide">
-                          FILTER BY USER
-                        </div>
-                        <div className="space-y-2">
-                          {transformedUsers.slice(0, 5).map((user) => {
-                            const userQuestions = questions.filter(
-                              (q) => q.userId === user.id
-                            );
-                            if (userQuestions.length === 0) return null;
-
-                            return (
-                              <button
-                                key={user.id}
-                                onClick={() => {
-                                  setSelectedUser(
-                                    selectedUser === user.id ? null : user.id
-                                  );
-                                  setSelectedModule(null);
-                                  setSelectedLesson(null);
-                                }}
-                                className={`w-full text-left p-3 rounded-xl transition-all active:scale-98 ${
-                                  selectedUser === user.id
-                                    ? "bg-red-600/20 border border-red-500/30"
-                                    : "bg-gray-900/50 hover:bg-gray-800/50"
-                                }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <img
-                                    src={user.avatar}
-                                    alt={user.name}
-                                    className="w-8 h-8 rounded-full border-2 border-gray-800"
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-white text-sm font-semibold truncate">
-                                      {user.name}
-                                    </div>
-                                    <div className="text-xs text-gray-400">
-                                      {userQuestions.length} questions
-                                    </div>
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Recent Activity */}
-                      <div>
-                        <div className="text-xs text-gray-500 font-semibold px-2 mb-2 uppercase tracking-wide">
-                          RECENT ACTIVITY
-                        </div>
-                        <div className="space-y-2">
-                          {questions.slice(0, 5).map((q) => (
-                            <button
-                              key={q.id}
-                              onClick={() => setSelectedQuestion(q.id)}
-                              className="w-full text-left p-3 bg-gray-900/50 hover:bg-gray-800/50 rounded-xl transition-colors active:scale-98"
-                            >
-                              <div className="text-white text-sm font-semibold mb-1 line-clamp-1">
-                                {q.title}
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <span className="truncate">{q.userName}</span>
-                                <span>•</span>
-                                <span>{q.answerCount} answers</span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Popular Tags */}
-                      <div>
-                        <div className="text-xs text-gray-500 font-semibold px-2 mb-2 uppercase tracking-wide">
-                          POPULAR TAGS
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {[
-                            "hooks",
-                            "react",
-                            "useEffect",
-                            "useState",
-                            "performance",
-                          ].map((tag) => (
-                            <button
-                              key={tag}
-                              className="px-3 py-1 bg-red-600/10 border border-red-500/20 rounded-full text-xs text-red-400 hover:bg-red-600/20 transition-colors whitespace-nowrap active:scale-95"
-                            >
-                              #{tag}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <OnlineUsersList
-                    users={transformedUsers}
-                    currentUserId={currentUser.id}
-                    onMention={handleMention}
-                    onUserClick={handleUserClick}
-                  />
-                )}
+                {/* ✅ ALWAYS SHOW ONLINE USERS - Regardless of active tab */}
+                <OnlineUsersList
+                  users={transformedUsers}
+                  currentUserId={currentUser.id}
+                  onMention={handleMention}
+                  onUserClick={handleUserClick}
+                />
               </div>
             </div>
           </div>

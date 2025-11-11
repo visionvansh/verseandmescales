@@ -6,22 +6,8 @@ import { UAParser } from 'ua-parser-js';
 
 const prisma = new PrismaClient();
 
-// Define type for UserSession based on Prisma schema
-type UserSession = {
-  id: string;
-  userId: string;
-  deviceId: string;
-  sessionToken: string;
-  refreshToken: string;
-  isActive: boolean;
-  ipAddress: string | null;
-  userAgent: string | null;
-  location: string | null;
-  country: string | null;
-  city: string | null;
-  expiresAt: Date;
-  lastUsed: Date;
-};
+// ✅ REMOVED: Delete the manual UserSession type definition
+// TypeScript will use Prisma's generated types instead
 
 export async function POST(request: NextRequest) {
   try {
@@ -74,9 +60,14 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Create or update device info
+    // ✅ FIXED: Use correct where clause with compound unique constraint
     const device = await prisma.userDevice.upsert({
-      where: { fingerprint: deviceFingerprint },
+      where: { 
+        userId_fingerprint: {
+          userId: user.id,
+          fingerprint: deviceFingerprint
+        }
+      },
       update: {
         lastUsed: new Date(),
         usageCount: { increment: 1 }
@@ -283,7 +274,6 @@ export async function POST(request: NextRequest) {
 
 // Extract client info remains the same
 function extractRequestMetadata(request: NextRequest) {
-  // Same implementation as before
   const forwarded = request.headers.get('x-forwarded-for');
   const ipAddress = forwarded ? forwarded.split(',')[0].trim() : 
                   request.headers.get('x-real-ip') || 'unknown';
@@ -325,7 +315,7 @@ function extractRequestMetadata(request: NextRequest) {
   };
 }
 
-// Add security assessment function
+// ✅ FIXED: Add security assessment function with correct typing
 async function assessLoginSecurity(user: any, device: any, clientInfo: any) {
   // Initialize security assessment
   const assessment = {
@@ -358,8 +348,8 @@ async function assessLoginSecurity(user: any, device: any, clientInfo: any) {
   });
   
   if (recentSessions.length > 0) {
-    // Check if there's a recent session from a different location
-    const hasLocationChange = recentSessions.some((s: UserSession) => 
+    // ✅ FIXED: Remove type annotation to use Prisma's inferred type
+    const hasLocationChange = recentSessions.some((s) => 
       s.country && s.country !== 'Unknown' && 
       clientInfo.country !== 'Unknown' && 
       s.country !== clientInfo.country
@@ -371,13 +361,14 @@ async function assessLoginSecurity(user: any, device: any, clientInfo: any) {
       assessment.riskFactors.push('location_change');
     }
     
-    // Check for simultaneous sessions from different locations
-    const activeSessions = recentSessions.filter((s: UserSession) => 
-      new Date(s.lastUsed) > new Date(Date.now() - 30 * 60 * 1000) // Active in last 30 minutes
+    // ✅ FIXED: Remove type annotation
+    const activeSessions = recentSessions.filter((s) => 
+      new Date(s.lastUsed) > new Date(Date.now() - 30 * 60 * 1000)
     );
     
     if (activeSessions.length > 0) {
-      const hasMultipleLocations = new Set(activeSessions.map((s: UserSession) => s.country)).size > 1;
+      // ✅ FIXED: Remove type annotation
+      const hasMultipleLocations = new Set(activeSessions.map((s) => s.country)).size > 1;
       
       if (hasMultipleLocations) {
         assessment.riskScore += 40;

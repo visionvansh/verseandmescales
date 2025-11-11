@@ -7,7 +7,7 @@ import { getAuthUser } from '@/utils/auth';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getAuthUser(request);
@@ -16,7 +16,7 @@ export async function DELETE(
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
     
-    const sessionId = params.id;
+    const { id: sessionId } = await params; // ✅ Await params before destructuring
     
     // Ensure the session belongs to the user
     const session = await prisma.userSession.findUnique({

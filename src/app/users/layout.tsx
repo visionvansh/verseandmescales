@@ -12,15 +12,12 @@ export default function UsersLayout({
 }) {
   const pathname = usePathname();
   
-  // Check if we're on a course detail page
   const isCourseDetailPage = pathname?.match(/^\/users\/courses\/[^/]+$/);
 
-  // If it's a course detail page, render without layout
   if (isCourseDetailPage) {
     return <>{children}</>;
   }
 
-  // Otherwise, render with full layout 
   return (
     <LazyMotion features={domAnimation}>
       <div className="relative min-h-screen overflow-hidden bg-black">
@@ -42,7 +39,8 @@ export default function UsersLayout({
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent" />
         </div>
 
-        <div className="sticky top-0 z-50">
+        {/* ✅ UPDATED: Reduced z-index from z-50 to z-40 */}
+        <div className="sticky top-0 z-40">
           <CommandHeader />
         </div>
         

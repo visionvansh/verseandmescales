@@ -457,7 +457,7 @@ export default function HomePage() {
                 className="hidden md:block bg-transparent border border-red-500 text-red-500 px-4 py-2 rounded-lg hover:bg-red-500/10 transition-all"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => router.push('/auth/login')}
+                onClick={() => router.push('/auth/signin')}
               >
                 Log In
               </motion.button>

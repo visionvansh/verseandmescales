@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/app/api/course/card-settings/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';

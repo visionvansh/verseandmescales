@@ -1,14 +1,42 @@
 // /app/api/auth/login/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import geoip from 'geoip-lite';
-import prisma, { findUserByEmail, logAuthEvent } from '@/lib/prisma'; // ✅ Use singleton
+import prisma, { findUserByEmail, logAuthEvent } from '@/lib/prisma';
 import { generateAccessToken, generateRefreshToken } from '@/lib/jwt';
 import { invalidateUserCache } from '@/lib/enhanced-redis';
-import { redis, CACHE_PREFIX } from '@/lib/redis'; // ✅ Use singleton Redis
+import { redis, CACHE_PREFIX } from '@/lib/redis';
 
 // Rate limiting storage (in production, use Redis)
 const loginAttempts = new Map();
+
+// ✅ Helper function to get location from IP
+async function getLocationFromIP(ip: string) {
+  try {
+    // Use a free IP geolocation API
+    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,city,regionName`, {
+      next: { revalidate: 3600 } // Cache for 1 hour
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.status === 'success') {
+        return {
+          country: data.country || 'Unknown',
+          city: data.city || 'Unknown',
+          region: data.regionName || 'Unknown'
+        };
+      }
+    }
+  } catch (error) {
+    console.error('Failed to get location from IP:', error);
+  }
+  
+  return {
+    country: 'Unknown',
+    city: 'Unknown',
+    region: 'Unknown'
+  };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +48,9 @@ export async function POST(request: NextRequest) {
                      request.headers.get('x-real-ip') || 
                      '127.0.0.1';
     const userAgent = request.headers.get('user-agent') || '';
-    const location = geoip.lookup(clientIP);
+    
+    // ✅ Use async location lookup
+    const location = await getLocationFromIP(clientIP);
 
     // Basic validation
     if (!email || !password) {
@@ -58,7 +88,7 @@ export async function POST(request: NextRequest) {
         action: 'login_failed',
         ipAddress: clientIP,
         userAgent,
-        location: location ? `${location.city}, ${location.country}` : 'Unknown',
+        location: `${location.city}, ${location.country}`,
         success: false,
         errorCode: 'USER_NOT_FOUND',
       });
@@ -101,7 +131,7 @@ export async function POST(request: NextRequest) {
         action: 'login_failed',
         ipAddress: clientIP,
         userAgent,
-        location: location ? `${location.city}, ${location.country}` : 'Unknown',
+        location: `${location.city}, ${location.country}`,
         success: false,
         errorCode: 'INVALID_PASSWORD',
         details: { loginAttempts: newLoginAttempts }
@@ -128,7 +158,12 @@ export async function POST(request: NextRequest) {
     let device = null;
     if (deviceFingerprint) {
       device = await prisma.userDevice.findUnique({
-        where: { fingerprint: deviceFingerprint }
+        where: { 
+          userId_fingerprint: {
+            userId: user.id,
+            fingerprint: deviceFingerprint
+          }
+        }
       });
 
       if (!device) {
@@ -178,9 +213,9 @@ export async function POST(request: NextRequest) {
         deviceId: device?.id,
         ipAddress: clientIP,
         userAgent,
-        location: location ? `${location.city}, ${location.country}` : 'Unknown',
-        country: location?.country || 'Unknown',
-        city: location?.city || 'Unknown',
+        location: `${location.city}, ${location.country}`,
+        country: location.country,
+        city: location.city,
         sessionType: 'web',
         expiresAt
       }
@@ -196,8 +231,12 @@ export async function POST(request: NextRequest) {
       select: { ipAddress: true, location: true }
     });
 
-    const suspiciousLogin = recentSessions.some((s: { ipAddress: string; location: string; }) => 
-      s.ipAddress !== clientIP && s.location !== (location ? `${location.city}, ${location.country}` : 'Unknown')
+    const currentLocation = `${location.city}, ${location.country}`;
+    const suspiciousLogin = recentSessions.some((s) => 
+      s.ipAddress !== null && 
+      s.location !== null && 
+      s.ipAddress !== clientIP && 
+      s.location !== currentLocation
     );
 
     if (suspiciousLogin) {
@@ -206,10 +245,10 @@ export async function POST(request: NextRequest) {
           userId: user.id,
           eventType: 'suspicious_login',
           severity: 'medium',
-          description: `Login from new location: ${location ? `${location.city}, ${location.country}` : clientIP}`,
+          description: `Login from new location: ${currentLocation}`,
           ipAddress: clientIP,
           userAgent,
-          location: location ? `${location.city}, ${location.country}` : 'Unknown'
+          location: currentLocation
         }
       });
     }
@@ -221,7 +260,7 @@ export async function POST(request: NextRequest) {
       action: 'login_success',
       ipAddress: clientIP,
       userAgent,
-      location: location ? `${location.city}, ${location.country}` : 'Unknown',
+      location: currentLocation,
       success: true,
       details: {
         deviceId: device?.id,

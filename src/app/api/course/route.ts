@@ -59,7 +59,23 @@ export async function GET(req: NextRequest) {
 
     const courses = await prisma.course.findMany({
       where: whereClause,
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        thumbnail: true,
+        price: true,
+        salePrice: true,
+        status: true,
+        isPublished: true,
+        publishedAt: true,
+        submittedAt: true,
+        completionPercentage: true,
+        lastEditedSection: true,
+        homepageType: true,
+        customHomepageFile: true,
+        createdAt: true,
+        updatedAt: true,
         homepage: {
           select: {
             mainTitleLine1: true,

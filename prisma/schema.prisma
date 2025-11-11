@@ -30,13 +30,13 @@ model Student {
   passwordChangedAt     DateTime?
   biometricEnabled      Boolean  @default(false)
   biometricCredentials  BiometricCredential[]
-  courseRatings     CourseRating[] @relation("UserCourseRatings")
+  courseRatings         CourseRating[] @relation("UserCourseRatings")
   UserGoals             UserGoals[]
 
   // Account Security
   lastLogin             DateTime?
   loginAttempts         Int      @default(0)
-  avatars           Avatar[] @relation("UserAvatars")
+  avatars               Avatar[] @relation("UserAvatars")
   enrollments           CourseEnrollment[] @relation("CourseEnrollments")
   lockedUntil           DateTime?
   passwordResetToken    String?
@@ -52,9 +52,9 @@ model Student {
   socialAccountsEver    UserSocial[]
   
   twoFactorSessions     TwoFactorSession[]
-  paymentsBuyer     Payment[] @relation("PaymentsBuyer")
-  paymentsSeller    Payment[] @relation("PaymentsSeller")
-  earnings          Earnings? @relation("UserEarnings")
+  paymentsBuyer         Payment[] @relation("PaymentsBuyer")
+  paymentsSeller        Payment[] @relation("PaymentsSeller")
+  earnings              Earnings? @relation("UserEarnings")
   twoFactorBackupCodes  TwoFactorBackupCode[]
 
   // Session Management
@@ -89,7 +89,7 @@ model Student {
   presenceLogs          PresenceLog[]
   notifications         Notification[] @relation("UserNotifications")
   sentNotifications     Notification[] @relation("ActorNotifications")
-  notificationSettings   NotificationSettings?
+  notificationSettings  NotificationSettings?
   privacySettings       PrivacySettings?
   blocks                UserBlock[] @relation("UserBlocks") 
   blockedBy             UserBlock[] @relation("BlockedByUsers")
@@ -99,42 +99,41 @@ model Student {
 
   // Course Relations
   courses               Course[] @relation("UserCourses")
-  courseHomepage        CourseHomepage?
+  courseHomepages       CourseHomepage[] @relation("UserCourseHomepages") // ✅ CHANGED: One-to-many
   courseStats           CourseStats[]
   courseModules         CourseModule[] @relation("UserCourseModules")
-  lessonProgress    LessonProgress[]
+  lessonProgress        LessonProgress[]
 
-  chatParticipants  ChatParticipant[] @relation("ChatParticipants")
-  chatMessages      ChatMessage[] @relation("ChatMessages")
-  chatReactions     ChatReaction[] @relation("ChatReactions")
-  chatMentions      ChatMention[] @relation("ChatMentions")
-  chatReadReceipts  ChatReadReceipt[] @relation("ChatReadReceipts")
+  chatParticipants      ChatParticipant[] @relation("ChatParticipants")
+  chatMessages          ChatMessage[] @relation("ChatMessages")
+  chatReactions         ChatReaction[] @relation("ChatReactions")
+  chatMentions          ChatMention[] @relation("ChatMentions")
+  chatReadReceipts      ChatReadReceipt[] @relation("ChatReadReceipts")
+  chatTypingIndicators  ChatTypingIndicator[] @relation("TypingIndicators")
 
-  chatTypingIndicators ChatTypingIndicator[] @relation("TypingIndicators")
+  questions             Question[] @relation("QuestionAuthor")
+  questionAnswers       QuestionAnswer[] @relation("AnswerAuthor")
+  questionUpvotes       QuestionUpvote[] @relation("QuestionUpvotes")
+  answerUpvotes         AnswerUpvote[] @relation("AnswerUpvotes")
+  questionViews         QuestionView[] @relation("QuestionViews")
 
-  questions         Question[] @relation("QuestionAuthor")
-  questionAnswers   QuestionAnswer[] @relation("AnswerAuthor")
-  questionUpvotes   QuestionUpvote[] @relation("QuestionUpvotes")
-  answerUpvotes     AnswerUpvote[] @relation("AnswerUpvotes")
-  questionViews     QuestionView[] @relation("QuestionViews")
-
-  posts             Post[]      @relation("UserPosts")
-  postLikes         PostLike[]  @relation("PostLikes")
-  comments          Comment[]   @relation("UserComments")
-  commentReactions  CommentReaction[] @relation("CommentReactions")
-  postShares        PostShare[] @relation("PostShares")
-  postViews         PostView[]  @relation("PostViews")
+  posts                 Post[]      @relation("UserPosts")
+  postLikes             PostLike[]  @relation("PostLikes")
+  comments              Comment[]   @relation("UserComments")
+  commentReactions      CommentReaction[] @relation("CommentReactions")
+  postShares            PostShare[] @relation("PostShares")
+  postViews             PostView[]  @relation("PostViews")
   
   // Follow System
-  followers         Follow[]    @relation("Followers")
-  following         Follow[]    @relation("Following")
+  followers             Follow[]    @relation("Followers")
+  following             Follow[]    @relation("Following")
   
   // XP & Badges
-  userXP            UserXP?     @relation("UserXP")
-  badges            UserBadge[] @relation("UserBadges")
+  userXP                UserXP?     @relation("UserXP")
+  badges                UserBadge[] @relation("UserBadges")
   
   // Profile
-  profileSettings   ProfileSettings? @relation("ProfileSettings")
+  profileSettings       ProfileSettings? @relation("ProfileSettings")
 
   @@index([email])
   @@index([username])
@@ -872,7 +871,8 @@ model Course {
   price                 String?
   salePrice             String?
   saleEndsAt            DateTime? // When the sale offer expires
-  
+  homepageType      String   @default("builder") // "builder" or "custom"
+  customHomepageFile String? // e.g., "homepage-v2.tsx"
   // Status Management
   status                CourseStatus @default(DRAFT)
   payments          Payment[] @relation("CoursePayments")
@@ -1020,7 +1020,7 @@ model CourseLessonResource {
 model CourseHomepage {
   id                    String   @id @default(cuid())
   courseId              String   @unique
-  userId                String   @unique
+  userId                String   // ✅ REMOVED @unique - allows multiple homepages per user
   
   // Background Settings
   backgroundType        String   @default("black")
@@ -1037,16 +1037,16 @@ model CourseHomepage {
   mainTitleLine2        String   @default("")
   mainTitleLine3        String   @default("")
   mainTitleHighlighted  String[] @default([])
-  mainTitleLine1Words   Json?    // TitleWord[]
-  mainTitleLine2Words   Json?    // TitleWord[]
-  mainTitleLine3Words   Json?    // TitleWord[]
+  mainTitleLine1Words   Json?
+  mainTitleLine2Words   Json?
+  mainTitleLine3Words   Json?
   
   // Subheading
   subheadingLines       Int      @default(1)
   subheadingText        String   @default("")
   subheadingHighlighted String[] @default([])
   subheadingSentences   String[] @default([])
-  subheadingWords       Json?    // SubheadingWord[]
+  subheadingWords       Json?
   
   // Video Section
   videoEnabled          Boolean  @default(true)
@@ -1054,6 +1054,7 @@ model CourseHomepage {
   videoTitle            String   @default("")
   videoDescription      String   @default("")
   videoDuration         String   @default("")
+  videoThumbnail        String?
   
   // CTA Button
   ctaButtonText         String   @default("START YOUR JOURNEY")
@@ -1064,7 +1065,7 @@ model CourseHomepage {
   
   // Relations
   course                Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  user                  Student  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                  Student  @relation("UserCourseHomepages", fields: [userId], references: [id], onDelete: Cascade) // ✅ CHANGED
   customSections        CourseCustomSection[]
   proofSection          CourseProofSection?
   testimonials          CourseTestimonialSection?
@@ -1078,7 +1079,7 @@ model CourseHomepage {
   updatedAt             DateTime @updatedAt
   
   @@index([courseId])
-  @@index([userId])
+  @@index([userId]) // ✅ Keep index for performance
 }
 
 // ============================================
@@ -2217,4 +2218,13 @@ model CourseRating {
   @@index([userId])
   @@index([rating])
   @@index([createdAt])
+}
+
+
+model CustomCoursesAccess {
+  id            String   @id @default(cuid())
+  accessKey     String   @unique // Hashed password
+  lastUsedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

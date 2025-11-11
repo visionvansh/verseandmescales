@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // ✅ Changed to Promise
 ) {
   try {
     const user = await getAuthUser(request);
@@ -13,7 +13,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const questionId = await params.id;
+    // ✅ Await params first, then access id
+    const { id: questionId } = await params;
 
     // Get question to find roomId for WebSocket broadcast
     const question = await prisma.question.findUnique({
@@ -80,19 +81,19 @@ export async function POST(
     }
 
     // ✅ Return response that WebSocket can use
-  return NextResponse.json({
-  success: true,
-  upvoted,
-  questionId,
-  userId: user.id,
-  roomId: question.roomId,
-  // ✅ ADD: Nested question object
-  question: {
-    id: questionId,
-    upvoteCount: newCount,
-    hasUpvoted: upvoted
-  }
-})
+    return NextResponse.json({
+      success: true,
+      upvoted,
+      questionId,
+      userId: user.id,
+      roomId: question.roomId,
+      // ✅ Nested question object
+      question: {
+        id: questionId,
+        upvoteCount: newCount,
+        hasUpvoted: upvoted
+      }
+    });
 
   } catch (error) {
     console.error('Error toggling upvote:', error);

@@ -5,10 +5,10 @@ import prisma from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { commentId: string } }
+  { params }: { params: Promise<{ commentId: string }> }
 ) {
   try {
-    const { commentId } = params;
+    const { commentId } = await params;
     const user = await getAuthUser(request);
 
     const comment = await prisma.comment.findUnique({
@@ -119,7 +119,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { commentId: string } }
+  { params }: { params: Promise<{ commentId: string }> }
 ) {
   try {
     const user = await getAuthUser(request);
@@ -131,7 +131,7 @@ export async function PATCH(
       );
     }
 
-    const { commentId } = params;
+    const { commentId } = await params;
     const { content } = await request.json();
 
     if (!content || content.trim().length === 0) {
@@ -227,7 +227,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { commentId: string } }
+  { params }: { params: Promise<{ commentId: string }> }
 ) {
   try {
     const user = await getAuthUser(request);
@@ -239,7 +239,7 @@ export async function DELETE(
       );
     }
 
-    const { commentId } = params;
+    const { commentId } = await params;
 
     const comment = await prisma.comment.findUnique({
       where: { id: commentId },

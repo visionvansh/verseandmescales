@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
-import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ ADD THIS IMPORT
 
 export async function GET(
   request: NextRequest,
@@ -25,9 +24,9 @@ export async function GET(
             name: true,
             username: true,
             img: true,
-            // ✅ ADD avatars to fetch custom avatar config
             avatars: {
               orderBy: { createdAt: 'desc' },
+              take: 1,
               select: {
                 id: true,
                 avatarIndex: true,
@@ -49,9 +48,9 @@ export async function GET(
                 name: true,
                 username: true,
                 img: true,
-                // ✅ ADD avatars here too
                 avatars: {
                   orderBy: { createdAt: 'desc' },
+                  take: 1,
                   select: {
                     id: true,
                     avatarIndex: true,
@@ -76,9 +75,9 @@ export async function GET(
                     name: true,
                     username: true,
                     img: true,
-                    // ✅ ADD avatars for replies too
                     avatars: {
                       orderBy: { createdAt: 'desc' },
+                      take: 1,
                       select: {
                         id: true,
                         avatarIndex: true,
@@ -100,6 +99,7 @@ export async function GET(
             }
           },
           orderBy: [
+            { isThanked: 'desc' }, // ✅ Thanked answers first
             { isAccepted: 'desc' },
             { isMentorAnswer: 'desc' },
             { upvoteCount: 'desc' },
@@ -135,28 +135,51 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // ✅ FIXED: Helper function using getAvatarUrlFromUser
-    const transformAnswer = (a: any) => ({
-      id: a.id,
-      content: a.content,
-      isAccepted: a.isAccepted,
-      isMentorAnswer: a.isMentorAnswer,
-      isThanked: a.isThanked,
-      thankedAt: a.thankedAt,
-      upvoteCount: a.upvoteCount,
-      replyCount: a.replyCount || 0,
-      parentAnswerId: a.parentAnswerId,
-      userId: a.userId,
-      userName: a.user.name || a.user.username,
-      userAvatar: getAvatarUrlFromUser(a.user, 64), // ✅ FIXED
-      isMentor: a.userId === question.room.course.userId,
-      hasUpvoted: a.upvotes.length > 0,
-      createdAt: a.createdAt,
-      updatedAt: a.updatedAt,
-      replies: a.replies?.map(transformAnswer) || []
-    });
+    // ✅ Helper to get avatar data from user
+    const getAvatarData = (userData: any) => {
+      const primaryAvatar = userData.avatars?.[0];
+      
+      return {
+        userAvatar: userData.img || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.id}`,
+        customImageUrl: primaryAvatar?.isCustomUpload ? primaryAvatar.customImageUrl : null,
+        userAvatarObject: primaryAvatar ? {
+          avatarIndex: primaryAvatar.avatarIndex,
+          avatarSeed: primaryAvatar.avatarSeed,
+          avatarStyle: primaryAvatar.avatarStyle,
+          isCustomUpload: primaryAvatar.isCustomUpload,
+          customImageUrl: primaryAvatar.customImageUrl,
+        } : null,
+      };
+    };
 
-    // ✅ FIXED: Transform response with getAvatarUrlFromUser
+    // ✅ Transform answer with avatar data
+    const transformAnswer = (a: any) => {
+      const avatarData = getAvatarData(a.user);
+      
+      return {
+        id: a.id,
+        content: a.content,
+        isAccepted: a.isAccepted,
+        isMentorAnswer: a.isMentorAnswer,
+        isThanked: a.isThanked,
+        thankedAt: a.thankedAt,
+        upvoteCount: a.upvoteCount,
+        replyCount: a.replyCount || 0,
+        parentAnswerId: a.parentAnswerId,
+        userId: a.userId,
+        userName: a.user.name || a.user.username,
+        ...avatarData, // ✅ Spread avatar data
+        isMentor: a.userId === question.room.course.userId,
+        hasUpvoted: a.upvotes.length > 0,
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt,
+        replies: a.replies?.map(transformAnswer) || []
+      };
+    };
+
+    // ✅ Transform question with avatar data
+    const questionAvatarData = getAvatarData(question.user);
+    
     const transformedQuestion = {
       id: question.id,
       title: question.title,
@@ -172,7 +195,7 @@ export async function GET(
       thanksGivenCount: question.thanksGivenCount || 0,
       userId: question.userId,
       userName: question.user.name || question.user.username,
-      userAvatar: getAvatarUrlFromUser(question.user, 64), // ✅ FIXED
+      ...questionAvatarData, // ✅ Spread avatar data
       lessonId: question.lessonId,
       moduleId: question.moduleId,
       hasUpvoted: question.upvotes.length > 0,

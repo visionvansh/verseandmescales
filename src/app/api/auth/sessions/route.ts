@@ -6,12 +6,12 @@ import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { CACHE_PREFIX, CACHE_TIMES, cacheWrapper, invalidateUserCache, redis } from '@/lib/enhanced-redis';
 
-// Define the type for the session object based on Prisma's UserSession and Device
+// ✅ FIXED: Define the type to match Prisma schema exactly
 type SessionWithDevice = {
   id: string;
   userId: string;
   sessionToken: string;
-  deviceId: string;
+  deviceId: string | null; // ✅ CHANGED: Allow null
   ipAddress: string | null;
   location: string | null;
   lastUsed: Date;
@@ -19,11 +19,12 @@ type SessionWithDevice = {
   createdAt: Date;
   sessionType: string;
   device: {
-    deviceName: string | null;
+    deviceName: string;
     browser: string | null;
     os: string | null;
     trusted: boolean;
     isAccountCreationDevice: boolean;
+    scheduledRevocationDate: Date | null; // ✅ ADDED: Missing field
   } | null;
 };
 
@@ -80,12 +81,12 @@ export async function GET(request: NextRequest) {
       console.log(`[Sessions API] Found ${sessions.length} active sessions`);
       
       // Transform sessions with additional info
-      const formattedSessions = sessions.map((session: SessionWithDevice) => {
+      const formattedSessions = sessions.map((session) => { // ✅ REMOVED type annotation
         const isCurrent = session.sessionToken === currentSessionToken;
         
         return {
           id: session.id,
-          deviceId: session.deviceId,
+          deviceId: session.deviceId, // ✅ Now correctly nullable
           deviceName: session.device?.deviceName || 'Unknown device',
           browser: session.device?.browser || 'Unknown browser',
           os: session.device?.os || 'Unknown OS',
@@ -95,7 +96,7 @@ export async function GET(request: NextRequest) {
           expiresAt: session.expiresAt,
           current: isCurrent,
           trusted: session.device?.trusted || false,
-          isAccountCreationDevice: session.device?.isAccountCreationDevice || false, // ✅ NEW
+          isAccountCreationDevice: session.device?.isAccountCreationDevice || false,
           sessionType: session.sessionType,
           // Check for manually scheduled revocation
           scheduledRevocationDate: (() => {
@@ -116,7 +117,7 @@ export async function GET(request: NextRequest) {
       return {
         sessions: formattedSessions,
         count: formattedSessions.length,
-        timestamp: Date.now() // ✅ Add timestamp for client-side cache busting
+        timestamp: Date.now()
       };
     };
     
@@ -142,8 +143,8 @@ export async function GET(request: NextRequest) {
     const response = await cacheWrapper(
       cacheKey,
       fetchSessions,
-      10, // ✅ SHORT cache: 10 seconds for near real-time
-      true // Use stale-while-revalidate
+      10,
+      true
     );
     
     return NextResponse.json(response, {
@@ -203,7 +204,7 @@ export async function POST(request: NextRequest) {
       success: true,
       action,
       sessionId,
-      timestamp: Date.now() // ✅ Add timestamp
+      timestamp: Date.now()
     });
   } catch (error) {
     console.error('Error processing session action:', error);

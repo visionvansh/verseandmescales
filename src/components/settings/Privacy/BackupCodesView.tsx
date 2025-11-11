@@ -9,14 +9,21 @@ import {
   FaPrint,
 } from "react-icons/fa";
 
+interface BackupCodesViewProps {
+  backupCodes: string[];
+  copiedIndex: number | null;
+  setCopiedIndex: (index: number | null) => void;
+  onBackupCodesConfirmation: () => void;
+}
+
 const BackupCodesView = ({ 
   backupCodes, 
   copiedIndex, 
   setCopiedIndex,
   onBackupCodesConfirmation 
-}) => {
+}: BackupCodesViewProps) => {
 
-  const handleCopyBackupCode = (code, index) => {
+  const handleCopyBackupCode = (code: string, index: number) => {
     navigator.clipboard.writeText(code);
     setCopiedIndex(index);
     setTimeout(() => {
@@ -107,7 +114,7 @@ const BackupCodesView = ({
           <p>These backup codes can be used to access your account if you lose access to your authenticator device. Each code can only be used once.</p>
           
           <div class="codes">
-            ${backupCodes.map((code) => `<div class="code">${code}</div>`).join("")}
+            ${backupCodes.map((code: string) => `<div class="code">${code}</div>`).join("")}
           </div>
           
           <p>Generated on: ${new Date().toLocaleString()}</p>
@@ -157,7 +164,7 @@ const BackupCodesView = ({
 
         <div className="bg-gray-800/50 rounded-lg border border-gray-700/30 p-4 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {backupCodes.map((code, index) => (
+            {backupCodes.map((code: string, index: number) => (
               <div
                 key={index}
                 className="flex justify-between items-center bg-gray-900/80 p-2 rounded border border-gray-700/30"

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     if (!stats) {
       // Create default stats
-      const homepage = await prisma.courseHomepage.findUnique({
+      const homepage = await prisma.courseHomepage.findFirst({
         where: { userId: user.id }
       });
 
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     const data = await request.json();
     
-    const homepage = await prisma.courseHomepage.findUnique({
+    const homepage = await prisma.courseHomepage.findFirst({
       where: { userId: user.id }
     });
 

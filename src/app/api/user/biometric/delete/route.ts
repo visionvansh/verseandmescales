@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { redis } from '@/lib/redis';
-import { PrismaClient } from '@prisma/client';
 
 export async function POST(request: NextRequest) {
   // Add request timeout handling (unchanged)
@@ -29,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use Prisma transaction to ensure consistency (original logic unchanged)
-    const result = await prisma.$transaction(async (tx: PrismaClient) => {
+    const result = await prisma.$transaction(async (tx) => {
       // Verify the credential belongs to the user
       const credential = await tx.biometricCredential.findFirst({
         where: {

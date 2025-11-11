@@ -1,6 +1,6 @@
 // hooks/useUserHover.ts
 "use client";
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { User } from '@/components/course-builder/chats/types';
 
 export function useUserHover() {
@@ -15,9 +15,11 @@ export function useUserHover() {
     }
 
     const rect = e.currentTarget.getBoundingClientRect();
+    
+    // ✅ Position card centered above the avatar
     setHoverPosition({
-      x: rect.right + 10,
-      y: rect.top + rect.height / 2
+      x: rect.left + rect.width / 2,
+      y: rect.top
     });
     setHoveredUser(user);
     

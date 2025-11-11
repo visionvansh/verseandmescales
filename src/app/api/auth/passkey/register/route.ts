@@ -1,7 +1,8 @@
 //api/auth/passkey/register
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
-import { generatePasskeyRegistrationOptions, verifyPasskeyRegistration } from'@/utils/passkeys';
+import { generatePasskeyRegistrationOptions, verifyPasskeyRegistration } from '@/utils/passkeys';
+import prisma from '@/lib/prisma'; // ✅ ADD THIS IMPORT
 
 // Generate registration options
 export async function GET(request: NextRequest) {

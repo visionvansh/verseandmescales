@@ -6,10 +6,11 @@ import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ ADD IMPOR
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { postId: string } }
+  { params }: { params: Promise<{ postId: string }> }
 ) {
   try {
-    const { postId } = params;
+    // Await params
+    const { postId } = await params;
 
     const likes = await prisma.postLike.findMany({
       where: { postId },

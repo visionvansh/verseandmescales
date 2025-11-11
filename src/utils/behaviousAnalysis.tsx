@@ -1,4 +1,4 @@
-// utils/behaviousAnalysis.ts
+// utils/behaviousAnalysis.tsx
 
 import prisma from '@/lib/prisma';
 import { redis } from '@/lib/redis';
@@ -20,7 +20,7 @@ type LoginAnalytics = {
   deviceType: string | null;
   browser: string | null;
   os: string | null;
-  dayOfWeek: number;
+  dayOfWeek: string; // ✅ CHANGED from number to string to match Prisma schema
   hourOfDay: number;
   loginDuration: number | null;
 };
@@ -257,14 +257,16 @@ async function getUserBehaviorProfile(userId: string): Promise<BehaviorProfile> 
   const deviceCounts = new Map<string, number>();
   const timeCounts = new Map<string, number>();
 
-  analytics.forEach((log: LoginAnalytics) => {
+  analytics.forEach((log) => {
     const locKey = `${log.country}:${log.city}`;
     locationCounts.set(locKey, (locationCounts.get(locKey) || 0) + 1);
 
     const devKey = `${log.deviceType}:${log.browser}:${log.os}`;
     deviceCounts.set(devKey, (deviceCounts.get(devKey) || 0) + 1);
 
-    const timeKey = `${log.dayOfWeek}:${log.hourOfDay}`;
+    // ✅ FIXED: Parse dayOfWeek as number since it comes as string from DB
+    const dayOfWeek = parseInt(log.dayOfWeek, 10);
+    const timeKey = `${dayOfWeek}:${log.hourOfDay}`;
     timeCounts.set(timeKey, (timeCounts.get(timeKey) || 0) + 1);
   });
 
@@ -286,12 +288,16 @@ async function getUserBehaviorProfile(userId: string): Promise<BehaviorProfile> 
       return { day, hour };
     });
 
+  // ✅ FIXED: Properly handle reduce with initial value
+  const totalDuration = analytics.reduce((sum, log) => sum + (log.loginDuration || 0), 0);
+  const avgSessionDuration = analytics.length > 0 ? totalDuration / analytics.length : 0;
+
   const profile: BehaviorProfile = {
     userId,
     commonLocations,
     commonDevices,
     commonTimes,
-    avgSessionDuration: analytics.reduce((sum: number, log: LoginAnalytics) => sum + (log.loginDuration || 0), 0) / analytics.length,
+    avgSessionDuration,
     loginFrequency: analytics.length,
     suspiciousPatterns: []
   };
@@ -462,7 +468,7 @@ async function checkConcurrentSessions(
 
   const countries = new Set(
     recentSessions
-      .map((s: UserSession) => s.country)
+      .map((s) => s.country)
       .filter(c => c && c !== 'Unknown')
   );
   

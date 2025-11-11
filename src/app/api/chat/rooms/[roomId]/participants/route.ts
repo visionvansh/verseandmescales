@@ -6,7 +6,7 @@ import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ ADD THIS
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { roomId: string } }
+  { params }: { params: Promise<{ roomId: string }> } // ✅ CHANGED TO Promise
 ) {
   try {
     const user = await getAuthUser(request);
@@ -14,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { roomId } = await params;
+    const { roomId } = await params; // ✅ AWAIT params
 
     // Verify access
     const participant = await prisma.chatParticipant.findUnique({

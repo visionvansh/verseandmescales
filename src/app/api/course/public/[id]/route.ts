@@ -1,4 +1,3 @@
-// app/api/course/public/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
@@ -18,7 +17,7 @@ export async function GET(
       );
     }
 
-    // Find published course by ID
+    // Find published course by ID (all scalar fields like saleEndsAt are included by default)
     const course = await prisma.course.findFirst({
       where: {
         id: id,
@@ -110,6 +109,13 @@ export async function GET(
 
     console.log('📊 Course found:', course ? 'YES' : 'NO');
     console.log('📊 Has homepage:', course?.homepage ? 'YES' : 'NO');
+    // ✅ NEW: Log sale/timer data for debugging
+    console.log('💰 Sale/Timer Data from DB:', {
+      price: course?.price,
+      salePrice: course?.salePrice,
+      saleEndsAt: course?.saleEndsAt ? course.saleEndsAt.toISOString() : null,
+      hasActiveSale: !!(course?.salePrice && course?.saleEndsAt && new Date() < new Date(course.saleEndsAt))
+    });
 
     if (!course) {
       console.log('❌ Course not found with id:', id);
@@ -135,7 +141,12 @@ export async function GET(
 
     console.log('✅ Returning course data for:', course.title);
 
-    return NextResponse.json(transformedData, { status: 200 });
+    return NextResponse.json({
+      ...transformedData,
+      // ✅ NEW: Add homepage type info
+      homepageType: course.homepageType || "builder",
+      customHomepageFile: course.customHomepageFile || null,
+    }, { status: 200 });
   } catch (error) {
     console.error('❌ Error fetching public course:', error);
     return NextResponse.json(
@@ -197,7 +208,7 @@ function calculateRealTimeStats(course: any) {
   };
 }
 
-// ✅ UPDATED: Transform function with real-time stats
+// ✅ UPDATED: Transform function with real-time stats + saleEndsAt
 function transformPublicCourseData(course: any, realTimeStats: any) {
   const homepage = course.homepage;
   
@@ -205,6 +216,20 @@ function transformPublicCourseData(course: any, realTimeStats: any) {
   const primaryAvatar = course.user.avatars?.find((a: any) => a.isPrimary) || 
                         course.user.avatars?.[0] || 
                         null;
+
+  // ✅ CRITICAL FIX: Get pricing from Course model directly (works for both builder and custom)
+  const coursePrice = course.price || '0';
+  const courseSalePrice = course.salePrice || null;
+  // ✅ NEW: Include saleEndsAt from Course model (this was missing!)
+  const saleEndsAt = course.saleEndsAt ? course.saleEndsAt.toISOString() : null;
+
+  // ✅ NEW: Log transformed sale data
+  console.log('🔄 Transformed Sale Data:', {
+    price: coursePrice,
+    salePrice: courseSalePrice,
+    saleEndsAt,
+    hasActiveSale: !!(courseSalePrice && saleEndsAt && new Date() < new Date(saleEndsAt))
+  });
 
   return {
     // Course Info
@@ -225,152 +250,163 @@ function transformPublicCourseData(course: any, realTimeStats: any) {
       primaryAvatar: primaryAvatar,
     },
     
-    backgroundType: homepage.backgroundType || 'black',
-    backgroundColor: homepage.backgroundColor || '#000000',
-    gradientFrom: homepage.gradientFrom || '#dc2626',
-    gradientTo: homepage.gradientTo || '#000000',
-    primaryColor: homepage.primaryColor || '#dc2626',
-    secondaryColor: homepage.secondaryColor || '#000000',
-    darkMode: homepage.darkMode !== false,
-    
-    mainTitle: {
-      line1: homepage.mainTitleLine1 || '',
-      line2: homepage.mainTitleLine2 || '',
-      line3: homepage.mainTitleLine3 || '',
-      highlightedWords: homepage.mainTitleHighlighted || [],
-      line1Words: homepage.mainTitleLine1Words || null,
-      line2Words: homepage.mainTitleLine2Words || null,
-      line3Words: homepage.mainTitleLine3Words || null,
-    },
-    mainTitleLines: homepage.mainTitleLines || 1,
-    
-    subheading: {
-      text: homepage.subheadingText || '',
-      highlightedWords: homepage.subheadingHighlighted || [],
-      highlightedSentences: homepage.subheadingSentences || [],
-      words: homepage.subheadingWords || null,
-    },
-    subheadingLines: homepage.subheadingLines || 1,
-    
-    videoEnabled: homepage.videoEnabled !== false,
-    videoUrl: homepage.videoUrl || '',
-    videoTitle: homepage.videoTitle || '',
-    videoDescription: homepage.videoDescription || '',
-    videoDuration: homepage.videoDuration || '',
-    videoThumbnail: homepage.videoThumbnail || null,
-    
-    ctaButtonText: homepage.ctaButtonText || 'START YOUR JOURNEY',
-    ctaButtonIcon: homepage.ctaButtonIcon || 'FaRocket',
-    
-    statsEnabled: homepage.statsEnabled !== false,
-    
-    customSections: (homepage.customSections || []).map((section: any) => {
-      let cards = [];
-      try {
-        cards = typeof section.features === 'string' 
-          ? JSON.parse(section.features) 
-          : section.features || [];
-      } catch (e) {
-        console.error('Error parsing section features:', e);
-        cards = [];
-      }
+    // ✅ Only include homepage data if it exists (for builder courses)
+    ...(homepage && {
+      backgroundType: homepage.backgroundType || 'black',
+      backgroundColor: homepage.backgroundColor || '#000000',
+      gradientFrom: homepage.gradientFrom || '#dc2626',
+      gradientTo: homepage.gradientTo || '#000000',
+      primaryColor: homepage.primaryColor || '#dc2626',
+      secondaryColor: homepage.secondaryColor || '#000000',
+      darkMode: homepage.darkMode !== false,
+      
+      mainTitle: {
+        line1: homepage.mainTitleLine1 || '',
+        line2: homepage.mainTitleLine2 || '',
+        line3: homepage.mainTitleLine3 || '',
+        highlightedWords: homepage.mainTitleHighlighted || [],
+        line1Words: homepage.mainTitleLine1Words || null,
+        line2Words: homepage.mainTitleLine2Words || null,
+        line3Words: homepage.mainTitleLine3Words || null,
+      },
+      mainTitleLines: homepage.mainTitleLines || 1,
+      
+      subheading: {
+        text: homepage.subheadingText || '',
+        highlightedWords: homepage.subheadingHighlighted || [],
+        highlightedSentences: homepage.subheadingSentences || [],
+        words: homepage.subheadingWords || null,
+      },
+      subheadingLines: homepage.subheadingLines || 1,
+      
+      videoEnabled: homepage.videoEnabled !== false,
+      videoUrl: homepage.videoUrl || '',
+      videoTitle: homepage.videoTitle || '',
+      videoDescription: homepage.videoDescription || '',
+      videoDuration: homepage.videoDuration || '',
+      videoThumbnail: homepage.videoThumbnail || null,
+      
+      ctaButtonText: homepage.ctaButtonText || 'START YOUR JOURNEY',
+      ctaButtonIcon: homepage.ctaButtonIcon || 'FaRocket',
+      
+      statsEnabled: homepage.statsEnabled !== false,
+      
+      customSections: (homepage.customSections || []).map((section: any) => {
+        let cards = [];
+        try {
+          cards = typeof section.features === 'string' 
+            ? JSON.parse(section.features) 
+            : section.features || [];
+        } catch (e) {
+          console.error('Error parsing section features:', e);
+          cards = [];
+        }
 
-      return {
-        id: section.sectionId,
-        order: section.position,
-        title: section.title || '',
-        titleWords: section.titleWords || null,
-        subtitle: section.description || '',
-        descriptionWords: section.descriptionWords || null,
-        cards: cards,
-        layout: section.layout || 'text-image',
-        imageUrl: section.imageUrl || null,
-        imagePosition: section.imagePosition || 'right',
-        imageRounded: section.imageRounded || false,
-        imageBorder: section.imageBorder || false,
-        buttonText: section.buttonText || null,
-        buttonIcon: section.buttonIcon || null,
-        buttonLink: section.buttonLink || null,
-        backgroundColor: section.backgroundColor || 'transparent',
-        paddingTop: section.paddingTop || 'normal',
-        paddingBottom: section.paddingBottom || 'normal',
-      };
+        return {
+          id: section.sectionId,
+          order: section.position,
+          title: section.title || '',
+          titleWords: section.titleWords || null,
+          subtitle: section.description || '',
+          descriptionWords: section.descriptionWords || null,
+          cards: cards,
+          layout: section.layout || 'text-image',
+          imageUrl: section.imageUrl || null,
+          imagePosition: section.imagePosition || 'right',
+          imageRounded: section.imageRounded || false,
+          imageBorder: section.imageBorder || false,
+          buttonText: section.buttonText || null,
+          buttonIcon: section.buttonIcon || null,
+          buttonLink: section.buttonLink || null,
+          backgroundColor: section.backgroundColor || 'transparent',
+          paddingTop: section.paddingTop || 'normal',
+          paddingBottom: section.paddingBottom || 'normal',
+        };
+      }),
+      
+      proofSectionEnabled: homepage.proofSection?.enabled || false,
+      proofSectionTitle: homepage.proofSection?.title || 'REAL PROOF FROM REAL STUDENTS',
+      proofSectionTitleWords: homepage.proofSection?.titleWords || [],
+      proofImages: (homepage.proofSection?.images || []).map((img: any) => ({
+        id: img.id,
+        order: img.position,
+        imageUrl: img.imageUrl,
+        title: img.caption || '',
+        description: img.altText || '',
+        category: img.category || null,
+        showCategory: img.showCategory !== false,
+      })),
+      
+      testimonialsEnabled: homepage.testimonials?.enabled || false,
+      testimonialsTitle: homepage.testimonials?.title || 'HEAR IT FROM OUR STUDENTS',
+      testimonialsTitleWords: homepage.testimonials?.titleWords || [],
+      testimonials: (homepage.testimonials?.testimonials || []).map((t: any) => ({
+        id: t.id,
+        order: t.position,
+        name: t.name,
+        role: t.role || 'Student',
+        company: t.company || null,
+        avatar: t.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.name)}&background=dc2626&color=fff`,
+        thumbnail: t.avatarUrl || null,
+        rating: t.rating || 5,
+        text: t.content,
+        content: t.content,
+        highlight: t.content,
+        featured: t.featured || false,
+        instagramHandle: t.instagramHandle || null,
+        linkedinUrl: t.linkedinUrl || null,
+        twitterHandle: t.twitterHandle || null,
+        customFields: [],
+        videoFile: null,
+        videoLength: null,
+      })),
+      
+      faqEnabled: homepage.faqSection?.enabled || false,
+      faqTitle: homepage.faqSection?.title || 'GOT QUESTIONS?',
+      faqTitleWords: homepage.faqSection?.titleWords || [],
+      faqs: (homepage.faqSection?.faqs || []).map((faq: any) => ({
+        id: faq.id,
+        order: faq.position,
+        question: faq.question,
+        answer: faq.answer,
+        category: faq.category || null,
+      })),
+      
+      footerTitle: homepage.footer?.title || 'READY TO START?',
+      footerTitleWords: homepage.footer?.titleWords || [],
+      footerDescription: homepage.footer?.description || 'Join thousands of successful students',
+      footerDescriptionWords: homepage.footer?.descriptionWords || [],
+      footerIcons: homepage.footer?.icons || [],
+      
+      sectionBadges: (homepage.sectionBadges || []).map((badge: any) => ({
+        sectionId: badge.sectionId,
+        type: badge.sectionType,
+        enabled: badge.enabled,
+        text: badge.text,
+        emoji: badge.emoji,
+      })),
     }),
     
-    proofSectionEnabled: homepage.proofSection?.enabled || false,
-    proofSectionTitle: homepage.proofSection?.title || 'REAL PROOF FROM REAL STUDENTS',
-    proofSectionTitleWords: homepage.proofSection?.titleWords || [],
-    proofImages: (homepage.proofSection?.images || []).map((img: any) => ({
-      id: img.id,
-      order: img.position,
-      imageUrl: img.imageUrl,
-      title: img.caption || '',
-      description: img.altText || '',
-      category: img.category || null,
-      showCategory: img.showCategory !== false,
-    })),
+    // ✅ CRITICAL: Always use Course model pricing (works for BOTH builder and custom courses)
+    footerPrice: coursePrice,
+    footerSalePrice: courseSalePrice,
+    footerCurrency: 'USD',
     
-    testimonialsEnabled: homepage.testimonials?.enabled || false,
-    testimonialsTitle: homepage.testimonials?.title || 'HEAR IT FROM OUR STUDENTS',
-    testimonialsTitleWords: homepage.testimonials?.titleWords || [],
-    testimonials: (homepage.testimonials?.testimonials || []).map((t: any) => ({
-      id: t.id,
-      order: t.position,
-      name: t.name,
-      role: t.role || 'Student',
-      company: t.company || null,
-      avatar: t.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.name)}&background=dc2626&color=fff`,
-      thumbnail: t.avatarUrl || null,
-      rating: t.rating || 5,
-      text: t.content,
-      content: t.content,
-      highlight: t.content,
-      featured: t.featured || false,
-      instagramHandle: t.instagramHandle || null,
-      linkedinUrl: t.linkedinUrl || null,
-      twitterHandle: t.twitterHandle || null,
-      customFields: [],
-      videoFile: null,
-      videoLength: null,
-    })),
+    // Also add these for backward compatibility
+    price: coursePrice,
+    salePrice: courseSalePrice,
+    // ✅ NEW: Include saleEndsAt (this fixes the timer not fetching in HomepageV2)
+    saleEndsAt: saleEndsAt,
+    thumbnail: course.thumbnail,
     
-    faqEnabled: homepage.faqSection?.enabled || false,
-    faqTitle: homepage.faqSection?.title || 'GOT QUESTIONS?',
-    faqTitleWords: homepage.faqSection?.titleWords || [],
-    faqs: (homepage.faqSection?.faqs || []).map((faq: any) => ({
-      id: faq.id,
-      order: faq.position,
-      question: faq.question,
-      answer: faq.answer,
-      category: faq.category || null,
-    })),
-    
-    footerTitle: homepage.footer?.title || 'READY TO START?',
-    footerTitleWords: homepage.footer?.titleWords || [],
-    footerDescription: homepage.footer?.description || 'Join thousands of successful students',
-    footerDescriptionWords: homepage.footer?.descriptionWords || [],
-    footerPrice: homepage.footer?.price || '0',
-    footerSalePrice: homepage.footer?.salePrice || null,
-    footerCurrency: homepage.footer?.currency || 'USD',
-    footerIcons: homepage.footer?.icons || [],
-    
-    sectionBadges: (homepage.sectionBadges || []).map((badge: any) => ({
-      sectionId: badge.sectionId,
-      type: badge.sectionType,
-      enabled: badge.enabled,
-      text: badge.text,
-      emoji: badge.emoji,
-    })),
-    
-    // ✅ UPDATED: Use real-time calculated stats
     courseStats: {
       activeStudents: realTimeStats.activeStudents,
       courseRating: realTimeStats.courseRating,
       monthlyIncome: realTimeStats.monthlyIncome,
       avgGrowth: realTimeStats.avgSales.toString(),
       totalEnrollments: realTimeStats.activeStudents,
-      completionRate: homepage.courseStats?.completionRate || 0,
-      averageProgress: homepage.courseStats?.averageProgress || 0,
+      completionRate: homepage?.courseStats?.completionRate || 0,
+      averageProgress: homepage?.courseStats?.averageProgress || 0,
     },
     
     modules: (course.modules || []).map((module: any) => ({

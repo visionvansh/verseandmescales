@@ -4,7 +4,6 @@ import { getAuthUser } from '@/utils/auth';
 import { verifyRegistrationResponse } from '@simplewebauthn/server';
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
 import { redis } from '@/lib/redis';
-import { PrismaClient } from '@prisma/client';
 
 // Get configuration from environment variables with better defaults (unchanged)
 const rpID = process.env.WEBAUTHN_RP_ID || (process.env.NODE_ENV === 'production' ? undefined : 'localhost');
@@ -137,7 +136,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Use Prisma transaction to ensure consistency (original logic unchanged)
-        const result = await prisma.$transaction(async (tx: PrismaClient) => {
+        const result = await prisma.$transaction(async (tx) => {
           // Save the credential to the database
           const newCredential = await tx.biometricCredential.create({
             data: {

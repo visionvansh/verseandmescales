@@ -6,7 +6,7 @@ const ALLOWED_EMOJIS = ['❤️', '👍', '😂', '😮', '😢', '😡', '🎉'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { commentId: string } }
+  { params }: { params: Promise<{ commentId: string }> }
 ) {
   try {
     const user = await getAuthUser(request);
@@ -18,7 +18,7 @@ export async function POST(
       );
     }
 
-    const { commentId } = params;
+    const { commentId } = await params;
     const { emoji } = await request.json();
 
     if (!emoji || !ALLOWED_EMOJIS.includes(emoji)) {

@@ -5,7 +5,6 @@ import { CACHE_PREFIX, CACHE_TIMES, cacheWrapper, invalidateUserCache } from '@/
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/log';
 import { rateLimit } from '@/lib/rateLimit';
-import { PrismaClient } from '@prisma/client';
 
 // Interface for device session response
 interface DeviceSessionResponse {
@@ -291,8 +290,8 @@ export async function POST(request: NextRequest) {
 
     let result: any;
 
-    // Execute action in transaction
-    await prisma.$transaction(async (tx: typeof prisma) => {
+    // Execute action in transaction - FIXED: Removed type annotation
+    await prisma.$transaction(async (tx) => {
       switch (action) {
         case 'trust':
           result = await tx.userDevice.update({
@@ -357,7 +356,8 @@ export async function POST(request: NextRequest) {
             throw new Error('Session ID is required');
           }
           
-          const session = device.sessions.find((s: UserSession) => s.id === data.sessionId);
+          // FIXED: Use type assertion since we know the structure
+          const session = device.sessions.find((s: { id: string; sessionToken: string }) => s.id === data.sessionId);
           if (!session) {
             throw new Error('Session not found');
           }

@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Code is valid - mark as verified
-    await prisma.$transaction(async (tx: PrismaClient) => {
+    await prisma.$transaction(async (tx) => {
       // Mark verification as completed
       await tx.phoneVerification.update({
         where: { id: verification.id },

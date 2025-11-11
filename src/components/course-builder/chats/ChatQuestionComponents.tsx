@@ -1,4 +1,3 @@
-// components/course-builder/chats/ChatQuestionComponents.tsx
 "use client";
 
 import React, {
@@ -10,8 +9,10 @@ import React, {
   useCallback,
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from 'react-dom';
 import UserHoverCard from "@/components/course-builder/chats/ChatUserHoverCard";
 import { useUserHover } from "@/hooks/useUserHover";
+import AvatarGenerator from "@/components/settings/AvatarGenerator";
 import {
   FaClock,
   FaPlay,
@@ -95,7 +96,86 @@ import {
 } from "./ChatUIComponents";
 
 // ============================================
-// IMPROVED QUESTION CARD WITH UPVOTE FUNCTIONALITY
+// PORTAL HOOK
+// ============================================
+
+const usePortal = () => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  return mounted;
+};
+
+// ============================================
+// PROFILE AVATAR COMPONENT
+// ============================================
+
+const ProfileAvatar = ({ 
+  customImage, 
+  avatar, 
+  userId, 
+  size = 32,
+  className = ""
+}: { 
+  customImage?: string | null;
+  avatar?: any | null;
+  userId: string;
+  size?: number;
+  className?: string;
+}) => {
+  if (customImage) {
+    return (
+      <img 
+        src={customImage} 
+        alt="Profile" 
+        width={size} 
+        height={size} 
+        className={`object-cover rounded-full ${className}`}
+      />
+    );
+  }
+
+  if (avatar?.isCustomUpload && avatar.customImageUrl) {
+    return (
+      <img 
+        src={avatar.customImageUrl} 
+        alt="Profile" 
+        width={size} 
+        height={size} 
+        className={`object-cover rounded-full ${className}`}
+      />
+    );
+  }
+
+  if (avatar && avatar.avatarIndex >= 0) {
+    return (
+      <AvatarGenerator
+        userId={userId}
+        avatarIndex={avatar.avatarIndex}
+        size={size}
+        style={avatar.avatarStyle as 'avataaars'}
+        className={className}
+      />
+    );
+  }
+
+  return (
+    <AvatarGenerator
+      userId={userId}
+      avatarIndex={-1}
+      size={size}
+      useDefault={true}
+      className={className}
+    />
+  );
+};
+
+// ============================================
+// IMPROVED QUESTION CARD
 // ============================================
 
 interface QuestionCardProps {
@@ -116,7 +196,6 @@ export const QuestionCard = memo(
   }: QuestionCardProps) => {
     const [isUpvoting, setIsUpvoting] = useState(false);
 
-    // ✅ ADD HOVER FUNCTIONALITY
     const {
       showHoverCard,
       hoveredUser,
@@ -126,7 +205,6 @@ export const QuestionCard = memo(
       keepHoverCardOpen,
     } = useUserHover();
 
-    // Transform question user to User type
     const questionUser: User = useMemo(
       () => ({
         id: question.userId,
@@ -135,7 +213,6 @@ export const QuestionCard = memo(
         avatar: question.userAvatar,
         isOnline: true,
         role: "student",
-        // Add default values - these should come from API
         xp: 0,
         seekers: 0,
         seeking: 0,
@@ -149,7 +226,7 @@ export const QuestionCard = memo(
     );
 
     const handleUpvote = async (e: React.MouseEvent) => {
-      e.stopPropagation(); // ✅ Prevent card click
+      e.stopPropagation();
 
       if (isUpvoting) return;
 
@@ -178,7 +255,6 @@ export const QuestionCard = memo(
     if (compact) {
       return (
         <>
-          {/* ✅ CHANGED: button → div with cursor-pointer */}
           <div
             onClick={onClick}
             className="w-full text-left bg-gray-900/50 hover:bg-gray-800/50 border border-gray-800 hover:border-red-500/30 rounded-xl p-3 transition-all group cursor-pointer"
@@ -202,7 +278,6 @@ export const QuestionCard = memo(
                   <span>•</span>
                   <span>{question.answerCount} answers</span>
 
-                  {/* ✅ NEW: Show thanks count */}
                   {question.thanksGivenCount > 0 && (
                     <>
                       <span>•</span>
@@ -230,7 +305,6 @@ export const QuestionCard = memo(
             </div>
           </div>
 
-          {/* ✅ ADD HOVER CARD */}
           <div onMouseEnter={keepHoverCardOpen} onMouseLeave={handleUserLeave}>
             {hoveredUser && (
               <UserHoverCard
@@ -246,14 +320,12 @@ export const QuestionCard = memo(
 
     return (
       <>
-        {/* ✅ CHANGED: button → div with cursor-pointer */}
         <div
           onClick={onClick}
           className="w-full text-left bg-gradient-to-br from-gray-900/80 to-black/90 border border-gray-800 hover:border-red-500/30 rounded-xl p-4 sm:p-5 transition-all group hover:-translate-y-0.5 question-card cursor-pointer"
         >
           <div className="flex items-start gap-3 sm:gap-4">
             <div className="flex flex-col items-center gap-1 flex-shrink-0">
-              {/* ✅ Now this button is not nested */}
               <motion.button
                 onClick={handleUpvote}
                 disabled={isUpvoting}
@@ -272,7 +344,6 @@ export const QuestionCard = memo(
               </span>
             </div>
 
-            {/* ✅ ADD HOVER TO AVATAR */}
             <div
               onMouseEnter={(e) => {
                 e.stopPropagation();
@@ -280,21 +351,22 @@ export const QuestionCard = memo(
               }}
               onMouseLeave={handleUserLeave}
             >
-              <img
-                src={question.userAvatar}
-                alt={question.userName}
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-red-500/30 flex-shrink-0 cursor-pointer hover:border-red-500/50 transition-colors"
+              <ProfileAvatar
+                customImage={question.customImageUrl}
+                avatar={question.userAvatarObject}
+                userId={question.userId}
+                size={compact ? 40 : 48}
+                className="border-2 border-red-500/30 flex-shrink-0 cursor-pointer hover:border-red-500/50 transition-colors"
               />
             </div>
 
-            {/* Content */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <span className="text-sm font-semibold text-white">
                   {question.userName}
                 </span>
                 <span className="text-xs text-gray-500">
-                  {new Date(question.createdAt).toLocaleDateString()}
+                  {new Date(question.createdAt).toLocaleString()}
                 </span>
                 {question.isPinned && (
                   <div className="ml-auto">
@@ -363,7 +435,6 @@ export const QuestionCard = memo(
           </div>
         </div>
 
-        {/* Animated underline */}
         <motion.div
           className="h-0.5 bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
           initial={{ scaleX: 0 }}
@@ -371,7 +442,6 @@ export const QuestionCard = memo(
           transition={{ duration: 0.3 }}
         />
 
-        {/* ✅ ADD HOVER CARD */}
         <div onMouseEnter={keepHoverCardOpen} onMouseLeave={handleUserLeave}>
           {hoveredUser && (
             <UserHoverCard
@@ -388,11 +458,7 @@ export const QuestionCard = memo(
 QuestionCard.displayName = "QuestionCard";
 
 // ============================================
-// IMPROVED NEW QUESTION MODAL
-// ============================================
-
-// ============================================
-// NEW QUESTION MODAL - RESTORED PREVIOUS UI
+// NEW QUESTION MODAL - REDESIGNED LIKE SETTINGS
 // ============================================
 
 export const NewQuestionModal = memo(
@@ -409,6 +475,7 @@ export const NewQuestionModal = memo(
     roomId: string;
     onQuestionCreated: (question: any) => void;
   }) => {
+    const isMounted = usePortal();
     const [step, setStep] = useState(1);
     const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
     const [title, setTitle] = useState("");
@@ -422,7 +489,6 @@ export const NewQuestionModal = memo(
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Reset form when modal closes
     useEffect(() => {
       if (!isOpen) {
         setStep(1);
@@ -450,7 +516,7 @@ export const NewQuestionModal = memo(
         const questionData = {
           roomId,
           lessonId: selectedLesson.id,
-          moduleId: selectedLesson.moduleId, // ✅ ADD THIS - was missing!
+          moduleId: selectedLesson.moduleId,
           title: title.trim(),
           description: description.trim(),
           videoTimestamp: videoTimestamp || undefined,
@@ -458,14 +524,14 @@ export const NewQuestionModal = memo(
           tags,
         };
 
-        console.log("📝 Creating question with data:", questionData); // Debug log
+        console.log("📝 Creating question with data:", questionData);
 
         const response = await QuestionAPI.createQuestion(questionData);
 
         onQuestionCreated(response.question);
         onClose();
 
-        toast.success("Question posted successfully!"); // If you have toast
+        toast.success("Question posted successfully!");
       } catch (err: any) {
         console.error("Failed to create question:", err);
         setError(err.message || "Failed to create question");
@@ -486,549 +552,533 @@ export const NewQuestionModal = memo(
       setTags(tags.filter((tag) => tag !== tagToRemove));
     };
 
-    if (!isOpen) return null;
+    if (!isOpen || !isMounted) return null;
 
-    return (
-      // ✅ UPDATED: Better mobile support
+    const modalContent = (
       <div
-        className="fixed inset-0 z-[100] flex items-center justify-center p-2 xs:p-3 sm:p-4 bg-black/90 backdrop-blur-md overflow-y-auto"
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
         onClick={onClose}
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-        }}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="w-full max-w-4xl my-auto bg-gradient-to-br from-gray-900 to-black border border-red-500/30 rounded-xl sm:rounded-2xl overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
-          style={{
-            maxHeight: 'calc(100vh - 32px)',
-            minHeight: '300px'
-          }}
+          className="w-full max-w-3xl bg-gradient-to-br from-gray-900/95 to-black/95 border border-red-500/30 rounded-2xl overflow-hidden backdrop-blur-2xl"
+          style={{ maxHeight: 'calc(100vh - 32px)' }}
         >
-          {/* Header - UPDATED for mobile */}
-          <div className="sticky top-0 bg-gradient-to-r from-red-600 to-red-700 p-4 sm:p-6 flex items-center justify-between z-10 flex-shrink-0">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-lg sm:text-2xl font-black text-white">Ask a Question</h2>
-              <p className="text-red-100 text-xs sm:text-sm mt-1">Step {step} of 4</p>
+          {/* Header */}
+          <div className="border-b border-red-500/20 p-6 flex items-center justify-between bg-gradient-to-r from-red-600/10 to-transparent">
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-1">
+                Ask a Question
+              </h2>
+              <p className="text-sm text-gray-400">Step {step} of 4</p>
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors ml-2 flex-shrink-0 active:scale-95"
               disabled={isSubmitting}
-              style={{ minWidth: '40px', minHeight: '40px' }}
+              className="p-2 hover:bg-gray-800/50 rounded-lg transition-colors"
             >
-              <FaTimes className="text-white text-lg" />
+              <FaTimes className="text-gray-400 hover:text-white text-xl" />
             </button>
           </div>
 
-          {/* Rest stays the same... */}
           {/* Error Message */}
-          {error && (
-            <div className="mx-6 mt-4 p-4 bg-red-900/20 border border-red-500/30 rounded-xl flex items-start gap-3">
-              <FaExclamationTriangle className="text-red-500 text-xl flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-red-400 font-semibold mb-1">Error</p>
-                <p className="text-red-300 text-sm">{error}</p>
-              </div>
-              <button
-                onClick={() => setError(null)}
-                className="text-red-400 hover:text-red-300"
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mx-6 mt-4 p-4 bg-red-900/20 border border-red-500/30 rounded-xl flex items-start gap-3"
               >
-                <FaTimes />
-              </button>
-            </div>
-          )}
+                <FaExclamationTriangle className="text-red-500 text-lg flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-red-400 font-semibold mb-1">Error</p>
+                  <p className="text-red-300 text-sm">{error}</p>
+                </div>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  <FaTimes />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-3 xs:p-4 sm:p-6">
-            {/* STEP 1: Select Lesson */}
-            {step === 1 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-2">
-                    Select a Lesson
-                  </h3>
-                  <p className="text-gray-400 text-sm">
-                    Choose the lesson your question is about
-                  </p>
-                </div>
-
-                {modules.length === 0 ? (
-                  <div className="p-8 bg-gray-900/50 border border-gray-800 rounded-xl text-center">
-                    <FaBook className="text-4xl text-gray-600 mx-auto mb-3" />
-                    <p className="text-gray-400">No lessons available</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-[500px] overflow-y-auto">
-                    {modules.map((module) => (
-                      <div key={module.id} className="space-y-2">
-                        <div className="text-sm font-bold text-red-400 px-3 py-2 bg-red-900/20 rounded-lg flex items-center gap-2">
-                          <FaBook className="text-red-500" />
-                          {module.title}
-                        </div>
-
-                        {module.lessons && module.lessons.length > 0 ? (
-                          module.lessons.map((lesson) => (
-                            <button
-                              key={lesson.id}
-                              onClick={() => setSelectedLesson(lesson)}
-                              className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                                selectedLesson?.id === lesson.id
-                                  ? "bg-red-600/20 border-red-500"
-                                  : "bg-gray-900/50 border-gray-800 hover:border-red-500/30"
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1">
-                                  <div className="text-white font-semibold mb-1">
-                                    {lesson.title}
-                                  </div>
-                                  <div className="flex items-center gap-3 text-xs text-gray-400">
-                                    {lesson.duration && (
-                                      <span className="flex items-center gap-1">
-                                        <FaClock />
-                                        {lesson.duration}
-                                      </span>
-                                    )}
-                                    {lesson.questionCount !== undefined && (
-                                      <>
-                                        <span>•</span>
-                                        <span className="flex items-center gap-1">
-                                          <FaRegCommentDots />
-                                          {lesson.questionCount} questions
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                                {selectedLesson?.id === lesson.id && (
-                                  <FaCheckCircle className="text-red-500 text-xl ml-3" />
-                                )}
-                              </div>
-                            </button>
-                          ))
-                        ) : (
-                          <div className="p-4 bg-gray-900/30 border border-gray-800 rounded-xl text-center">
-                            <p className="text-gray-500 text-sm">
-                              No lessons in this module
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <button
-                  onClick={() => {
-                    if (selectedLesson) {
-                      setStep(2);
-                      setError(null);
-                    } else {
-                      setError("Please select a lesson");
-                    }
-                  }}
-                  disabled={!selectedLesson}
-                  className="w-full py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-700 disabled:to-gray-800 text-white font-bold rounded-xl transition-all disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+            <AnimatePresence mode="wait">
+              {/* STEP 1: Select Lesson */}
+              {step === 1 && (
+                <motion.div
+                  key="step1"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-4"
                 >
-                  Continue
-                  <FaArrowRight />
-                </button>
-              </div>
-            )}
-
-            {/* STEP 2: Select Video Timestamp (Optional) */}
-            {step === 2 && selectedLesson && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-2">
-                    Select Video Timestamp (Optional)
-                  </h3>
-                  <p className="text-gray-400 text-sm">
-                    Mark the exact moment in the video where your question
-                    occurs
-                  </p>
-                </div>
-
-                {selectedLesson.videoUrl ? (
-                  <VideoTimestampSelector
-                    videoUrl={selectedLesson.videoUrl}
-                    selectedTimestamp={videoTimestamp}
-                    onTimestampSelect={setVideoTimestamp}
-                  />
-                ) : (
-                  <div className="p-8 bg-gray-900/50 border border-gray-800 rounded-xl text-center">
-                    <FaVideo className="text-4xl text-gray-600 mx-auto mb-3" />
-                    <p className="text-gray-400 mb-2">
-                      No video available for this lesson
-                    </p>
-                    <p className="text-gray-500 text-sm">
-                      You can skip this step
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      Select a Lesson
+                    </h3>
+                    <p className="text-gray-400 text-sm">
+                      Choose the lesson your question is about
                     </p>
                   </div>
-                )}
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setStep(1);
-                      setError(null);
-                    }}
-                    className="px-6 py-3 bg-gray-900/50 border border-gray-800 text-white font-bold rounded-xl hover:bg-gray-800/50 transition-all flex items-center gap-2"
-                  >
-                    <FaArrowLeft />
-                    Back
-                  </button>
-                  <button
-                    onClick={() => {
-                      setStep(3);
-                      setError(null);
-                    }}
-                    className="flex-1 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-                  >
-                    Continue
-                    <FaArrowRight />
-                  </button>
-                </div>
-              </div>
-            )}
+                  {modules.length === 0 ? (
+                    <div className="p-8 bg-gray-900/30 border border-gray-800 rounded-xl text-center">
+                      <FaBook className="text-4xl text-gray-600 mx-auto mb-3" />
+                      <p className="text-gray-400">No lessons available</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                      {modules.map((module) => (
+                        <div key={module.id} className="space-y-2">
+                          <div className="text-sm font-bold text-red-400 px-3 py-2 bg-red-900/20 rounded-lg flex items-center gap-2">
+                            <FaBook className="text-red-500" />
+                            {module.title}
+                          </div>
 
-            {/* STEP 3: Write Question */}
-            {step === 3 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-2">
-                    Write Your Question
-                  </h3>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-white mb-2">
-                    Question Title *
-                  </label>
-                  <input
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g., How do I handle async operations in React?"
-                    maxLength={200}
-                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 transition-colors"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    {title.length}/200 characters
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-white mb-2">
-                    Description *
-                  </label>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Provide more context about your question... What have you tried? What specific issue are you facing?"
-                    rows={8}
-                    maxLength={2000}
-                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 transition-colors resize-none"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    {description.length}/2000 characters
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-white mb-2">
-                    Tags (Optional - Max 5)
-                  </label>
-                  <div className="flex gap-2 mb-2">
-                    <input
-                      type="text"
-                      value={tagInput}
-                      onChange={(e) => setTagInput(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          addTag();
-                        }
-                      }}
-                      placeholder="Add a tag (e.g., react, hooks)"
-                      maxLength={20}
-                      disabled={tags.length >= 5}
-                      className="flex-1 px-4 py-2 bg-gray-900/50 border border-gray-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 transition-colors disabled:opacity-50"
-                    />
-                    <button
-                      onClick={addTag}
-                      disabled={!tagInput.trim() || tags.length >= 5}
-                      className="px-4 py-2 bg-red-600/20 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-600/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Add
-                    </button>
-                  </div>
-
-                  {tags.length > 0 && (
-                    <div className="flex gap-2 flex-wrap">
-                      {tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-3 py-1 bg-red-600/20 border border-red-500/30 rounded-full text-sm text-red-400 flex items-center gap-2"
-                        >
-                          #{tag}
-                          <button
-                            onClick={() => removeTag(tag)}
-                            className="hover:text-red-300"
-                          >
-                            <FaTimes className="text-xs" />
-                          </button>
-                        </span>
+                          {module.lessons && module.lessons.length > 0 ? (
+                            module.lessons.map((lesson) => (
+                              <button
+                                key={lesson.id}
+                                onClick={() => setSelectedLesson(lesson)}
+                                className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                                  selectedLesson?.id === lesson.id
+                                    ? "bg-red-600/20 border-red-500"
+                                    : "bg-gray-900/30 border-gray-800 hover:border-red-500/30"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <div className="text-white font-semibold mb-1">
+                                      {lesson.title}
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs text-gray-400">
+                                      {lesson.duration && (
+                                        <span className="flex items-center gap-1">
+                                          <FaClock />
+                                          {lesson.duration}
+                                        </span>
+                                      )}
+                                      {lesson.questionCount !== undefined && (
+                                        <>
+                                          <span>•</span>
+                                          <span className="flex items-center gap-1">
+                                            <FaRegCommentDots />
+                                            {lesson.questionCount} questions
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {selectedLesson?.id === lesson.id && (
+                                    <FaCheckCircle className="text-red-500 text-xl ml-3" />
+                                  )}
+                                </div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="p-4 bg-gray-900/20 border border-gray-800 rounded-xl text-center">
+                              <p className="text-gray-500 text-sm">
+                                No lessons in this module
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}
-                </div>
 
-                <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      setStep(2);
-                      setError(null);
-                    }}
-                    className="px-6 py-3 bg-gray-900/50 border border-gray-800 text-white font-bold rounded-xl hover:bg-gray-800/50 transition-all flex items-center gap-2"
-                  >
-                    <FaArrowLeft />
-                    Back
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!title.trim()) {
-                        setError("Please enter a question title");
-                        return;
+                      if (selectedLesson) {
+                        setStep(2);
+                        setError(null);
+                      } else {
+                        setError("Please select a lesson");
                       }
-                      if (!description.trim()) {
-                        setError("Please enter a description");
-                        return;
-                      }
-                      setStep(4);
-                      setError(null);
                     }}
-                    className="flex-1 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                    disabled={!selectedLesson}
+                    className="w-full py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-700 disabled:to-gray-800 text-white font-bold rounded-xl transition-all disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     Continue
                     <FaArrowRight />
                   </button>
-                </div>
-              </div>
-            )}
+                </motion.div>
+              )}
 
-            {/* STEP 4: Choose Visibility */}
-            {step === 4 && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-2">
-                    Who Can Answer?
-                  </h3>
-                  <p className="text-gray-400 text-sm">
-                    Choose who can see and respond to your question
-                  </p>
-                </div>
+              {/* STEP 2: Video Timestamp */}
+              {step === 2 && selectedLesson && (
+                <motion.div
+                  key="step2"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      Select Video Timestamp (Optional)
+                    </h3>
+                    <p className="text-gray-400 text-sm">
+                      Mark the exact moment in the video where your question occurs
+                    </p>
+                  </div>
 
-                <div className="space-y-3">
-                  <button
-                    onClick={() => setVisibility("MENTOR_ONLY")}
-                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                      visibility === "MENTOR_ONLY"
-                        ? "bg-red-600/20 border-red-500"
-                        : "bg-gray-900/50 border-gray-800 hover:border-red-500/30"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`p-3 rounded-xl ${
-                          visibility === "MENTOR_ONLY"
-                            ? "bg-red-500"
-                            : "bg-gray-800"
-                        }`}
+                  {selectedLesson.videoUrl ? (
+                    <VideoTimestampSelector
+                      videoUrl={selectedLesson.videoUrl}
+                      selectedTimestamp={videoTimestamp}
+                      onTimestampSelect={setVideoTimestamp}
+                    />
+                  ) : (
+                    <div className="p-8 bg-gray-900/30 border border-gray-800 rounded-xl text-center">
+                      <FaVideo className="text-4xl text-gray-600 mx-auto mb-3" />
+                      <p className="text-gray-400 mb-2">
+                        No video available for this lesson
+                      </p>
+                      <p className="text-gray-500 text-sm">You can skip this step</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setStep(1);
+                        setError(null);
+                      }}
+                      className="px-6 py-3 bg-gray-900/50 border border-gray-800 text-white font-bold rounded-xl hover:bg-gray-800/50 transition-all flex items-center gap-2"
+                    >
+                      <FaArrowLeft />
+                      Back
+                    </button>
+                    <button
+                      onClick={() => {
+                        setStep(3);
+                        setError(null);
+                      }}
+                      className="flex-1 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      Continue
+                      <FaArrowRight />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* STEP 3: Write Question */}
+              {step === 3 && (
+                <motion.div
+                  key="step3"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      Write Your Question
+                    </h3>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-white mb-2">
+                      Question Title *
+                    </label>
+                    <input
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="e.g., How do I handle async operations in React?"
+                      maxLength={200}
+                      className="w-full px-4 py-3 bg-gray-900/50 border border-gray-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 transition-colors"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {title.length}/200 characters
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-white mb-2">
+                      Description *
+                    </label>
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Provide more context about your question..."
+                      rows={8}
+                      maxLength={2000}
+                      className="w-full px-4 py-3 bg-gray-900/50 border border-gray-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 transition-colors resize-none"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {description.length}/2000 characters
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-white mb-2">
+                      Tags (Optional - Max 5)
+                    </label>
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addTag();
+                          }
+                        }}
+                        placeholder="Add a tag"
+                        maxLength={20}
+                        disabled={tags.length >= 5}
+                        className="flex-1 px-4 py-2 bg-gray-900/50 border border-gray-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 transition-colors disabled:opacity-50"
+                      />
+                      <button
+                        onClick={addTag}
+                        disabled={!tagInput.trim() || tags.length >= 5}
+                        className="px-4 py-2 bg-red-600/20 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-600/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <FaUserShield className="text-white text-xl" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-white font-bold mb-1">
-                          Mentor Only
-                        </h4>
-                        <p className="text-sm text-gray-400">
-                          Only the mentor can see and answer this question
-                        </p>
-                      </div>
-                      {visibility === "MENTOR_ONLY" && (
-                        <FaCheckCircle className="text-red-500 text-xl" />
-                      )}
+                        Add
+                      </button>
                     </div>
-                  </button>
 
-                  <button
-                    onClick={() => setVisibility("MENTOR_PUBLIC")}
-                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                      visibility === "MENTOR_PUBLIC"
-                        ? "bg-red-600/20 border-red-500"
-                        : "bg-gray-900/50 border-gray-800 hover:border-red-500/30"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`p-3 rounded-xl ${
-                          visibility === "MENTOR_PUBLIC"
-                            ? "bg-red-500"
-                            : "bg-gray-800"
-                        }`}
-                      >
-                        <FaUsers className="text-white text-xl" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-white font-bold mb-1">
-                          Mentor + Public
-                        </h4>
-                        <p className="text-sm text-gray-400">
-                          Mentor answers, but everyone can see the question and
-                          answer
-                        </p>
-                      </div>
-                      {visibility === "MENTOR_PUBLIC" && (
-                        <FaCheckCircle className="text-red-500 text-xl" />
-                      )}
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => setVisibility("PRIVATE")}
-                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                      visibility === "PRIVATE"
-                        ? "bg-red-600/20 border-red-500"
-                        : "bg-gray-900/50 border-gray-800 hover:border-red-500/30"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`p-3 rounded-xl ${
-                          visibility === "PRIVATE"
-                            ? "bg-red-500"
-                            : "bg-gray-800"
-                        }`}
-                      >
-                        <FaLock className="text-white text-xl" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-white font-bold mb-1">
-                          Private (Coming Soon)
-                        </h4>
-                        <p className="text-sm text-gray-400">
-                          Only you and the mentor can see this question
-                        </p>
-                      </div>
-                      {visibility === "PRIVATE" && (
-                        <FaCheckCircle className="text-red-500 text-xl" />
-                      )}
-                    </div>
-                  </button>
-                </div>
-
-                {/* Review Summary */}
-                <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl">
-                  <h4 className="text-white font-bold mb-3 flex items-center gap-2">
-                    <FaCheckCircle className="text-green-500" />
-                    Review Your Question
-                  </h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-start gap-2">
-                      <span className="text-gray-500 w-24 flex-shrink-0">
-                        Lesson:
-                      </span>
-                      <span className="text-white font-semibold">
-                        {selectedLesson?.title}
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="text-gray-500 w-24 flex-shrink-0">
-                        Title:
-                      </span>
-                      <span className="text-white">{title}</span>
-                    </div>
-                    {videoTimestamp && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-gray-500 w-24 flex-shrink-0">
-                          Timestamp:
-                        </span>
-                        <span className="text-red-400 font-mono">
-                          {videoTimestamp}
-                        </span>
-                      </div>
-                    )}
                     {tags.length > 0 && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-gray-500 w-24 flex-shrink-0">
-                          Tags:
-                        </span>
-                        <div className="flex gap-1 flex-wrap">
-                          {tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="px-2 py-0.5 bg-red-600/20 text-red-400 rounded text-xs"
+                      <div className="flex gap-2 flex-wrap">
+                        {tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="px-3 py-1 bg-red-600/20 border border-red-500/30 rounded-full text-sm text-red-400 flex items-center gap-2"
+                          >
+                            #{tag}
+                            <button
+                              onClick={() => removeTag(tag)}
+                              className="hover:text-red-300"
                             >
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
+                              <FaTimes className="text-xs" />
+                            </button>
+                          </span>
+                        ))}
                       </div>
                     )}
                   </div>
-                </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setStep(3);
-                      setError(null);
-                    }}
-                    disabled={isSubmitting}
-                    className="px-6 py-3 bg-gray-900/50 border border-gray-800 text-white font-bold rounded-xl hover:bg-gray-800/50 transition-all flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <FaArrowLeft />
-                    Back
-                  </button>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="flex-1 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-700 disabled:to-gray-800 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Posting...
-                      </>
-                    ) : (
-                      <>
-                        <FaCheck />
-                        Post Question
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setStep(2);
+                        setError(null);
+                      }}
+                      className="px-6 py-3 bg-gray-900/50 border border-gray-800 text-white font-bold rounded-xl hover:bg-gray-800/50 transition-all flex items-center gap-2"
+                    >
+                      <FaArrowLeft />
+                      Back
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!title.trim()) {
+                          setError("Please enter a question title");
+                          return;
+                        }
+                        if (!description.trim()) {
+                          setError("Please enter a description");
+                          return;
+                        }
+                        setStep(4);
+                        setError(null);
+                      }}
+                      className="flex-1 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      Continue
+                      <FaArrowRight />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* STEP 4: Choose Visibility */}
+              {step === 4 && (
+                <motion.div
+                  key="step4"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-6"
+                >
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      Who Can Answer?
+                    </h3>
+                    <p className="text-gray-400 text-sm">
+                      Choose who can see and respond to your question
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {[
+                      {
+                        value: "MENTOR_ONLY",
+                        icon: FaUserShield,
+                        title: "Mentor Only",
+                        description: "Only the mentor can see and answer this question",
+                        color: "yellow",
+                      },
+                      {
+                        value: "MENTOR_PUBLIC",
+                        icon: FaUsers,
+                        title: "Mentor + Public",
+                        description: "Mentor answers, but everyone can see the question",
+                        color: "blue",
+                      },
+                      {
+                        value: "PRIVATE",
+                        icon: FaLock,
+                        title: "Private (Coming Soon)",
+                        description: "Only you and the mentor can see this question",
+                        color: "gray",
+                      },
+                    ].map((option) => {
+                      const Icon = option.icon;
+                      return (
+                        <button
+                          key={option.value}
+                          onClick={() => setVisibility(option.value as any)}
+                          className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                            visibility === option.value
+                              ? "bg-red-600/20 border-red-500"
+                              : "bg-gray-900/30 border-gray-800 hover:border-red-500/30"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`p-3 rounded-xl ${
+                                visibility === option.value
+                                  ? "bg-red-500"
+                                  : "bg-gray-800"
+                              }`}
+                            >
+                              <Icon className="text-white text-xl" />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-white font-bold mb-1">
+                                {option.title}
+                              </h4>
+                              <p className="text-sm text-gray-400">
+                                {option.description}
+                              </p>
+                            </div>
+                            {visibility === option.value && (
+                              <FaCheckCircle className="text-red-500 text-xl" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Review Summary */}
+                  <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl">
+                    <h4 className="text-white font-bold mb-3 flex items-center gap-2">
+                      <FaCheckCircle className="text-green-500" />
+                      Review Your Question
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-start gap-2">
+                        <span className="text-gray-500 w-24 flex-shrink-0">
+                          Lesson:
+                        </span>
+                        <span className="text-white font-semibold">
+                          {selectedLesson?.title}
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-gray-500 w-24 flex-shrink-0">
+                          Title:
+                        </span>
+                        <span className="text-white">{title}</span>
+                      </div>
+                      {videoTimestamp && (
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-500 w-24 flex-shrink-0">
+                            Timestamp:
+                          </span>
+                          <span className="text-red-400 font-mono">
+                            {videoTimestamp}
+                          </span>
+                        </div>
+                      )}
+                      {tags.length > 0 && (
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-500 w-24 flex-shrink-0">
+                            Tags:
+                          </span>
+                          <div className="flex gap-1 flex-wrap">
+                            {tags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="px-2 py-0.5 bg-red-600/20 text-red-400 rounded text-xs"
+                              >
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setStep(3);
+                        setError(null);
+                      }}
+                      disabled={isSubmitting}
+                      className="px-6 py-3 bg-gray-900/50 border border-gray-800 text-white font-bold rounded-xl hover:bg-gray-800/50 transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <FaArrowLeft />
+                      Back
+                    </button>
+                    <button
+                      onClick={handleSubmit}
+                      disabled={isSubmitting}
+                      className="flex-1 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-700 disabled:to-gray-800 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Posting...
+                        </>
+                      ) : (
+                        <>
+                          <FaCheck />
+                          Post Question
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
       </div>
     );
+
+    return createPortal(modalContent, document.body);
   }
 );
 NewQuestionModal.displayName = "NewQuestionModal";
 
 // ============================================
-// QUESTION THREAD MODAL
+// QUESTION THREAD MODAL - WITH PORTAL
 // ============================================
 
 export const QuestionThreadModal = memo(
@@ -1049,6 +1099,7 @@ export const QuestionThreadModal = memo(
       parentAnswerId?: string
     ) => void;
   }) => {
+    const isMounted = usePortal(); // ✅ ADD THIS
     const [question, setQuestion] = useState<QuestionData | null>(null);
     const [answers, setAnswers] = useState<AnswerData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -1441,14 +1492,14 @@ export const QuestionThreadModal = memo(
       [questionId, question]
     );
 
-    if (!isOpen) return null;
+    if (!isOpen || !isMounted) return null; // ✅ UPDATE THIS
 
-    return (
-      // ✅ UPDATED: Increased z-index to appear above navbar
+    // ✅ WRAP IN PORTAL
+    return createPortal(
       <div
-        className="fixed inset-0 z-[100] flex items-center justify-center p-2 xs:p-3 sm:p-4 bg-black/90 backdrop-blur-md overflow-y-auto"
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-2 xs:p-3 sm:p-4 bg-black/90 backdrop-blur-md overflow-y-auto"
         onClick={onClose}
-        style={{ 
+        style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -1545,12 +1596,13 @@ export const QuestionThreadModal = memo(
                     </div>
 
                     {/* Avatar */}
-                    <img
-                      src={question.userAvatar}
-                      alt={question.userName}
-                      className="w-12 h-12 rounded-full border-2 border-red-500/30 flex-shrink-0"
+                    <ProfileAvatar
+                      customImage={question.customImageUrl}
+                      avatar={question.userAvatarObject}
+                      userId={question.userId}
+                      size={48}
+                      className="border-2 border-red-500/30 flex-shrink-0 cursor-pointer hover:border-red-500/50 transition-colors"
                     />
-
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -1745,7 +1797,8 @@ export const QuestionThreadModal = memo(
             ) : null}
           </div>
         </motion.div>
-      </div>
+      </div>,
+      document.body // ✅ RENDER AT BODY LEVEL
     );
   }
 );
@@ -1854,10 +1907,12 @@ const AnswerCard = memo(
                 }}
                 onMouseLeave={handleUserLeave}
               >
-                <img
-                  src={answer.userAvatar}
-                  alt={answer.userName}
-                  className="w-10 h-10 rounded-full border-2 border-red-500/30 flex-shrink-0 cursor-pointer hover:border-red-500/50 transition-colors"
+                <ProfileAvatar
+                  customImage={answer.customImageUrl}
+                  avatar={answer.userAvatarObject}
+                  userId={answer.userId}
+                  size={40}
+                  className="border-2 border-red-500/30 flex-shrink-0 cursor-pointer hover:border-red-500/50 transition-colors"
                 />
               </div>
 

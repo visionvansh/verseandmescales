@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/app/auth/signin/page.tsx
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence, LazyMotion, domAnimation } from "framer-motion";

@@ -7,7 +7,7 @@ import { checkAndAwardBadges } from '@/lib/profile/badges';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const currentUser = await getAuthUser(request);
@@ -19,7 +19,7 @@ export async function POST(
       );
     }
 
-    const { userId: targetUserId } = params;
+    const { userId: targetUserId } = await params;
 
     // Can't follow yourself
     if (currentUser.id === targetUserId) {
@@ -135,11 +135,11 @@ export async function POST(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const currentUser = await getAuthUser(request);
-    const { userId } = params;
+    const { userId } = await params;
 
     if (!currentUser) {
       return NextResponse.json({ isFollowing: false });

@@ -7,11 +7,11 @@ import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ ADD IMPOR
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { username: string } }
+  { params }: { params: Promise<{ username: string }> }
 ) {
   try {
     const currentUser = await getAuthUser(request);
-    const { username } = await params;
+    const { username } = await params; // ✅ Already awaiting params
 
     if (currentUser) {
       await checkAndAwardBadges(currentUser.id);
