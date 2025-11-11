@@ -167,7 +167,7 @@ data: ${JSON.stringify(data)}
             lastPollTime = now;
 
             // Send only new messages
-            recentMessages.forEach(msg => {
+            recentMessages.forEach((msg: typeof recentMessages[number]) => {
               if (!sentMessageIds.has(msg.id)) {
                 sentMessageIds.add(msg.id);
                 
@@ -221,7 +221,7 @@ data: ${JSON.stringify(data)}
               }
             }) as TypingIndicatorWithUser[];
 
-            typingUsers.forEach(tu => {
+            typingUsers.forEach((tu: TypingIndicatorWithUser) => {
               send('user:typing', {
                 userId: tu.userId,
                 username: tu.user.username,
