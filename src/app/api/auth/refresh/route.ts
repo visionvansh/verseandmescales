@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     await prisma.userSession.update({
       where: { id: session.id },
       data: { lastUsed: new Date() }
-    }).catch(err => console.error('[Auth Refresh] Failed to update session:', err));
+    }).catch((err: unknown) => console.error('[Auth Refresh] Failed to update session:', err));
 
     // Update user last active
     await prisma.student.update({
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
         lastActiveAt: new Date(),
         isOnline: true
       }
-    }).catch(err => console.error('[Auth Refresh] Failed to update user:', err));
+    }).catch((err: unknown) => console.error('[Auth Refresh] Failed to update user:', err));
 
     console.log('[Auth Refresh] ✅ Token refreshed successfully');
 
