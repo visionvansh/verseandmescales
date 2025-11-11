@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       console.log(`[Sessions API] Found ${sessions.length} active sessions`);
       
       // Transform sessions with additional info
-      const formattedSessions = sessions.map((session) => { // ✅ REMOVED type annotation
+      const formattedSessions = sessions.map((session: SessionWithDevice) => {
         const isCurrent = session.sessionToken === currentSessionToken;
         
         return {
