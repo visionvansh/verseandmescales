@@ -8,8 +8,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Clipify Post",
-  description: "Paste Video Link Here",
+  title: "Verseandme Scales",
+  description: "Platform build for selling",
   icons: {
     icon: "/logomake2.JPG",
   },
