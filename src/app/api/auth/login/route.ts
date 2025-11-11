@@ -223,21 +223,21 @@ export async function POST(request: NextRequest) {
 
     // Check for suspicious activity
     const recentSessions = await prisma.userSession.findMany({
-      where: {
-        userId: user.id,
-        isActive: true,
-        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
-      },
-      select: { ipAddress: true, location: true }
-    });
+  where: {
+    userId: user.id,
+    isActive: true,
+    createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+  },
+  select: { ipAddress: true, location: true }
+});
 
     const currentLocation = `${location.city}, ${location.country}`;
-    const suspiciousLogin = recentSessions.some((s) => 
-      s.ipAddress !== null && 
-      s.location !== null && 
-      s.ipAddress !== clientIP && 
-      s.location !== currentLocation
-    );
+const suspiciousLogin = recentSessions.some((s: { ipAddress: string | null; location: string | null }) => 
+  s.ipAddress !== null && 
+  s.location !== null && 
+  s.ipAddress !== clientIP && 
+  s.location !== currentLocation
+);
 
     if (suspiciousLogin) {
       await prisma.securityEvent.create({
