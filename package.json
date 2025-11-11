@@ -2,12 +2,13 @@
   "name": "my-app",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "concurrently \"next dev\" \"node websocket-server.js\"",
-    "ws": "node websocket-server.js",
-    "build": "next build",
-    "start": "next start"
-  },
+"scripts": {
+  "dev": "concurrently \"next dev\" \"node websocket-server.js\"",
+  "ws": "node websocket-server.js",
+  "build": "next build",
+  "start": "next start",
+  "type-check": "tsc --noEmit --pretty"
+},
   "dependencies": {
     "@dicebear/collection": "^9.2.4",
     "@dicebear/core": "^9.2.4",
@@ -77,6 +78,6 @@
     "@types/speakeasy": "^2.0.10",
     "concurrently": "^9.2.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   }
 }

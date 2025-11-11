@@ -348,8 +348,8 @@ async function assessLoginSecurity(user: any, device: any, clientInfo: any) {
   });
   
   if (recentSessions.length > 0) {
-    // ✅ FIXED: Remove type annotation to use Prisma's inferred type
-    const hasLocationChange = recentSessions.some((s) => 
+    // ✅ FIXED: Explicitly type the session parameter
+    const hasLocationChange = recentSessions.some((s: { country: string | null }) => 
       s.country && s.country !== 'Unknown' && 
       clientInfo.country !== 'Unknown' && 
       s.country !== clientInfo.country
@@ -361,14 +361,14 @@ async function assessLoginSecurity(user: any, device: any, clientInfo: any) {
       assessment.riskFactors.push('location_change');
     }
     
-    // ✅ FIXED: Remove type annotation
-    const activeSessions = recentSessions.filter((s) => 
+    // ✅ FIXED: Explicitly type the session parameter
+    const activeSessions = recentSessions.filter((s: { lastUsed: Date }) => 
       new Date(s.lastUsed) > new Date(Date.now() - 30 * 60 * 1000)
     );
     
     if (activeSessions.length > 0) {
-      // ✅ FIXED: Remove type annotation
-      const hasMultipleLocations = new Set(activeSessions.map((s) => s.country)).size > 1;
+      // ✅ FIXED: Explicitly type the session parameter
+      const hasMultipleLocations = new Set(activeSessions.map((s: { country: string | null }) => s.country)).size > 1;
       
       if (hasMultipleLocations) {
         assessment.riskScore += 40;
