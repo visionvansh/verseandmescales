@@ -166,7 +166,7 @@ export async function GET(
     // Decrypt and transform with complete user metadata
     const decryptedMessages = messagesData.map((msg: typeof messages[number]) => {
       const avatarUrl = getAvatarUrlFromUser(msg.user, 64);
-      const primaryAvatar = msg.user.avatars?.find(a => a.isPrimary) || msg.user.avatars?.[0] || null;
+      const primaryAvatar = msg.user.avatars?.find((a: any) => a.isPrimary) || msg.user.avatars?.[0] || null;
 
       // Determine user type from goals
       const userGoal = msg.user.UserGoals[0];
@@ -433,7 +433,7 @@ export async function POST(
 
     // Return decrypted message with complete metadata
     const avatarUrl = getAvatarUrlFromUser(message.user, 64);
-    const primaryAvatar = message.user.avatars?.find(a => a.isPrimary) || message.user.avatars?.[0] || null;
+    const primaryAvatar = message.user.avatars?.find((a: any) => a.isPrimary) || message.user.avatars?.[0] || null;
 
     const userGoal = message.user.UserGoals[0];
     let userType: 'tutor' | 'learner' | 'both' = 'learner';
