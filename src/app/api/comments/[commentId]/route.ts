@@ -99,12 +99,12 @@ export async function GET(
     }
 
     // Check if user has reacted
-    const userReactions = user ? comment.reactions.filter(r => r.userId === user.id) : [];
+    const userReactions = user ? comment.reactions.filter((r: typeof comment.reactions[number]) => r.userId === user.id) : [];
 
     return NextResponse.json({
       comment: {
         ...comment,
-        userReactions: userReactions.map(r => r.emoji)
+        userReactions: userReactions.map((r: typeof userReactions[number]) => r.emoji)
       }
     });
 

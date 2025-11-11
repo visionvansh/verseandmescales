@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/app/api/comments/[commentId]/react/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
@@ -97,7 +98,7 @@ export async function POST(
     });
 
     // ✅ FIXED: Send reactions array in proper format for frontend
-    const reactions = allReactions.map(reaction => ({
+    const reactions = allReactions.map((reaction: typeof allReactions[number]) => ({
       id: reaction.id,
       emoji: reaction.emoji,
       userId: reaction.userId,
