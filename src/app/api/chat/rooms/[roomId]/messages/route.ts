@@ -164,7 +164,7 @@ export async function GET(
     };
 
     // Decrypt and transform with complete user metadata
-    const decryptedMessages = messagesData.map(msg => {
+    const decryptedMessages = messagesData.map((msg: typeof messages[number]) => {
       const avatarUrl = getAvatarUrlFromUser(msg.user, 64);
       const primaryAvatar = msg.user.avatars?.find(a => a.isPrimary) || msg.user.avatars?.[0] || null;
 
