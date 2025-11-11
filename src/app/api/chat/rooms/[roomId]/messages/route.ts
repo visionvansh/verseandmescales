@@ -141,7 +141,7 @@ export async function GET(
     const groupReactionsByEmoji = (reactions: any[]) => {
       const reactionMap = new Map<string, { emoji: string; count: number; users: string[] }>();
       
-      reactions.forEach((reaction) => {
+      reactions.forEach((reaction: any) => {
         const emoji = reaction.emoji;
         const userId = reaction.userId;
         
@@ -193,7 +193,7 @@ export async function GET(
         seeking: msg.user._count.following,
         coursesMade: msg.user._count.courses,
         coursesLearning: 0,
-        badges: msg.user.badges.map(badge => ({
+        badges: msg.user.badges.map((badge: any) => ({
           id: badge.id,
           name: badge.title,
           icon: badge.icon,
@@ -238,7 +238,7 @@ export async function GET(
         userRole: userType === 'tutor' ? 'mentor' : 'student',
         replyTo: replyToTransformed,
         reactions: groupedReactions, // ✅ Use grouped reactions
-        mentions: msg.mentions.map(m => m.mentionedUser.id)
+        mentions: msg.mentions.map((m: any) => m.mentionedUser.id)
       };
     });
 
@@ -409,7 +409,7 @@ export async function POST(
     const groupReactionsByEmoji = (reactions: any[]) => {
       const reactionMap = new Map<string, { emoji: string; count: number; users: string[] }>();
       
-      reactions.forEach((reaction) => {
+      reactions.forEach((reaction: any) => {
         const emoji = reaction.emoji;
         const userId = reaction.userId;
         
@@ -458,7 +458,7 @@ export async function POST(
       seeking: message.user._count.following,
       coursesMade: message.user._count.courses,
       coursesLearning: 0,
-      badges: message.user.badges.map(badge => ({
+      badges: message.user.badges.map((badge: any) => ({
         id: badge.id,
         name: badge.title,
         icon: badge.icon,
