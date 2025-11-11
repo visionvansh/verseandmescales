@@ -4,7 +4,7 @@ import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 
-// ✅ Define the type for the question query result
+// ✅ Define the type WITHOUT the dynamic where clause
 type QuestionWithRelations = Prisma.QuestionGetPayload<{
   include: {
     user: {
@@ -27,7 +27,6 @@ type QuestionWithRelations = Prisma.QuestionGetPayload<{
       };
     };
     upvotes: {
-      where: { userId: string };
       select: { id: true };
     };
     _count: {
@@ -147,7 +146,7 @@ export async function GET(request: NextRequest) {
         thanksGivenCount: q.thanksGivenCount || 0,
         userId: q.userId,
         userName: q.user.name || q.user.username,
-        ...avatarData, // ✅ Spread avatar data
+        ...avatarData,
         lessonId: q.lessonId,
         moduleId: q.moduleId,
         hasUpvoted: q.upvotes.length > 0,
@@ -247,7 +246,7 @@ export async function POST(request: NextRequest) {
       thanksGivenCount: 0,
       userId: question.userId,
       userName: question.user.name || question.user.username,
-      ...avatarData, // ✅ Spread avatar data
+      ...avatarData,
       lessonId: question.lessonId,
       moduleId: question.moduleId,
       hasUpvoted: false,
