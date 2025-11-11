@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function POST(
   request: NextRequest,
@@ -16,7 +17,7 @@ export async function POST(
     const { id: questionId } = await params;
 
     // ✅ FIX: Use upsert to avoid unique constraint violation
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Upsert the view
       const view = await tx.questionView.upsert({
         where: {

@@ -2,7 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
-import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ ADD THIS IMPORT
+import { Prisma } from '@prisma/client';
+import { getAvatarUrlFromUser } from '@/utils/avatarGenerator';
 
 export async function POST(
   request: NextRequest,
@@ -71,7 +72,7 @@ export async function POST(
       }
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const newAnswer = await tx.questionAnswer.create({
         data: {
           questionId,
@@ -87,7 +88,6 @@ export async function POST(
               name: true,
               username: true,
               img: true,
-              // ✅ ADD avatars to fetch custom avatar config
               avatars: {
                 orderBy: { createdAt: 'desc' },
                 select: {
@@ -138,7 +138,7 @@ export async function POST(
       parentAnswerId: result.answer.parentAnswerId,
       userId: result.answer.userId,
       userName: result.answer.user.name || result.answer.user.username,
-      userAvatar: getAvatarUrlFromUser(result.answer.user, 64), // ✅ FIXED
+      userAvatar: getAvatarUrlFromUser(result.answer.user, 64),
       isMentor: isMentor,
       hasUpvoted: false,
       createdAt: result.answer.createdAt,

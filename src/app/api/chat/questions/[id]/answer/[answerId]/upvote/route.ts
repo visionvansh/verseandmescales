@@ -1,6 +1,8 @@
+// /Volumes/vision/codes/course/my-app/src/app/api/chat/questions/[id]/answer/[answerId]/upvote/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function POST(
   request: NextRequest,
@@ -51,7 +53,7 @@ export async function POST(
 
     if (existingUpvote) {
       // Remove upvote
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.answerUpvote.delete({
           where: { id: existingUpvote.id }
         });
@@ -69,7 +71,7 @@ export async function POST(
       newCount = result.upvoteCount;
     } else {
       // Add upvote
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.answerUpvote.create({
           data: {
             answerId,

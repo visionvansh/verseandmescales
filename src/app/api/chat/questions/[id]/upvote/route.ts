@@ -2,10 +2,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> } // ✅ Changed to Promise
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getAuthUser(request);
@@ -13,7 +14,6 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // ✅ Await params first, then access id
     const { id: questionId } = await params;
 
     // Get question to find roomId for WebSocket broadcast
@@ -41,7 +41,7 @@ export async function POST(
 
     if (existingUpvote) {
       // Remove upvote
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.questionUpvote.delete({
           where: { id: existingUpvote.id }
         });
@@ -59,7 +59,7 @@ export async function POST(
       newCount = result.upvoteCount;
     } else {
       // Add upvote
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.questionUpvote.create({
           data: {
             questionId,
@@ -87,7 +87,6 @@ export async function POST(
       questionId,
       userId: user.id,
       roomId: question.roomId,
-      // ✅ Nested question object
       question: {
         id: questionId,
         upvoteCount: newCount,
