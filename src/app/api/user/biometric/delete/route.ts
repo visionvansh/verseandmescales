@@ -1,6 +1,6 @@
 // /Volumes/vision/codes/course/my-app/src/app/api/user/biometric/delete/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import prisma, { PrismaTx } from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { redis } from '@/lib/redis';
 
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await prisma.$transaction(async (tx): Promise<TransactionResult> => {
+    const result = await prisma.$transaction(async (tx: PrismaTx): Promise<TransactionResult> => {
       const credential = await tx.biometricCredential.findFirst({
         where: {
           id: credentialId,
