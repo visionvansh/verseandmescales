@@ -5,7 +5,6 @@ import prisma from '@/lib/prisma';
 import { redis, CACHE_TIMES, CACHE_PREFIX } from '@/lib/redis';
 import { rateLimit } from '@/lib/rateLimit';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client'; // ✅ Import Prisma namespace
 
 // Type definitions based on Prisma schema
 type UserGoalPurpose = 'learn' | 'teach' | 'both';
@@ -93,9 +92,10 @@ interface SettingsRequestBody {
   data: Record<string, unknown>;
 }
 
-// ✅ Updated helper function with proper type casting
-function toJsonValue(data: Record<string, unknown>): Prisma.InputJsonValue {
-  return JSON.parse(JSON.stringify(data)) as Prisma.InputJsonValue;
+// ✅ FIXED: Helper function to convert data to JSON-compatible format
+function toJsonValue(data: Record<string, unknown>): any {
+  // Convert to JSON string and back to ensure it's serializable
+  return JSON.parse(JSON.stringify(data));
 }
 
 async function invalidateUserCaches(userId: string): Promise<void> {
@@ -340,7 +340,7 @@ export async function POST(request: NextRequest) {
     // Invalidate all related caches
     await invalidateUserCaches(user.id);
 
-    // ✅ FIXED: Log activity with proper type casting
+    // ✅ FIXED: Log activity with proper JSON serialization
     await prisma.userActivityLog.create({
       data: {
         userId: user.id,
@@ -570,7 +570,7 @@ export async function PATCH(request: NextRequest) {
     // Invalidate all related caches
     await invalidateUserCaches(user.id);
 
-    // ✅ FIXED: Log activity with proper type casting
+    // ✅ FIXED: Log activity with proper JSON serialization
     await prisma.userActivityLog.create({
       data: {
         userId: user.id,
