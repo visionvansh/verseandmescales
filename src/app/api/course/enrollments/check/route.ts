@@ -6,6 +6,10 @@ import prisma from '@/lib/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
+interface JWTPayload {
+  userId: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -15,7 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ enrollments: {} }, { status: 200 });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
     const { courseIds } = await request.json();
 
     if (!courseIds || !Array.isArray(courseIds)) {
@@ -46,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ enrollments: enrollmentMap });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Check enrollments error:', error);
     return NextResponse.json(
       { error: 'Failed to check enrollments' },

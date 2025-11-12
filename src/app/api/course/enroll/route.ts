@@ -17,18 +17,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { courseId } = await request.json(); // ✅ Removed courseSlug
+    const { courseId } = await request.json();
 
     if (!courseId) {
       return NextResponse.json(
-        { error: 'Course ID required' }, // ✅ Updated error message
+        { error: 'Course ID required' },
         { status: 400 }
       );
     }
 
     // Find the course by ID only
-    const course = await prisma.course.findUnique({ // ✅ Changed from findFirst to findUnique
-      where: { id: courseId }, // ✅ Only query by ID
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
       include: {
         user: {
           select: {
@@ -108,17 +108,17 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const courseId = searchParams.get('id'); // ✅ Changed from 'courseId' and removed 'slug'
+    const courseId = searchParams.get('id');
 
     if (!courseId) {
       return NextResponse.json(
-        { error: 'Course ID required' }, // ✅ Updated error message
+        { error: 'Course ID required' },
         { status: 400 }
       );
     }
 
-    const course = await prisma.course.findUnique({ // ✅ Changed from findFirst to findUnique
-      where: { id: courseId }, // ✅ Only query by ID
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
     });
 
     if (!course) {

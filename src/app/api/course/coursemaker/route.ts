@@ -1,7 +1,37 @@
-// app/api/course/coursemaker/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+
+// Define types for the data structures
+interface LessonResource {
+  id: string;
+  title: string;
+  description: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: string;
+  position: number;
+}
+
+interface Lesson {
+  id: string;
+  title: string;
+  description: string;
+  videoUrl: string;
+  videoDuration: string;
+  videoSize: string;
+  resources: LessonResource[];
+}
+
+interface ModuleData {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: "Beginner" | "Intermediate" | "Advanced";
+  learningOutcomes: string[];
+  lessons: Lesson[];
+}
 
 // GET - Fetch course data (modules, lessons, resources)
 export async function GET(req: NextRequest) {
@@ -53,20 +83,20 @@ export async function GET(req: NextRequest) {
     // Transform to match frontend interface
     const courseData = {
       id: courseId,
-      modules: modules.map((module) => ({
+      modules: modules.map((module: any) => ({
         id: module.id,
         title: module.title,
         description: module.description,
         difficulty: module.difficulty as "Beginner" | "Intermediate" | "Advanced",
         learningOutcomes: module.learningOutcomes,
-        lessons: module.lessons.map((lesson) => ({
+        lessons: module.lessons.map((lesson: any) => ({
           id: lesson.id,
           title: lesson.title,
           description: lesson.description,
           videoUrl: lesson.videoUrl,
           videoDuration: lesson.videoDuration,
           videoSize: lesson.videoSize,
-          resources: lesson.resources.map((resource) => ({
+          resources: lesson.resources.map((resource: any) => ({
             id: resource.id,
             title: resource.title,
             description: resource.description,
@@ -118,7 +148,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Use transaction to ensure data consistency
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Update course last edited section
       await tx.course.update({
         where: { id: courseId, userId: userId },
@@ -135,8 +165,8 @@ export async function POST(req: NextRequest) {
       });
       const existingModuleIds = existingModules.map((m) => m.id);
       const incomingModuleIds = modules
-        .filter((m) => !m.id.startsWith("module-"))
-        .map((m) => m.id);
+        .filter((m: any) => !m.id.startsWith("module-"))
+        .map((m: any) => m.id);
 
       // Delete modules that are no longer present
       const modulesToDelete = existingModuleIds.filter(

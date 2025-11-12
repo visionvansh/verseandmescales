@@ -2,6 +2,69 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
+
+/**
+ * Parse video duration string to seconds
+ */
+function parseDurationToSeconds(duration: string): number {
+  if (!duration || duration.trim() === '') return 0;
+  
+  const parts = duration.trim().split(':').map(Number);
+  
+  if (parts.length === 1) {
+    return parts[0] || 0;
+  } else if (parts.length === 2) {
+    const [minutes, seconds] = parts;
+    return (minutes * 60) + (seconds || 0);
+  } else if (parts.length === 3) {
+    const [hours, minutes, seconds] = parts;
+    return (hours * 3600) + (minutes * 60) + (seconds || 0);
+  }
+  
+  return 0;
+}
+
+/**
+ * Calculate total duration from all course lessons
+ */
+function calculateCourseDuration(modules: any[]): string {
+  if (!modules || modules.length === 0) return '0m';
+
+  let totalSeconds = 0;
+
+  modules.forEach((module) => {
+    if (module.lessons && Array.isArray(module.lessons)) {
+      module.lessons.forEach((lesson: any) => {
+        if (lesson.videoDuration) {
+          totalSeconds += parseDurationToSeconds(lesson.videoDuration);
+        }
+      });
+    }
+  });
+
+  if (totalSeconds === 0) return '0m';
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+
+  if (hours > 0) {
+    if (minutes > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${hours}h`;
+  }
+  
+  if (minutes > 0) {
+    if (seconds > 30) {
+      return `${minutes + 1}m`;
+    }
+    return `${minutes}m`;
+  }
+  
+  return `${seconds}s`;
+}
 
 /**
  * GET /api/course-homepage
@@ -164,7 +227,7 @@ export async function POST(request: NextRequest) {
 
     // 3. Handle Custom Sections (separate transaction)
     if (homepageData.customSections && Array.isArray(homepageData.customSections)) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.courseCustomSection.deleteMany({
           where: { homepageId: homepage.id }
         });
@@ -199,7 +262,7 @@ export async function POST(request: NextRequest) {
 
     // 4. Handle Proof Section (separate transaction)
     if (homepageData.proofSectionEnabled !== undefined) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         if (homepageData.proofSectionEnabled) {
           const proofSection = await tx.courseProofSection.upsert({
             where: { homepageId: homepage.id },
@@ -243,7 +306,7 @@ export async function POST(request: NextRequest) {
 
     // 5. Handle Testimonials Section (separate transaction)
     if (homepageData.testimonialsEnabled !== undefined) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         if (homepageData.testimonialsEnabled) {
           const testimonialSection = await tx.courseTestimonialSection.upsert({
             where: { homepageId: homepage.id },
@@ -294,7 +357,7 @@ export async function POST(request: NextRequest) {
 
     // 6. Handle FAQ Section (separate transaction) - THIS WAS CAUSING THE ERROR
     if (homepageData.faqEnabled !== undefined) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         if (homepageData.faqEnabled) {
           const faqSection = await tx.courseFAQSection.upsert({
             where: { homepageId: homepage.id },
@@ -349,7 +412,6 @@ export async function POST(request: NextRequest) {
         descriptionWords: homepageData.footerDescriptionWords || null,
         price: homepageData.footerPrice || '',
         salePrice: homepageData.footerSalePrice || null,
-        // ❌ REMOVE saleEndsAt from here - it doesn't exist in CourseFooter
         currency: homepageData.footerCurrency || 'USD',
         buttonText: homepageData.ctaButtonText || 'GET STARTED NOW',
         buttonIcon: homepageData.ctaButtonIcon || 'FaRocket',
@@ -367,7 +429,6 @@ export async function POST(request: NextRequest) {
         descriptionWords: homepageData.footerDescriptionWords || null,
         price: homepageData.footerPrice || '',
         salePrice: homepageData.footerSalePrice || null,
-        // ❌ REMOVE saleEndsAt from here too
         buttonText: homepageData.ctaButtonText || 'GET STARTED NOW',
         buttonIcon: homepageData.ctaButtonIcon || 'FaRocket',
         icons: homepageData.footerIcons || null
@@ -376,7 +437,7 @@ export async function POST(request: NextRequest) {
 
     // 8. Handle Section Badges (separate transaction)
     if (homepageData.sectionBadges && Array.isArray(homepageData.sectionBadges)) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.courseSectionBadge.deleteMany({
           where: { homepageId: homepage.id }
         });
@@ -575,7 +636,7 @@ function transformHomepageData(homepage: any, course?: any) {
     footerDescriptionWords: homepage.footer?.descriptionWords || [],
     footerPrice: course?.price || homepage.footer?.price || '',
     footerSalePrice: course?.salePrice || homepage.footer?.salePrice || '',
-    saleEndsAt: course?.saleEndsAt || null, // ✅ From Course model
+    saleEndsAt: course?.saleEndsAt || null,
     footerCurrency: homepage.footer?.currency || 'USD',
     footerIcons: homepage.footer?.icons || [],
     footerShowSocialProof: homepage.footer?.showSocialProof ?? true,
