@@ -32,7 +32,7 @@ interface FormattedUser {
   username: string;
   name: string;
   surname: string | null;
-  avatar: string; // FIX: Changed from string | null to string
+  avatar: string;
   avatarObject: {
     id: string;
     avatarIndex: number;
@@ -53,6 +53,43 @@ interface FormattedUser {
   bio: string;
   dateJoined: string;
   isPrivate: boolean;
+}
+
+// ✅ Type for the user data returned from Prisma
+interface PrismaUserData {
+  id: string;
+  username: string;
+  name: string | null;
+  surname: string | null;
+  img: string | null;
+  createdAt: Date;
+  userXP: {
+    totalXP: number;
+    contributorTitle: string;
+  } | null;
+  badges: Array<{
+    id: string;
+    title: string;
+    icon: string;
+    color: string;
+  }>;
+  avatars: Array<{
+    id: string;
+    avatarIndex: number;
+    avatarSeed: string;
+    avatarStyle: string;
+    isPrimary: boolean;
+    isCustomUpload: boolean;
+    customImageUrl: string | null;
+  }>;
+  UserGoals: Array<{
+    purpose: string;
+  }>;
+  _count: {
+    followers: number;
+    following: number;
+    courses: number;
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -147,7 +184,8 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    const formattedUsers: FormattedUser[] = users.map((user) => {
+    // ✅ FIXED: Explicitly type the user parameter
+    const formattedUsers: FormattedUser[] = users.map((user: PrismaUserData) => {
       const userGoal = user.UserGoals[0];
       let userType: UserType = 'learner';
       
@@ -161,7 +199,7 @@ export async function GET(request: NextRequest) {
       const avatarUrl = getAvatarUrlFromUser(user, 64);
       const primaryAvatar = user.avatars[0] || null;
 
-      // FIX: Ensure avatar is always a string, never null
+      // Ensure avatar is always a string, never null
       const finalAvatarUrl = avatarUrl || '/default-avatar.png';
 
       return {
@@ -169,9 +207,9 @@ export async function GET(request: NextRequest) {
         username: user.username,
         name: user.name || 'User',
         surname: user.surname,
-        avatar: finalAvatarUrl, // FIX: Always string
+        avatar: finalAvatarUrl,
         avatarObject: primaryAvatar,
-        img: finalAvatarUrl, // FIX: Always string
+        img: finalAvatarUrl,
         type: userType,
         xp: user.userXP?.totalXP || 0,
         seekers: user._count.followers,
