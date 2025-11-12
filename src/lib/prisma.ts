@@ -13,7 +13,6 @@ export type PrismaTx = Prisma.TransactionClient;
 const prismaClientSingleton = () => {
   return new PrismaClient({
     log: ['error', 'warn'],
-    // Use stdout logging instead of events to avoid type issues
   });
 };
 
@@ -23,17 +22,12 @@ const prismaBase = globalThis.prisma || prismaClientSingleton();
 // Create a wrapper that provides typed transactions
 const prisma = prismaBase;
 
-// Type-safe transaction wrapper - FIXED VERSION
+// Type-safe transaction wrapper
 export const transaction = async <T>(
   fn: (tx: PrismaTx) => Promise<T>
 ): Promise<T> => {
   return await prismaBase.$transaction(fn);
 };
-
-// Debug logging (optional - uncomment if needed)
-// if (process.env.DEBUG_PRISMA === 'true') {
-//   console.log('Prisma client initialized with debug mode');
-// }
 
 // Keep the connection alive in development
 if (process.env.NODE_ENV !== 'production') globalThis.prisma = prismaBase;
@@ -76,10 +70,20 @@ export const findUserByUsername = async (username: string) => {
   });
 };
 
-// ✅ FIXED: Use Prisma namespace types directly
-type CreateUserData = Prisma.StudentCreateInput;
-
-export const createUser = async (userData: CreateUserData) => {
+// ✅ FIXED: Extract types from Prisma Client methods directly
+export const createUser = async (userData: {
+  username: string;
+  email: string;
+  password?: string | null;
+  phone?: string | null;
+  name?: string | null;
+  surname?: string | null;
+  img?: string | null;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  twoFactorEnabled?: boolean;
+  [key: string]: any; // Allow additional fields
+}) => {
   return await prisma.student.create({
     data: userData,
     include: {
@@ -89,10 +93,23 @@ export const createUser = async (userData: CreateUserData) => {
   });
 };
 
-// ✅ FIXED: Type for user update data
-type UpdateUserData = Prisma.StudentUpdateInput;
-
-export const updateUser = async (id: string, userData: UpdateUserData) => {
+// ✅ FIXED: Type for user update data - use inferred type
+export const updateUser = async (id: string, userData: Partial<{
+  username?: string;
+  email?: string;
+  password?: string | null;
+  phone?: string | null;
+  name?: string | null;
+  surname?: string | null;
+  img?: string | null;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  twoFactorEnabled?: boolean;
+  lastLogin?: Date;
+  lastActiveAt?: Date;
+  isOnline?: boolean;
+  [key: string]: any;
+}>) => {
   return await prisma.student.update({
     where: { id },
     data: userData,
@@ -104,9 +121,20 @@ export const updateUser = async (id: string, userData: UpdateUserData) => {
 };
 
 // ✅ FIXED: Type for session creation data
-type CreateSessionData = Prisma.UserSessionCreateInput;
-
-export const createUserSession = async (sessionData: CreateSessionData) => {
+export const createUserSession = async (sessionData: {
+  userId: string;
+  sessionToken: string;
+  refreshToken: string;
+  expiresAt: Date;
+  deviceId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  location?: string | null;
+  country?: string | null;
+  city?: string | null;
+  sessionType?: string;
+  isActive?: boolean;
+}) => {
   return await prisma.userSession.create({
     data: sessionData
   });
@@ -131,9 +159,24 @@ export const findActiveSession = async (sessionToken: string) => {
 };
 
 // ✅ FIXED: Type for auth log event data
-type CreateAuthLogData = Prisma.AuthLogCreateInput;
-
-export const logAuthEvent = async (eventData: CreateAuthLogData) => {
+export const logAuthEvent = async (eventData: {
+  action: string;
+  ipAddress: string;
+  userId?: string | null;
+  email?: string | null;
+  userAgent?: string | null;
+  location?: string | null;
+  country?: string | null;
+  city?: string | null;
+  deviceType?: string | null;
+  browser?: string | null;
+  success?: boolean;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  details?: any;
+  riskScore?: number | null;
+  flagged?: boolean;
+}) => {
   return await prisma.authLog.create({
     data: eventData
   });
@@ -160,14 +203,23 @@ export const findUserBySocialAccount = async (provider: string, providerId: stri
 // ✅ FIXED: Type for social account creation
 export const createSocialAccount = async (
   userId: string, 
-  socialData: Omit<Prisma.UserSocialCreateInput, 'user'>
+  socialData: {
+    provider: string;
+    providerUserId: string;
+    providerUsername?: string | null;
+    providerEmail?: string | null;
+    accessToken?: string | null;
+    refreshToken?: string | null;
+    expiresAt?: Date | null;
+    scope?: string | null;
+    tokenType?: string;
+    profileData?: any;
+  }
 ) => {
   return await prisma.userSocial.create({
     data: {
-      ...socialData,
-      user: {
-        connect: { id: userId }
-      }
+      userId,
+      ...socialData
     }
   });
 };
