@@ -2,7 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { redis } from '@/lib/redis';
-import { Prisma } from '@prisma/client';
+import { UserDevice } from '@prisma/client'; // ✅ Import the model type directly
 
 interface BehaviorProfile {
   userId: string;
@@ -21,7 +21,7 @@ type LoginAnalytics = {
   deviceType: string | null;
   browser: string | null;
   os: string | null;
-  dayOfWeek: string; // ✅ CHANGED from number to string to match Prisma schema
+  dayOfWeek: string;
   hourOfDay: number;
   loginDuration: number | null;
 };
@@ -32,6 +32,67 @@ type UserSession = {
   lastUsed: Date;
   country: string | null;
 };
+
+// ============================================================================
+// Device Trust Status Helper (FIXED)
+// ============================================================================
+
+interface DeviceTrustInfo {
+  isTrusted: boolean;
+  isAccountCreationDevice: boolean;
+  existsInDB: boolean;
+  existsInRedis: boolean;
+  device?: UserDevice | null; // ✅ FIXED: Use UserDevice directly instead of Prisma.UserDeviceGetPayload
+}
+
+async function getDeviceTrustStatus(
+  userId: string,
+  deviceFingerprint: string
+): Promise<DeviceTrustInfo> {
+  // ✅ DATABASE is the ONLY source of truth
+  const device = await prisma.userDevice.findFirst({
+    where: {
+      userId,
+      fingerprint: deviceFingerprint
+    }
+  });
+
+  // Check Redis cache
+  const redisTrustedKey = `2fa:device:${userId}:${deviceFingerprint}`;
+  const redisValue = await redis.exists(redisTrustedKey);
+  const existsInRedis = redisValue > 0;
+
+  // ✅ CRITICAL: Trust status is ONLY from the DB 'trusted' field
+  const isTrustedInDB = device?.trusted === true;
+  const isAccountCreationDevice = device?.isAccountCreationDevice || false;
+  
+  // ✅ Detect and fix cache inconsistency
+  if (existsInRedis && !isTrustedInDB) {
+    console.warn('[BehaviorAnalysis] ⚠️ CACHE INCONSISTENCY: Redis shows trusted but DB shows untrusted', {
+      userId,
+      fingerprint: deviceFingerprint.substring(0, 16) + '...',
+      dbTrusted: isTrustedInDB,
+      redisCached: existsInRedis
+    });
+    
+    await redis.del(redisTrustedKey);
+    console.log('[BehaviorAnalysis] ✅ Deleted stale Redis cache');
+  }
+  
+  // ✅ If device is trusted in DB but not cached, cache it
+  if (isTrustedInDB && !existsInRedis) {
+    await redis.setex(redisTrustedKey, 150 * 24 * 60 * 60, '1');
+    console.log('[BehaviorAnalysis] ✅ Cached trusted device in Redis');
+  }
+
+  return {
+    isTrusted: isTrustedInDB,
+    isAccountCreationDevice,
+    existsInDB: !!device,
+    existsInRedis,
+    device
+  };
+}
 
 // ============================================================================
 // Advanced Behavior Analysis with Device Trust Integration
@@ -53,7 +114,6 @@ export async function analyzeBehaviorForRisk(
   requiresAdditional2FA: boolean;
   allowTrustedDeviceBypass: boolean;
 }> {
-  // ✅ STEP 1: Check device trust status (DB is source of truth)
   const deviceTrustInfo = await getDeviceTrustStatus(userId, currentContext.deviceFingerprint);
   
   console.log(`[BehaviorAnalysis] Device trust info:`, {
@@ -65,52 +125,42 @@ export async function analyzeBehaviorForRisk(
     dbTrustedValue: deviceTrustInfo.device?.trusted
   });
 
-  // Get user's behavior profile
   const profile = await getUserBehaviorProfile(userId);
   
   let riskScore = 0;
   const riskFactors: string[] = [];
   const recommendations: string[] = [];
 
-  // ✅ CRITICAL FIX: Trust status is ONLY based on DB trusted field
-  // isAccountCreationDevice does NOT automatically grant trust if untrusted
   if (deviceTrustInfo.isTrusted) {
     console.log('[BehaviorAnalysis] ✅ Device is trusted - reduced risk scoring');
   } else {
-    // ✅ ANY untrusted device gets baseline risk
     riskScore += 10;
     riskFactors.push('untrusted_device_baseline');
     console.log('[BehaviorAnalysis] ⚠️ Untrusted device - added 10 baseline risk');
   }
 
-  // ✅ STEP 2: Analyze location
   const locationRisk = analyzeLocationRisk(profile, currentContext, deviceTrustInfo);
   riskScore += locationRisk.score;
   riskFactors.push(...locationRisk.factors);
 
-  // ✅ STEP 3: Analyze device
   const deviceRisk = await analyzeDeviceRisk(profile, currentContext, deviceTrustInfo);
   riskScore += deviceRisk.score;
   riskFactors.push(...deviceRisk.factors);
 
-  // ✅ STEP 4: Analyze time patterns
   const timeRisk = analyzeTimeRisk(profile, currentContext, deviceTrustInfo);
   riskScore += timeRisk.score;
   riskFactors.push(...timeRisk.factors);
 
-  // ✅ STEP 5: Check for velocity attacks
   const velocityRisk = await checkVelocityAttack(userId, currentContext);
   riskScore += velocityRisk.score;
   riskFactors.push(...velocityRisk.factors);
 
-  // ✅ STEP 6: Check for concurrent sessions
   const concurrencyRisk = await checkConcurrentSessions(userId, currentContext, deviceTrustInfo);
   riskScore += concurrencyRisk.score;
   riskFactors.push(...concurrencyRisk.factors);
 
   riskScore = Math.min(100, riskScore);
 
-  // ✅ STEP 7: Determine if 2FA bypass is allowed
   const criticalFactors = [
     'velocity_attack',
     'impossible_travel',
@@ -122,7 +172,6 @@ export async function analyzeBehaviorForRisk(
   
   let allowTrustedDeviceBypass = false;
   
-  // ✅ CRITICAL FIX: NEVER bypass if device is untrusted
   if (!deviceTrustInfo.isTrusted) {
     allowTrustedDeviceBypass = false;
     console.log('[BehaviorAnalysis] ❌ Device is untrusted - NO bypass allowed');
@@ -130,7 +179,6 @@ export async function analyzeBehaviorForRisk(
     allowTrustedDeviceBypass = false;
     console.log('[BehaviorAnalysis] ❌ Critical risk factors detected - no bypass allowed');
   } else if (deviceTrustInfo.isTrusted && riskScore < 60) {
-    // Only trusted devices with low risk can bypass
     allowTrustedDeviceBypass = true;
     console.log(`[BehaviorAnalysis] ✅ Trusted device bypass allowed (risk: ${riskScore})`);
   } else {
@@ -138,7 +186,6 @@ export async function analyzeBehaviorForRisk(
     console.log(`[BehaviorAnalysis] ❌ Risk too high for bypass (risk: ${riskScore})`);
   }
 
-  // Generate recommendations
   if (riskScore >= 80) {
     recommendations.push('Force password change');
     recommendations.push('Require additional identity verification');
@@ -150,7 +197,6 @@ export async function analyzeBehaviorForRisk(
     recommendations.push('Monitor session closely');
     recommendations.push('Require 2FA');
   } else if (!deviceTrustInfo.isTrusted) {
-    // ✅ Always recommend 2FA for untrusted devices
     recommendations.push('Require 2FA for untrusted device');
   }
 
@@ -169,70 +215,6 @@ export async function analyzeBehaviorForRisk(
     recommendations,
     requiresAdditional2FA: riskScore >= 40 || !deviceTrustInfo.isTrusted,
     allowTrustedDeviceBypass
-  };
-}
-
-// ============================================================================
-// Device Trust Status Helper (FIXED)
-// ============================================================================
-
-interface DeviceTrustInfo {
-  isTrusted: boolean;
-  isAccountCreationDevice: boolean;
-  existsInDB: boolean;
-  existsInRedis: boolean;
-  device?: Prisma.UserDeviceGetPayload<{}> | null;
-}
-
-async function getDeviceTrustStatus(
-  userId: string,
-  deviceFingerprint: string
-): Promise<DeviceTrustInfo> {
-  // ✅ DATABASE is the ONLY source of truth
-  const device = await prisma.userDevice.findFirst({
-    where: {
-      userId,
-      fingerprint: deviceFingerprint
-    }
-  });
-
-  // Check Redis cache
-  const redisTrustedKey = `2fa:device:${userId}:${deviceFingerprint}`;
-  const redisValue = await redis.exists(redisTrustedKey);
-  const existsInRedis = redisValue > 0;
-
-  // ✅ CRITICAL: Trust status is ONLY from the DB 'trusted' field
-  // isAccountCreationDevice is just metadata - it doesn't grant automatic trust
-  const isTrustedInDB = device?.trusted === true;
-  const isAccountCreationDevice = device?.isAccountCreationDevice || false;
-  
-  // ✅ Detect and fix cache inconsistency
-  if (existsInRedis && !isTrustedInDB) {
-    console.warn('[BehaviorAnalysis] ⚠️ CACHE INCONSISTENCY: Redis shows trusted but DB shows untrusted', {
-      userId,
-      fingerprint: deviceFingerprint.substring(0, 16) + '...',
-      dbTrusted: isTrustedInDB,
-      redisCached: existsInRedis
-    });
-    
-    // ✅ Delete stale cache immediately
-    await redis.del(redisTrustedKey);
-    console.log('[BehaviorAnalysis] ✅ Deleted stale Redis cache');
-  }
-  
-  // ✅ If device is trusted in DB but not cached, cache it
-  if (isTrustedInDB && !existsInRedis) {
-    await redis.setex(redisTrustedKey, 150 * 24 * 60 * 60, '1');
-    console.log('[BehaviorAnalysis] ✅ Cached trusted device in Redis');
-  }
-
-  // ✅ Return DB value as final truth
-  return {
-    isTrusted: isTrustedInDB,
-    isAccountCreationDevice,
-    existsInDB: !!device,
-    existsInRedis,
-    device
   };
 }
 
@@ -258,15 +240,13 @@ async function getUserBehaviorProfile(userId: string): Promise<BehaviorProfile> 
   const deviceCounts = new Map<string, number>();
   const timeCounts = new Map<string, number>();
 
-  // ✅ FIXED: Properly typed log parameter
-  analytics.forEach((log: Prisma.LoginAnalyticsGetPayload<{}>) => {
+  analytics.forEach((log) => {
     const locKey = `${log.country}:${log.city}`;
     locationCounts.set(locKey, (locationCounts.get(locKey) || 0) + 1);
 
     const devKey = `${log.deviceType}:${log.browser}:${log.os}`;
     deviceCounts.set(devKey, (deviceCounts.get(devKey) || 0) + 1);
 
-    // ✅ FIXED: Parse dayOfWeek as number since it comes as string from DB
     const dayOfWeek = parseInt(log.dayOfWeek, 10);
     const timeKey = `${dayOfWeek}:${log.hourOfDay}`;
     timeCounts.set(timeKey, (timeCounts.get(timeKey) || 0) + 1);
@@ -290,7 +270,6 @@ async function getUserBehaviorProfile(userId: string): Promise<BehaviorProfile> 
       return { day, hour };
     });
 
-  // ✅ FIXED: Properly handle reduce with initial value
   const totalDuration = analytics.reduce((sum, log) => sum + (log.loginDuration || 0), 0);
   const avgSessionDuration = analytics.length > 0 ? totalDuration / analytics.length : 0;
 
