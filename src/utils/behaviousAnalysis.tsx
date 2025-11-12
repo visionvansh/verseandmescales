@@ -2,7 +2,6 @@
 
 import prisma from '@/lib/prisma';
 import { redis } from '@/lib/redis';
-import { UserDevice } from '@prisma/client'; // ✅ Import the model type directly
 
 interface BehaviorProfile {
   userId: string;
@@ -37,12 +36,15 @@ type UserSession = {
 // Device Trust Status Helper (FIXED)
 // ============================================================================
 
+// ✅ Infer the UserDevice type from Prisma operations
+type UserDeviceType = Awaited<ReturnType<typeof prisma.userDevice.findFirst>>;
+
 interface DeviceTrustInfo {
   isTrusted: boolean;
   isAccountCreationDevice: boolean;
   existsInDB: boolean;
   existsInRedis: boolean;
-  device?: UserDevice | null; // ✅ FIXED: Use UserDevice directly instead of Prisma.UserDeviceGetPayload
+  device?: UserDeviceType;
 }
 
 async function getDeviceTrustStatus(
