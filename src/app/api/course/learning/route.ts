@@ -80,8 +80,8 @@ export async function GET(req: NextRequest) {
       ? Math.round((completedLessons / totalLessons) * 100) 
       : 0;
 
-    // Calculate total duration
-    const totalMinutes = module.lessons.reduce((acc, lesson) => {
+    // Calculate total duration - FIX: Add types to reduce parameters
+    const totalMinutes = module.lessons.reduce((acc: number, lesson) => {
       const duration = lesson.videoDuration;
       const minutes = parseDuration(duration);
       return acc + minutes;
