@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { redis } from '@/lib/redis';
+import { Prisma } from '@prisma/client';
 
 interface BehaviorProfile {
   userId: string;
@@ -180,7 +181,7 @@ interface DeviceTrustInfo {
   isAccountCreationDevice: boolean;
   existsInDB: boolean;
   existsInRedis: boolean;
-  device?: any;
+  device?: Prisma.UserDeviceGetPayload<{}> | null;
 }
 
 async function getDeviceTrustStatus(
@@ -257,7 +258,8 @@ async function getUserBehaviorProfile(userId: string): Promise<BehaviorProfile> 
   const deviceCounts = new Map<string, number>();
   const timeCounts = new Map<string, number>();
 
-  analytics.forEach((log) => {
+  // ✅ FIXED: Properly typed log parameter
+  analytics.forEach((log: Prisma.LoginAnalyticsGetPayload<{}>) => {
     const locKey = `${log.country}:${log.city}`;
     locationCounts.set(locKey, (locationCounts.get(locKey) || 0) + 1);
 
@@ -313,7 +315,13 @@ async function getUserBehaviorProfile(userId: string): Promise<BehaviorProfile> 
 
 function analyzeLocationRisk(
   profile: BehaviorProfile,
-  context: any,
+  context: {
+    ipAddress: string;
+    location: string;
+    country: string;
+    deviceFingerprint: string;
+    loginTime: Date;
+  },
   deviceTrust: DeviceTrustInfo
 ) {
   const locKey = `${context.country}:${context.location}`;
@@ -352,7 +360,13 @@ function analyzeLocationRisk(
 
 async function analyzeDeviceRisk(
   profile: BehaviorProfile,
-  context: any,
+  context: {
+    ipAddress: string;
+    location: string;
+    country: string;
+    deviceFingerprint: string;
+    loginTime: Date;
+  },
   deviceTrust: DeviceTrustInfo
 ) {
   let score = 0;
@@ -377,7 +391,13 @@ async function analyzeDeviceRisk(
 
 function analyzeTimeRisk(
   profile: BehaviorProfile,
-  context: any,
+  context: {
+    ipAddress: string;
+    location: string;
+    country: string;
+    deviceFingerprint: string;
+    loginTime: Date;
+  },
   deviceTrust: DeviceTrustInfo
 ) {
   const loginTime = context.loginTime;
@@ -418,7 +438,16 @@ function analyzeTimeRisk(
 // Velocity Attack Detection
 // ============================================================================
 
-async function checkVelocityAttack(userId: string, context: any) {
+async function checkVelocityAttack(
+  userId: string,
+  context: {
+    ipAddress: string;
+    location: string;
+    country: string;
+    deviceFingerprint: string;
+    loginTime: Date;
+  }
+) {
   let score = 0;
   const factors: string[] = [];
 
@@ -450,7 +479,13 @@ async function checkVelocityAttack(userId: string, context: any) {
 
 async function checkConcurrentSessions(
   userId: string,
-  context: any,
+  context: {
+    ipAddress: string;
+    location: string;
+    country: string;
+    deviceFingerprint: string;
+    loginTime: Date;
+  },
   deviceTrust: DeviceTrustInfo
 ) {
   let score = 0;
@@ -469,7 +504,7 @@ async function checkConcurrentSessions(
   const countries = new Set(
     recentSessions
       .map((s) => s.country)
-      .filter(c => c && c !== 'Unknown')
+      .filter((c): c is string => c !== null && c !== 'Unknown')
   );
   
   if (countries.size > 1) {
