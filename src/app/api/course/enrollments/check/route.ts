@@ -39,14 +39,17 @@ export async function POST(request: NextRequest) {
     });
 
     // Create a map of courseId -> isEnrolled
-    const enrollmentMap = enrollments.reduce((acc, enrollment) => {
-      acc[enrollment.courseId] = true;
-      return acc;
-    }, {} as Record<string, boolean>);
+    const enrollmentMap = enrollments.reduce<Record<string, boolean>>(
+      (acc, enrollment) => {
+        acc[enrollment.courseId] = true;
+        return acc;
+      },
+      {}
+    );
 
     return NextResponse.json({ enrollments: enrollmentMap });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Check enrollments error:', error);
     return NextResponse.json(
       { error: 'Failed to check enrollments' },
