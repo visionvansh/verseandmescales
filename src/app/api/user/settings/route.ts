@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma';
 import { redis, CACHE_TIMES, CACHE_PREFIX } from '@/lib/redis';
 import { rateLimit } from '@/lib/rateLimit';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client'; // ✅ Import Prisma namespace
 
 // Type definitions based on Prisma schema
 type UserGoalPurpose = 'learn' | 'teach' | 'both';
@@ -91,6 +91,11 @@ const privacyUpdateSchema = z.object({
 interface SettingsRequestBody {
   section: string;
   data: Record<string, unknown>;
+}
+
+// ✅ Updated helper function with proper type casting
+function toJsonValue(data: Record<string, unknown>): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(data)) as Prisma.InputJsonValue;
 }
 
 async function invalidateUserCaches(userId: string): Promise<void> {
@@ -335,7 +340,7 @@ export async function POST(request: NextRequest) {
     // Invalidate all related caches
     await invalidateUserCaches(user.id);
 
-    // Log activity - FIX: Convert data to Prisma.InputJsonValue
+    // ✅ FIXED: Log activity with proper type casting
     await prisma.userActivityLog.create({
       data: {
         userId: user.id,
@@ -343,10 +348,10 @@ export async function POST(request: NextRequest) {
         description: `Updated ${section} settings`,
         ipAddress: ip,
         userAgent: request.headers.get('user-agent') || 'unknown',
-        metadata: { 
+        metadata: toJsonValue({ 
           section, 
-          updates: data as Prisma.InputJsonValue 
-        } as Prisma.InputJsonValue
+          updates: data
+        })
       }
     });
 
@@ -565,7 +570,7 @@ export async function PATCH(request: NextRequest) {
     // Invalidate all related caches
     await invalidateUserCaches(user.id);
 
-    // Log activity - FIX: Convert data to Prisma.InputJsonValue
+    // ✅ FIXED: Log activity with proper type casting
     await prisma.userActivityLog.create({
       data: {
         userId: user.id,
@@ -573,10 +578,10 @@ export async function PATCH(request: NextRequest) {
         description: `Updated ${section} settings`,
         ipAddress: ip,
         userAgent: request.headers.get('user-agent') || 'unknown',
-        metadata: { 
+        metadata: toJsonValue({ 
           section, 
-          updates: data as Prisma.InputJsonValue 
-        } as Prisma.InputJsonValue
+          updates: data
+        })
       }
     });
 
