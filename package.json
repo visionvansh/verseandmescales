@@ -3,11 +3,10 @@
   "version": "0.1.0",
   "private": true,
 "scripts": {
-  "dev": "prisma generate && concurrently \"next dev\" \"node websocket-server.js\"",
+  "dev": "concurrently \"next dev\" \"node websocket-server.js\"",
   "ws": "node websocket-server.js",
-  "build": "prisma generate && NODE_OPTIONS='--max-old-space-size=4096' next build",
-  "start": "concurrently \"next start\" \"node websocket-server.js\"",
-  "start:prod": "prisma generate && node websocket-server.js & next start",
+  "build": "next build",
+  "start": "next start",
   "type-check": "tsc --noEmit --pretty",
   "postinstall": "prisma generate"
 },
