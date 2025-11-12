@@ -1,7 +1,7 @@
 // app/api/course/module/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
-import prisma from "@/lib/prisma";
+import prisma, { PrismaTx } from "@/lib/prisma";
 
 // GET - Fetch a single module with all lessons and resources
 export async function GET(req: NextRequest) {
@@ -87,7 +87,7 @@ export async function PUT(req: NextRequest) {
 
     // Update positions in transaction
     await prisma.$transaction(
-      modules.map((module) =>
+      modules.map((module: { id: string; position: number }) =>
         prisma.courseModule.update({
           where: {
             id: module.id,

@@ -68,11 +68,11 @@ export async function GET(req: NextRequest) {
 
     // Create a map for quick lookup
     const progressMap = new Map(
-      lessonProgress.map((p) => [p.lessonId, p])
+      lessonProgress.map((p: { lessonId: string; isCompleted: boolean; progressPercent: number; lastPosition: number; watchTime: number | null }) => [p.lessonId, p])
     );
 
     // Calculate completed lessons count
-    const completedLessons = lessonProgress.filter((p) => p.isCompleted).length;
+    const completedLessons = lessonProgress.filter((p: { isCompleted: boolean }) => p.isCompleted).length;
     const totalLessons = module.lessons.length;
     
     // Calculate module progress percentage
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
     }, 0);
 
     // Calculate total watch time
-    const totalWatchTime = lessonProgress.reduce((acc, p) => acc + (p.watchTime || 0), 0);
+    const totalWatchTime = lessonProgress.reduce((acc: number, p: { watchTime: number | null }) => acc + (p.watchTime || 0), 0);
 
     // Transform lessons with progress data
     const transformedLessons = module.lessons.map((lesson, index) => {
