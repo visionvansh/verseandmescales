@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Use transaction to ensure data consistency
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: typeof prisma) => {
       // Update course last edited section
       await tx.course.update({
         where: { id: courseId, userId: userId },
