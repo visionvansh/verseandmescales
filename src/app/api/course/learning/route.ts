@@ -3,6 +3,44 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
 
+// Define types for the data structures
+type LessonProgress = {
+  lessonId: string;
+  isCompleted: boolean;
+  progressPercent: number;
+  lastPosition: number;
+  watchTime: number | null;
+};
+
+type Resource = {
+  title: string;
+  fileType: string;
+  fileSize: string;
+  fileUrl: string;
+  position: number;
+};
+
+type Lesson = {
+  id: string;
+  title: string;
+  description: string | null;
+  videoDuration: string;
+  videoUrl: string;
+  resources: Resource[];
+};
+
+type Module = {
+  id: string;
+  title: string;
+  description: string | null;
+  difficulty: string;
+  lessons: Lesson[];
+  course: {
+    id: string;
+    title: string;
+  };
+};
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getAuthUser(req);
@@ -49,7 +87,7 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-    });
+    }) as Module | null;
 
     if (!module) {
       return NextResponse.json(
@@ -64,15 +102,15 @@ export async function GET(req: NextRequest) {
         userId: user.id,
         moduleId: moduleId,
       },
-    });
+    }) as LessonProgress[];
 
     // Create a map for quick lookup
-    const progressMap = new Map(
-      lessonProgress.map((p: { lessonId: string; isCompleted: boolean; progressPercent: number; lastPosition: number; watchTime: number | null }) => [p.lessonId, p])
+    const progressMap = new Map<string, LessonProgress>(
+      lessonProgress.map((p: LessonProgress) => [p.lessonId, p])
     );
 
     // Calculate completed lessons count
-    const completedLessons = lessonProgress.filter((p: { isCompleted: boolean }) => p.isCompleted).length;
+    const completedLessons = lessonProgress.filter((p: LessonProgress) => p.isCompleted).length;
     const totalLessons = module.lessons.length;
     
     // Calculate module progress percentage
@@ -80,22 +118,24 @@ export async function GET(req: NextRequest) {
       ? Math.round((completedLessons / totalLessons) * 100) 
       : 0;
 
-    // Calculate total duration - FIX: Add types to reduce parameters
-    const totalMinutes = module.lessons.reduce((acc: number, lesson) => {
+    // Calculate total duration
+    const totalMinutes = module.lessons.reduce((acc: number, lesson: Lesson) => {
       const duration = lesson.videoDuration;
       const minutes = parseDuration(duration);
       return acc + minutes;
     }, 0);
 
     // Calculate total watch time
-    const totalWatchTime = lessonProgress.reduce((acc: number, p: { watchTime: number | null }) => acc + (p.watchTime || 0), 0);
+    const totalWatchTime = lessonProgress.reduce((acc: number, p: LessonProgress) => {
+      return acc + (p.watchTime || 0);
+    }, 0);
 
     // Transform lessons with progress data
-    const transformedLessons = module.lessons.map((lesson, index) => {
+    const transformedLessons = module.lessons.map((lesson: Lesson, index: number) => {
       const progress = progressMap.get(lesson.id);
       
       // Find the index of the first incomplete lesson
-      const firstIncompleteLessonIndex = module.lessons.findIndex((l, i) => {
+      const firstIncompleteLessonIndex = module.lessons.findIndex((l: Lesson, i: number) => {
         const lProgress = progressMap.get(l.id);
         return !lProgress?.isCompleted;
       });
@@ -124,7 +164,7 @@ export async function GET(req: NextRequest) {
         lastPosition: progress?.lastPosition || 0,
         watchTime: progress?.watchTime || 0,
         isLocked: isLocked,
-        resources: lesson.resources.map((resource) => ({
+        resources: lesson.resources.map((resource: Resource) => ({
           name: resource.title,
           type: resource.fileType,
           size: resource.fileSize,
