@@ -6,6 +6,9 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
+// ✅ Export transaction client type
+export type PrismaTx = Prisma.TransactionClient;
+
 // Create a singleton Prisma client with proper connection settings
 const prismaClientSingleton = () => {
   return new PrismaClient({
@@ -14,7 +17,18 @@ const prismaClientSingleton = () => {
   });
 };
 
-const prisma = globalThis.prisma || prismaClientSingleton();
+// Create a typed Prisma client that includes the $transaction method
+const prismaBase = globalThis.prisma || prismaClientSingleton();
+
+// Create a wrapper that provides typed transactions
+const prisma = prismaBase;
+
+// Type-safe transaction wrapper - FIXED VERSION
+export const transaction = async <T>(
+  fn: (tx: PrismaTx) => Promise<T>
+): Promise<T> => {
+  return await prismaBase.$transaction(fn);
+};
 
 // Debug logging (optional - uncomment if needed)
 // if (process.env.DEBUG_PRISMA === 'true') {
@@ -22,11 +36,11 @@ const prisma = globalThis.prisma || prismaClientSingleton();
 // }
 
 // Keep the connection alive in development
-if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') globalThis.prisma = prismaBase;
 
 // Ensure connections are released on exit
 process.on('beforeExit', async () => {
-  await prisma.$disconnect();
+  await prismaBase.$disconnect();
 });
 
 export default prisma;

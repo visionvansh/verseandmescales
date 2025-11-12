@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
-import prisma from "@/lib/prisma";
+import prisma, { PrismaTx } from "@/lib/prisma";
 
 // Define types for the data structures
 interface LessonResource {
@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Use transaction to ensure data consistency
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: PrismaTx) => {
       // Update course last edited section
       await tx.course.update({
         where: { id: courseId, userId },
