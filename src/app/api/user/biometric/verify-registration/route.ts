@@ -1,6 +1,6 @@
 // /Volumes/vision/codes/course/my-app/src/app/api/user/biometric/verify-registration/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import prisma, { PrismaTx } from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { verifyRegistrationResponse } from '@simplewebauthn/server';
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        const result = await prisma.$transaction(async (tx): Promise<TransactionResult> => {
+        const result = await prisma.$transaction(async (tx: PrismaTx): Promise<TransactionResult> => {
           const newCredential = await tx.biometricCredential.create({
             data: {
               userId: user.id,
