@@ -9,44 +9,17 @@ declare global {
 // Create a singleton Prisma client with proper connection settings
 const prismaClientSingleton = () => {
   return new PrismaClient({
-    log: [
-      { level: 'query', emit: 'event' },
-      { level: 'error', emit: 'stdout' },
-      { level: 'info', emit: 'stdout' },
-      { level: 'warn', emit: 'stdout' },
-    ],
+    log: ['error', 'warn'],
+    // Use stdout logging instead of events to avoid type issues
   });
 };
 
 const prisma = globalThis.prisma || prismaClientSingleton();
 
-// Type-safe event handler registration
-type QueryEvent = {
-  timestamp: Date;
-  query: string;
-  params: string;
-  duration: number;
-  target: string;
-};
-
-// Add event listeners for better debugging and monitoring
-if (process.env.DEBUG_PRISMA === 'true') {
-  prisma.$on('query', (e: QueryEvent) => {
-    console.debug(`Query: ${e.query}`);
-    console.debug(`Duration: ${e.duration}ms`);
-  });
-}
-
-// Type for error events from Prisma
-type PrismaErrorEvent = {
-  timestamp: Date;
-  message: string;
-  target: string;
-};
-
-prisma.$on('error', (e: PrismaErrorEvent) => {
-  console.error('Prisma error:', e);
-});
+// Debug logging (optional - uncomment if needed)
+// if (process.env.DEBUG_PRISMA === 'true') {
+//   console.log('Prisma client initialized with debug mode');
+// }
 
 // Keep the connection alive in development
 if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma;
@@ -170,18 +143,15 @@ export const findUserBySocialAccount = async (provider: string, providerId: stri
   });
 };
 
-// Type for social account creation data
-type CreateSocialAccountData = Omit<Prisma.UserSocialCreateInput, 'user'> & {
-  userId?: string;
-};
-
-export const createSocialAccount = async (userId: string, socialData: CreateSocialAccountData) => {
+// Type for social account creation - using unchecked input
+export const createSocialAccount = async (
+  userId: string, 
+  socialData: Omit<Prisma.UserSocialUncheckedCreateInput, 'userId'>
+) => {
   return await prisma.userSocial.create({
     data: {
-      ...socialData,
-      user: {
-        connect: { id: userId }
-      }
+      userId,
+      ...socialData
     }
   });
 };

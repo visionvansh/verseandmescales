@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+
 
 // Define types for the data structures
 interface LessonResource {
