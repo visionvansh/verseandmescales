@@ -3,6 +3,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 
+// Define types
+type RatingData = {
+  rating: number;
+};
+
+type CourseRatingWithUser = {
+  id: string;
+  courseId: string;
+  userId: string;
+  rating: number;
+  review: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  user: {
+    id: string;
+    name: string | null;
+    surname: string | null;
+    username: string | null;
+    img: string | null;
+  };
+};
+
 // ============================================
 // POST - Submit or Update Course Rating
 // ============================================
@@ -107,16 +129,16 @@ export async function POST(request: NextRequest) {
           },
         },
       },
-    });
+    }) as CourseRatingWithUser;
 
     // Calculate new average rating
     const allRatings = await prisma.courseRating.findMany({
       where: { courseId },
       select: { rating: true },
-    });
+    }) as RatingData[];
 
     const averageRating = allRatings.length > 0
-      ? allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length
+      ? allRatings.reduce((sum: number, r: RatingData) => sum + r.rating, 0) / allRatings.length
       : 0;
 
     // ✅ FIX: Only update CourseStats if homepage exists
@@ -192,18 +214,18 @@ export async function GET(request: NextRequest) {
     const allRatings = await prisma.courseRating.findMany({
       where: { courseId },
       select: { rating: true },
-    });
+    }) as RatingData[];
 
     const averageRating = allRatings.length > 0
-      ? allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length
+      ? allRatings.reduce((sum: number, r: RatingData) => sum + r.rating, 0) / allRatings.length
       : 0;
 
     const ratingBreakdown = {
-      5: allRatings.filter(r => r.rating === 5).length,
-      4: allRatings.filter(r => r.rating === 4).length,
-      3: allRatings.filter(r => r.rating === 3).length,
-      2: allRatings.filter(r => r.rating === 2).length,
-      1: allRatings.filter(r => r.rating === 1).length,
+      5: allRatings.filter((r: RatingData) => r.rating === 5).length,
+      4: allRatings.filter((r: RatingData) => r.rating === 4).length,
+      3: allRatings.filter((r: RatingData) => r.rating === 3).length,
+      2: allRatings.filter((r: RatingData) => r.rating === 2).length,
+      1: allRatings.filter((r: RatingData) => r.rating === 1).length,
     };
 
     return NextResponse.json({
@@ -259,10 +281,10 @@ export async function DELETE(request: NextRequest) {
     const allRatings = await prisma.courseRating.findMany({
       where: { courseId },
       select: { rating: true },
-    });
+    }) as RatingData[];
 
     const averageRating = allRatings.length > 0
-      ? allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length
+      ? allRatings.reduce((sum: number, r: RatingData) => sum + r.rating, 0) / allRatings.length
       : 0;
 
     // Update CourseStats - only if homepage exists

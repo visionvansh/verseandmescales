@@ -3,6 +3,42 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
 
+// Define types
+type ModuleCount = {
+  id: string;
+};
+
+type CourseListItem = {
+  id: string;
+  title: string | null;
+  description: string | null;
+  thumbnail: string | null;
+  price: string | null;
+  salePrice: string | null;
+  status: string;
+  isPublished: boolean;
+  publishedAt: Date | null;
+  submittedAt: Date | null;
+  completionPercentage: number | null;
+  lastEditedSection: string | null;
+  homepageType: string | null;
+  customHomepageFile: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  homepage: {
+    mainTitleLine1: string | null;
+    videoUrl: string | null;
+    courseStats: {
+      activeStudents: number;
+      courseRating: number;
+    } | null;
+  } | null;
+  modules: ModuleCount[];
+  _count: {
+    modules: number;
+  };
+};
+
 // GET - Fetch all courses for user
 export async function GET(req: NextRequest) {
   try {
@@ -54,7 +90,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get all courses
-    const whereClause: any = { userId: user.id };
+    const whereClause: { userId: string; status?: string } = { userId: user.id };
     if (status) whereClause.status = status;
 
     const courses = await prisma.course.findMany({
@@ -98,7 +134,7 @@ export async function GET(req: NextRequest) {
         }
       },
       orderBy: { updatedAt: 'desc' }
-    });
+    }) as CourseListItem[];
 
     return NextResponse.json(courses, { status: 200 });
 
@@ -184,7 +220,16 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Course ID required" }, { status: 400 });
     }
 
-    const updateData: any = { updatedAt: new Date() };
+    const updateData: {
+      updatedAt: Date;
+      status?: string;
+      isPublished?: boolean;
+      publishedAt?: Date;
+      title?: string;
+      description?: string;
+      lastEditedSection?: string;
+      completionPercentage?: number;
+    } = { updatedAt: new Date() };
     
     if (status) {
       updateData.status = status;

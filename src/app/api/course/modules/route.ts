@@ -3,6 +3,47 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
 
+// Define types for the data structures
+type LessonProgress = {
+  lessonId: string;
+  isCompleted: boolean;
+  progressPercent: number;
+  lastPosition: number;
+  watchTime: number | null;
+  userId: string;
+  courseId: string;
+  moduleId: string;
+};
+
+type Resource = {
+  id: string;
+  title: string;
+  fileType: string;
+  fileSize: string;
+  fileUrl: string;
+  position: number;
+};
+
+type Lesson = {
+  id: string;
+  title: string;
+  description: string | null;
+  videoDuration: string;
+  videoUrl: string;
+  position: number;
+  resources: Resource[];
+};
+
+type Module = {
+  id: string;
+  title: string;
+  description: string | null;
+  difficulty: string;
+  position: number;
+  learningOutcomes: string[];
+  lessons: Lesson[];
+};
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getAuthUser(req);
@@ -42,7 +83,7 @@ export async function GET(req: NextRequest) {
       orderBy: {
         position: "asc",
       },
-    });
+    }) as Module[];
 
     // ✅ FETCH ALL LESSON PROGRESS FOR THIS COURSE
     const allLessonProgress = await prisma.lessonProgress.findMany({
@@ -50,27 +91,27 @@ export async function GET(req: NextRequest) {
         userId: user.id,
         courseId: courseId,
       },
-    });
+    }) as LessonProgress[];
 
     // Create progress map
-    const progressMap = new Map(
-      allLessonProgress.map((p) => [p.lessonId, p])
+    const progressMap = new Map<string, LessonProgress>(
+      allLessonProgress.map((p: LessonProgress) => [p.lessonId, p])
     );
 
     // Transform modules with progress
-    const transformedModules = modules.map((module) => {
+    const transformedModules = modules.map((module: Module) => {
       // Calculate total duration
-      const totalMinutes = module.lessons.reduce((acc, lesson) => {
+      const totalMinutes = module.lessons.reduce((acc: number, lesson: Lesson) => {
         const minutes = parseDuration(lesson.videoDuration);
         return acc + minutes;
       }, 0);
 
       // Calculate module progress
-      const moduleLessonIds = module.lessons.map((l) => l.id);
+      const moduleLessonIds = module.lessons.map((l: Lesson) => l.id);
       const moduleProgress = allLessonProgress.filter(
-        (p) => moduleLessonIds.includes(p.lessonId)
+        (p: LessonProgress) => moduleLessonIds.includes(p.lessonId)
       );
-      const completedCount = moduleProgress.filter((p) => p.isCompleted).length;
+      const completedCount = moduleProgress.filter((p: LessonProgress) => p.isCompleted).length;
       const progressPercent = module.lessons.length > 0
         ? Math.round((completedCount / module.lessons.length) * 100)
         : 0;
@@ -92,11 +133,11 @@ export async function GET(req: NextRequest) {
         completedLessons: completedCount,
         totalLessons: module.lessons.length,
         learningOutcomes: module.learningOutcomes,
-        lessons: module.lessons.map((lesson, index) => {
+        lessons: module.lessons.map((lesson: Lesson, index: number) => {
           const progress = progressMap.get(lesson.id);
           
           // First incomplete lesson index in this module
-          const firstIncomplete = module.lessons.findIndex((l) => {
+          const firstIncomplete = module.lessons.findIndex((l: Lesson) => {
             const lp = progressMap.get(l.id);
             return !lp?.isCompleted;
           });
@@ -120,7 +161,7 @@ export async function GET(req: NextRequest) {
             progressPercent: progress?.progressPercent || 0,
             watchTime: progress?.watchTime || 0,
             isLocked: isLocked,
-            resources: lesson.resources.map((resource) => ({
+            resources: lesson.resources.map((resource: Resource) => ({
               id: resource.id,
               name: resource.title,
               type: resource.fileType,

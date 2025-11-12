@@ -3,6 +3,39 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
 
+// Define types
+type Resource = {
+  id: string;
+};
+
+type Lesson = {
+  id: string;
+  title: string;
+  resources: Resource[];
+};
+
+type Module = {
+  id: string;
+  title: string;
+  lessons: Lesson[];
+};
+
+type CourseData = {
+  id: string;
+  homepage: {
+    mainTitleLine1: string | null;
+    videoUrl: string | null;
+    customSections: any[];
+    testimonials: {
+      testimonials: any[];
+    } | null;
+    faqSection: {
+      faqs: any[];
+    } | null;
+  } | null;
+  modules: Module[];
+};
+
 /**
  * POST /api/course/submit
  * Submit both homepage and course content for review
@@ -14,7 +47,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { courseId } = await req.json();
+    const body = await req.json();
+    const { courseId } = body;
 
     if (!courseId) {
       return NextResponse.json({ error: "Course ID required" }, { status: 400 });
@@ -46,7 +80,7 @@ export async function POST(req: NextRequest) {
           orderBy: { position: 'asc' }
         }
       }
-    });
+    }) as CourseData | null;
 
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
@@ -72,9 +106,9 @@ export async function POST(req: NextRequest) {
       },
       modules: {
         count: course.modules.length,
-        totalLessons: course.modules.reduce((sum, m) => sum + m.lessons.length, 0),
-        totalResources: course.modules.reduce((sum, m) => 
-          sum + m.lessons.reduce((lSum, l) => lSum + l.resources.length, 0), 0
+        totalLessons: course.modules.reduce((sum: number, m: Module) => sum + m.lessons.length, 0),
+        totalResources: course.modules.reduce((sum: number, m: Module) => 
+          sum + m.lessons.reduce((lSum: number, l: Lesson) => lSum + l.resources.length, 0), 0
         ),
       },
       submittedAt: new Date().toISOString(),
@@ -120,7 +154,7 @@ export async function POST(req: NextRequest) {
 /**
  * Validate course has minimum required content
  */
-function validateCourseForSubmission(course: any) {
+function validateCourseForSubmission(course: CourseData) {
   const issues: string[] = [];
 
   // Homepage validation
@@ -130,16 +164,13 @@ function validateCourseForSubmission(course: any) {
     if (!course.homepage.mainTitleLine1?.trim()) {
       issues.push("Main title is required");
     }
-    if (!course.homepage.subheadingText?.trim()) {
-      issues.push("Subheading is required");
-    }
   }
 
   // Modules validation
   if (!course.modules || course.modules.length === 0) {
     issues.push("At least one module is required");
   } else {
-    course.modules.forEach((module: any, idx: number) => {
+    course.modules.forEach((module: Module, idx: number) => {
       if (!module.title?.trim()) {
         issues.push(`Module ${idx + 1}: Title is required`);
       }

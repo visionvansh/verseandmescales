@@ -1,6 +1,68 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+// Define types
+type Lesson = {
+  id: string;
+  title: string;
+  description: string | null;
+  videoDuration: string | null;
+  position: number;
+};
+
+type Module = {
+  id: string;
+  title: string;
+  description: string | null;
+  difficulty: string;
+  position: number;
+  lessons: Lesson[];
+};
+
+type Enrollment = {
+  id: string;
+  userId: string;
+  enrolledAt: Date;
+};
+
+type Payment = {
+  id: string;
+  amount: number;
+  createdAt: Date;
+};
+
+type CourseData = {
+  id: string;
+  title: string;
+  slug: string | null;
+  description: string | null;
+  thumbnail: string | null;
+  price: string | null;
+  salePrice: string | null;
+  saleEndsAt: Date | null;
+  homepageType: string | null;
+  customHomepageFile: string | null;
+  publishedAt: Date | null;
+  updatedAt: Date;
+  user: {
+    id: string;
+    name: string | null;
+    surname: string | null;
+    username: string | null;
+    img: string | null;
+    avatars: Array<{
+      id: string;
+      isPrimary: boolean;
+      avatarIndex: number;
+      createdAt: Date;
+    }>;
+  };
+  homepage: any;
+  modules: Module[];
+  enrollments: Enrollment[];
+  payments: Payment[];
+};
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -105,7 +167,7 @@ export async function GET(
           },
         },
       },
-    });
+    }) as CourseData | null;
 
     console.log('📊 Course found:', course ? 'YES' : 'NO');
     console.log('📊 Has homepage:', course?.homepage ? 'YES' : 'NO');
@@ -161,7 +223,7 @@ export async function GET(
 
 // ✅ NEW: Calculate real-time stats
 // ✅ SIMPLIFIED: Calculate monthly revenue from enrollments × price
-function calculateRealTimeStats(course: any) {
+function calculateRealTimeStats(course: CourseData) {
   // 1. Active Students/Buyers (total enrollments)
   const activeStudents = course.enrollments?.length || 0;
 
@@ -169,7 +231,7 @@ function calculateRealTimeStats(course: any) {
   const now = new Date();
   const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   
-  const monthlyEnrollments = course.enrollments?.filter((e: any) => 
+  const monthlyEnrollments = course.enrollments?.filter((e: Enrollment) => 
     new Date(e.enrolledAt) >= firstDayOfMonth
   ) || [];
 
@@ -209,11 +271,11 @@ function calculateRealTimeStats(course: any) {
 }
 
 // ✅ UPDATED: Transform function with real-time stats + saleEndsAt
-function transformPublicCourseData(course: any, realTimeStats: any) {
+function transformPublicCourseData(course: CourseData, realTimeStats: any) {
   const homepage = course.homepage;
   
   // Get primary avatar
-  const primaryAvatar = course.user.avatars?.find((a: any) => a.isPrimary) || 
+  const primaryAvatar = course.user.avatars?.find((a) => a.isPrimary) || 
                         course.user.avatars?.[0] || 
                         null;
 
@@ -409,7 +471,7 @@ function transformPublicCourseData(course: any, realTimeStats: any) {
       averageProgress: homepage?.courseStats?.averageProgress || 0,
     },
     
-    modules: (course.modules || []).map((module: any) => ({
+    modules: (course.modules || []).map((module: Module) => ({
       id: module.id,
       title: module.title,
       description: module.description,
@@ -420,18 +482,18 @@ function transformPublicCourseData(course: any, realTimeStats: any) {
     })),
     
     totalModules: course.modules?.length || 0,
-    totalLessons: course.modules?.reduce((acc: number, m: any) => acc + (m.lessons?.length || 0), 0) || 0,
+    totalLessons: course.modules?.reduce((acc: number, m: Module) => acc + (m.lessons?.length || 0), 0) || 0,
     
     publishedAt: course.publishedAt,
     updatedAt: course.updatedAt,
   };
 }
 
-function calculateTotalDuration(lessons: any[] = []) {
+function calculateTotalDuration(lessons: Lesson[] = []) {
   if (!lessons || lessons.length === 0) return '0 min';
   
   let totalMinutes = 0;
-  lessons.forEach(lesson => {
+  lessons.forEach((lesson: Lesson) => {
     if (lesson.videoDuration) {
       const match = lesson.videoDuration.match(/(\d+)\s*(min|hour|hr)/i);
       if (match) {

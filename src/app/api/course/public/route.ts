@@ -2,6 +2,62 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+// Define types
+type Lesson = {
+  id: string;
+  videoDuration: string | null;
+};
+
+type Module = {
+  lessons: Lesson[];
+};
+
+type Avatar = {
+  id: string;
+  isPrimary: boolean;
+  avatarIndex: number;
+  createdAt: Date;
+};
+
+type Rating = {
+  rating: number;
+};
+
+type User = {
+  id: string;
+  name: string | null;
+  username: string | null;
+  img: string | null;
+  avatars: Avatar[];
+};
+
+type Enrollment = {
+  id: string;
+};
+
+type Homepage = {
+  courseStats: {
+    courseRating: number;
+  } | null;
+} | null;
+
+type Course = {
+  id: string;
+  title: string | null;
+  slug: string | null;
+  description: string | null;
+  thumbnail: string | null;
+  price: string | null;
+  salePrice: string | null;
+  saleEndsAt: Date | null;
+  publishedAt: Date | null;
+  user: User;
+  modules: Module[];
+  enrollments: Enrollment[];
+  ratings: Rating[];
+  homepage: Homepage;
+};
+
 /**
  * Parse video duration string to seconds
  */
@@ -26,14 +82,14 @@ function parseDurationToSeconds(duration: string): number {
 /**
  * Calculate total duration from all course lessons
  */
-function calculateCourseDuration(modules: any[]): string {
+function calculateCourseDuration(modules: Module[]): string {
   if (!modules || modules.length === 0) return '0m';
 
   let totalSeconds = 0;
 
-  modules.forEach((module) => {
+  modules.forEach((module: Module) => {
     if (module.lessons && Array.isArray(module.lessons)) {
-      module.lessons.forEach((lesson: any) => {
+      module.lessons.forEach((lesson: Lesson) => {
         if (lesson.videoDuration) {
           totalSeconds += parseDurationToSeconds(lesson.videoDuration);
         }
@@ -125,22 +181,22 @@ export async function GET(request: NextRequest) {
       orderBy: {
         publishedAt: 'desc',
       },
-    });
+    }) as Course[];
 
     console.log(`📚 Found ${courses.length} published courses`);
 
-    const transformedCourses = courses.map((course) => {
+    const transformedCourses = courses.map((course: Course) => {
       const duration = calculateCourseDuration(course.modules);
       const studentsCount = course.enrollments.length;
 
       // ✅ Calculate average rating from actual CourseRating records
       const actualRatings = course.ratings || [];
       const avgRating = actualRatings.length > 0
-        ? actualRatings.reduce((sum, r) => sum + r.rating, 0) / actualRatings.length
+        ? actualRatings.reduce((sum: number, r: Rating) => sum + r.rating, 0) / actualRatings.length
         : 0; // Default to 0 if no ratings
 
       // Get primary avatar from Avatar table
-      const primaryAvatar = course.user.avatars?.find(a => a.isPrimary) || course.user.avatars?.[0] || null;
+      const primaryAvatar = course.user.avatars?.find((a: Avatar) => a.isPrimary) || course.user.avatars?.[0] || null;
 
       console.log(`📸 Course: ${course.title}`);
       console.log(`   - Owner: ${course.user.username}`);

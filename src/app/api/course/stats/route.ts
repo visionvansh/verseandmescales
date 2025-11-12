@@ -3,6 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 
+// Define types
+type StatsUpdateData = {
+  activeStudents?: number;
+  courseRating?: number;
+  monthlyIncome?: string;
+  avgGrowth?: string;
+};
+
 /**
  * GET /api/course-stats
  * Fetch real-time course statistics
@@ -82,7 +90,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const data = await request.json();
+    const data: StatsUpdateData = await request.json();
     
     const homepage = await prisma.courseHomepage.findFirst({
       where: { userId: user.id }

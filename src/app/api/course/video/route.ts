@@ -3,6 +3,48 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
 
+// Define types
+type Resource = {
+  title: string;
+  fileType: string;
+  fileSize: string;
+  fileUrl: string;
+  position: number;
+};
+
+type LessonInModule = {
+  id: string;
+  title: string;
+  position: number;
+};
+
+type ModuleData = {
+  id: string;
+  title: string;
+  lessons: LessonInModule[];
+  course: {
+    id: string;
+    title: string;
+  };
+};
+
+type LessonData = {
+  id: string;
+  title: string;
+  description: string | null;
+  videoDuration: string | null;
+  videoUrl: string | null;
+  resources: Resource[];
+  module: ModuleData;
+};
+
+type LessonProgress = {
+  isCompleted: boolean;
+  progressPercent: number;
+  lastPosition: number;
+  watchTime: number | null;
+};
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getAuthUser(req);
@@ -56,7 +98,7 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-    });
+    }) as LessonData | null;
 
     if (!lesson) {
       return NextResponse.json(
@@ -73,15 +115,15 @@ export async function GET(req: NextRequest) {
           lessonId: lessonId,
         },
       },
-    });
+    }) as LessonProgress | null;
 
     // Find related lessons (next 2 lessons in the module)
     const currentLessonIndex = lesson.module.lessons.findIndex(
-      (l) => l.id === lessonId
+      (l: LessonInModule) => l.id === lessonId
     );
     const relatedLessons = lesson.module.lessons
       .slice(currentLessonIndex + 1, currentLessonIndex + 3)
-      .map((l) => ({
+      .map((l: LessonInModule) => ({
         id: l.id,
         title: l.title,
       }));
@@ -96,7 +138,7 @@ export async function GET(req: NextRequest) {
       progressPercent: lessonProgress?.progressPercent || 0,
       lastPosition: lessonProgress?.lastPosition || 0,
       watchTime: lessonProgress?.watchTime || 0,
-      resources: lesson.resources.map((resource) => ({
+      resources: lesson.resources.map((resource: Resource) => ({
         name: resource.title,
         type: resource.fileType,
         size: resource.fileSize,
