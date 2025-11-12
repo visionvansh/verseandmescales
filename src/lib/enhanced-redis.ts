@@ -108,7 +108,7 @@ export async function batchGetCache(keys: string[]): Promise<Record<string, any>
   if (!keys.length) return {};
   
   try {
-    const results = await redis.mget(keys);
+    const results = await redis.mget(...keys);
     const output: Record<string, any> = {};
     
     keys.forEach((key, index) => {
@@ -153,7 +153,7 @@ export async function invalidateUserCache(userId: string): Promise<void> {
     for (const pattern of patterns) {
       const keys = await redis.keys(pattern);
       if (keys.length) {
-        await redis.del(...keys);
+        await redis.del(...keys); // ✅ Fixed: spread operator added
       }
     }
   } catch (error) {
