@@ -474,7 +474,7 @@ async function checkConcurrentSessions(
   const countries = new Set(
     recentSessions
       .map((s: PrismaUserSession) => s.country)
-      .filter((c): c is string => c !== null && c !== 'Unknown')
+      .filter((c: string | null): c is string => c !== null && c !== 'Unknown')
   );
   
   if (countries.size > 1) {
