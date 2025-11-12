@@ -1,6 +1,18 @@
 // /lib/profile/badges.ts
 import prisma from '@/lib/prisma';
-import { BadgeCategory } from '@prisma/client';
+
+// ✅ Define BadgeCategory type matching your schema
+const BadgeCategoryEnum = {
+  LEARNER: 'LEARNER',
+  TUTOR: 'TUTOR',
+  DUAL_ROLE: 'DUAL_ROLE',
+  DUAL: 'DUAL',
+  XP_LEVEL: 'XP_LEVEL',
+  CONTRIBUTOR: 'CONTRIBUTOR',
+  SPECIAL: 'SPECIAL',
+} as const;
+
+type BadgeCategory = typeof BadgeCategoryEnum[keyof typeof BadgeCategoryEnum];
 
 interface BadgeDefinition {
   type: string;
@@ -20,7 +32,7 @@ interface BadgeDefinition {
 const XP_LEVEL_BADGES: BadgeDefinition[] = [
   {
     type: 'rising_contributor',
-    category: 'CONTRIBUTOR',
+    category: BadgeCategoryEnum.CONTRIBUTOR,
     title: 'Rising Contributor',
     description: 'Making your mark in the community.',
     icon: '🌟',
@@ -38,7 +50,7 @@ const XP_LEVEL_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'active_contributor',
-    category: 'CONTRIBUTOR',
+    category: BadgeCategoryEnum.CONTRIBUTOR,
     title: 'Active Contributor',
     description: 'Consistently contributing to the community.',
     icon: '⚡',
@@ -56,7 +68,7 @@ const XP_LEVEL_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'top_contributor',
-    category: 'CONTRIBUTOR',
+    category: BadgeCategoryEnum.CONTRIBUTOR,
     title: 'Top Contributor',
     description: 'Among the elite contributors.',
     icon: '🏆',
@@ -74,7 +86,7 @@ const XP_LEVEL_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'knowledge_man',
-    category: 'CONTRIBUTOR',
+    category: BadgeCategoryEnum.CONTRIBUTOR,
     title: 'Knowledge Man',
     description: 'A fountain of wisdom and expertise.',
     icon: '🧠',
@@ -92,7 +104,7 @@ const XP_LEVEL_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'influential_contributor',
-    category: 'CONTRIBUTOR',
+    category: BadgeCategoryEnum.CONTRIBUTOR,
     title: 'Influential Contributor',
     description: 'Shaping the future of learning.',
     icon: '👑',
@@ -110,7 +122,7 @@ const XP_LEVEL_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'community_breaker',
-    category: 'CONTRIBUTOR',
+    category: BadgeCategoryEnum.CONTRIBUTOR,
     title: 'Community Breaker',
     description: 'Breaking barriers and setting new standards.',
     icon: '💥',
@@ -128,7 +140,7 @@ const XP_LEVEL_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'elite_innovator',
-    category: 'CONTRIBUTOR',
+    category: BadgeCategoryEnum.CONTRIBUTOR,
     title: 'Elite Innovator',
     description: 'The pinnacle of contribution and innovation.',
     icon: '🚀',
@@ -152,7 +164,7 @@ const XP_LEVEL_BADGES: BadgeDefinition[] = [
 const LEARNER_BADGES: BadgeDefinition[] = [
   {
     type: 'new_seaker',
-    category: 'LEARNER',
+    category: BadgeCategoryEnum.LEARNER,
     title: 'New Seaker',
     description: 'Just started the journey of knowledge. Curious and ambitious.',
     icon: '🌱',
@@ -173,7 +185,7 @@ const LEARNER_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'active_seaker',
-    category: 'LEARNER',
+    category: BadgeCategoryEnum.LEARNER,
     title: 'Active Seaker',
     description: 'Actively exploring multiple paths of learning.',
     icon: '📚',
@@ -194,7 +206,7 @@ const LEARNER_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'scaler_learner',
-    category: 'LEARNER',
+    category: BadgeCategoryEnum.LEARNER,
     title: 'Scaler Learner',
     description: 'Growing fast — mastering multiple disciplines.',
     icon: '🎓',
@@ -215,7 +227,7 @@ const LEARNER_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'elite_scholar',
-    category: 'LEARNER',
+    category: BadgeCategoryEnum.LEARNER,
     title: 'Elite Scholar',
     description: 'One of the top learners who deeply engages and shares insights.',
     icon: '🌟',
@@ -237,7 +249,7 @@ const LEARNER_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'mentor_seaker',
-    category: 'LEARNER',
+    category: BadgeCategoryEnum.LEARNER,
     title: 'Mentor Seaker',
     description: 'Learner turned guide — helps other Seakers in their path.',
     icon: '🔥',
@@ -266,7 +278,7 @@ const LEARNER_BADGES: BadgeDefinition[] = [
 const TUTOR_BADGES: BadgeDefinition[] = [
   {
     type: 'emerging_tutor',
-    category: 'TUTOR',
+    category: BadgeCategoryEnum.TUTOR,
     title: 'Emerging Tutor',
     description: 'Just stepped into the world of teaching.',
     icon: '👨‍🏫',
@@ -282,7 +294,7 @@ const TUTOR_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'popular_tutor',
-    category: 'TUTOR',
+    category: BadgeCategoryEnum.TUTOR,
     title: 'Popular Tutor',
     description: 'Teaching style attracting consistent learners.',
     icon: '⭐',
@@ -312,7 +324,7 @@ const TUTOR_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'master_tutor',
-    category: 'TUTOR',
+    category: BadgeCategoryEnum.TUTOR,
     title: 'Master Tutor',
     description: 'Reached mastery — course widely recognized and impactful.',
     icon: '🎖️',
@@ -341,7 +353,7 @@ const TUTOR_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'edupreneur',
-    category: 'TUTOR',
+    category: BadgeCategoryEnum.TUTOR,
     title: 'Edupreneur',
     description: 'Building a full-scale teaching brand.',
     icon: '💼',
@@ -374,7 +386,7 @@ const TUTOR_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'legacy_creator',
-    category: 'TUTOR',
+    category: BadgeCategoryEnum.TUTOR,
     title: 'Legacy Creator',
     description: 'Established educator inspiring the next generation.',
     icon: '🏛️',
@@ -413,7 +425,7 @@ const TUTOR_BADGES: BadgeDefinition[] = [
 const DUAL_ROLE_BADGES: BadgeDefinition[] = [
   {
     type: 'knowledge_alchemist',
-    category: 'DUAL_ROLE',
+    category: BadgeCategoryEnum.DUAL_ROLE,
     title: 'Knowledge Alchemist',
     description: 'Learns, teaches, and transforms ideas into impact.',
     icon: '🔮',
@@ -436,7 +448,7 @@ const DUAL_ROLE_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'wisdom_architect',
-    category: 'DUAL_ROLE',
+    category: BadgeCategoryEnum.DUAL_ROLE,
     title: 'Wisdom Architect',
     description: 'Builds bridges between learning and teaching.',
     icon: '🏗️',
@@ -459,7 +471,7 @@ const DUAL_ROLE_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'realm_master',
-    category: 'DUAL_ROLE',
+    category: BadgeCategoryEnum.DUAL_ROLE,
     title: 'Realm Master',
     description: 'Commands both learning and teaching realms — elite of the platform.',
     icon: '⚔️',
@@ -502,7 +514,7 @@ const DUAL_ROLE_BADGES: BadgeDefinition[] = [
 const SPECIAL_BADGES: BadgeDefinition[] = [
   {
     type: 'early_adopter',
-    category: 'SPECIAL',
+    category: BadgeCategoryEnum.SPECIAL,
     title: 'Early Adopter',
     description: 'Joined in the first year of the platform.',
     icon: '🚀',
@@ -526,7 +538,7 @@ const SPECIAL_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'verified_expert',
-    category: 'SPECIAL',
+    category: BadgeCategoryEnum.SPECIAL,
     title: 'Verified Expert',
     description: 'Industry verified professional.',
     icon: '✓',
@@ -547,7 +559,7 @@ const SPECIAL_BADGES: BadgeDefinition[] = [
   },
   {
     type: 'community_legend',
-    category: 'SPECIAL',
+    category: BadgeCategoryEnum.SPECIAL,
     title: 'Community Legend',
     description: 'Exceptional contributions recognized by the community.',
     icon: '🌟',
@@ -657,7 +669,7 @@ export function getContributorTitle(totalXP: number): string {
 }
 
 // ============================================
-// UPDATE USER XP AND CHECK BADGES
+// UPDATE USER XP AND BADGES
 // ============================================
 export async function updateUserXPAndBadges(
   userId: string,
