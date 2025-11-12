@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
         where: { courseId, userId },
         select: { id: true },
       });
-      const existingModuleIds = existingModules.map((m) => m.id);
+      const existingModuleIds = existingModules.map((m: { id: string }) => m.id);
       const incomingModuleIds = modules
         .filter((m: any) => !m.id.startsWith("module-"))
         .map((m: any) => m.id);
@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
           where: { moduleId },
           select: { id: true },
         });
-        const existingLessonIds = existingLessons.map((l) => l.id);
+        const existingLessonIds = existingLessons.map((l: { id: string }) => l.id);
         const incomingLessonIds = lessons
           .filter((l: any) => !l.id.startsWith("lesson-"))
           .map((l: any) => l.id);
@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
             where: { lessonId },
             select: { id: true },
           });
-          const existingResourceIds = existingResources.map((r) => r.id);
+          const existingResourceIds = existingResources.map((r: { id: string }) => r.id);
           const incomingResourceIds = resources
             .filter((r: any) => !r.id.startsWith("resource-"))
             .map((r: any) => r.id);
