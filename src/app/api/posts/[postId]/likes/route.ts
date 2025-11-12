@@ -2,14 +2,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
-import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ ADD IMPORT
+import { getAvatarUrlFromUser } from '@/utils/avatarGenerator';
+
+type LikeUserData = {
+  id: string;
+  username: string;
+  name: string | null;
+  img: string | null;
+  avatars: Array<{
+    id: string;
+    avatarIndex: number;
+    avatarSeed: string;
+    avatarStyle: string;
+    isPrimary: boolean;
+    isCustomUpload: boolean;
+    customImageUrl: string | null;
+  }>;
+  userXP: {
+    totalXP: number;
+    contributorTitle: string;
+  } | null;
+};
+
+type LikeData = {
+  id: string;
+  createdAt: Date;
+  user: LikeUserData;
+};
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ postId: string }> }
 ) {
   try {
-    // Await params
     const { postId } = await params;
 
     const likes = await prisma.postLike.findMany({
@@ -22,7 +47,6 @@ export async function GET(
             username: true,
             name: true,
             img: true,
-            // ✅ ADD AVATARS RELATION
             avatars: {
               where: { isPrimary: true },
               take: 1,
@@ -45,10 +69,9 @@ export async function GET(
           }
         }
       }
-    });
+    }) as LikeData[];
 
-    // ✅ FORMAT USERS WITH THEMED AVATARS
-    const users = likes.map(like => {
+    const users = likes.map((like: LikeData) => {
       const avatarUrl = getAvatarUrlFromUser(like.user, 48);
       return {
         ...like.user,

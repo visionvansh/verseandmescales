@@ -2,7 +2,125 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
-import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ ADD IMPORT
+import { getAvatarUrlFromUser } from '@/utils/avatarGenerator';
+
+// Type definitions matching Prisma response
+type AvatarData = {
+  id: string;
+  avatarIndex: number;
+  avatarSeed: string;
+  avatarStyle: string;
+  isPrimary: boolean;
+  isCustomUpload: boolean;
+  customImageUrl: string | null;
+};
+
+type UserXPData = {
+  totalXP: number;
+  contributorTitle: string;
+} | null;
+
+type UserData = {
+  id: string;
+  username: string;
+  name: string | null;
+  img: string | null;
+  avatars: AvatarData[];
+  userXP: UserXPData;
+};
+
+// For reactions without nested userXP
+type ReactionUserData = {
+  id: string;
+  username: string;
+  name: string | null;
+  img: string | null;
+  avatars: AvatarData[];
+};
+
+type ReactionData = {
+  id: string;
+  emoji: string;
+  userId: string;
+  user: ReactionUserData;
+};
+
+// For reply reactions (same as reactions)
+type ReplyReactionData = {
+  id: string;
+  emoji: string;
+  userId: string;
+  user: ReactionUserData;
+};
+
+type ReplyCommentData = {
+  id: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isEdited: boolean;
+  editedAt: Date | null;
+  user: UserData;
+  reactions: ReplyReactionData[];
+  _count: {
+    reactions: number;
+    replies: number;
+  };
+};
+
+type CommentData = {
+  id: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isEdited: boolean;
+  editedAt: Date | null;
+  user: UserData;
+  reactions: ReactionData[];
+  replies: ReplyCommentData[];
+  _count: {
+    reactions: number;
+    replies: number;
+  };
+};
+
+// Type for POST response (reactions is just an array without nested user)
+type SimpleReaction = {
+  id: string;
+  createdAt: Date;
+  userId: string;
+  emoji: string;
+  commentId: string;
+};
+
+type SimpleReply = {
+  id: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isEdited: boolean;
+  editedAt: Date | null;
+  userId: string;
+  postId: string;
+  parentId: string | null;
+  isDeleted: boolean;
+};
+
+type PostCommentData = {
+  id: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isEdited: boolean;
+  editedAt: Date | null;
+  user: UserData;
+  reactions: SimpleReaction[];
+  replies: SimpleReply[];
+  _count: {
+    reactions: number;
+    replies: number;
+  };
+};
 
 export async function GET(
   request: NextRequest,
@@ -15,7 +133,7 @@ export async function GET(
     const comments = await prisma.comment.findMany({
       where: {
         postId,
-        parentId: null, // Only top-level comments
+        parentId: null,
         isDeleted: false
       },
       orderBy: { createdAt: 'desc' },
@@ -26,7 +144,6 @@ export async function GET(
             username: true,
             name: true,
             img: true,
-            // ✅ ADD AVATARS RELATION
             avatars: {
               where: { isPrimary: true },
               take: 1,
@@ -56,7 +173,6 @@ export async function GET(
                 username: true,
                 name: true,
                 img: true,
-                // ✅ ADD AVATARS FOR REACTION USERS
                 avatars: {
                   where: { isPrimary: true },
                   take: 1,
@@ -84,7 +200,6 @@ export async function GET(
                 username: true,
                 name: true,
                 img: true,
-                // ✅ ADD AVATARS FOR REPLY USERS
                 avatars: {
                   where: { isPrimary: true },
                   take: 1,
@@ -146,10 +261,9 @@ export async function GET(
           }
         }
       }
-    });
+    }) as unknown as CommentData[];
 
-    // ✅ FORMAT COMMENTS WITH THEMED AVATARS
-    const formatComment = (comment: any) => {
+    const formatComment = (comment: CommentData): any => {
       const avatarUrl = getAvatarUrlFromUser(comment.user, 48);
       
       return {
@@ -159,7 +273,7 @@ export async function GET(
           img: avatarUrl,
           avatar: avatarUrl
         },
-        reactions: comment.reactions.map((reaction: any) => ({
+        reactions: comment.reactions.map((reaction: ReactionData) => ({
           ...reaction,
           user: {
             ...reaction.user,
@@ -167,7 +281,7 @@ export async function GET(
             avatar: getAvatarUrlFromUser(reaction.user, 32)
           }
         })),
-        replies: comment.replies.map((reply: any) => {
+        replies: comment.replies.map((reply: ReplyCommentData) => {
           const replyAvatarUrl = getAvatarUrlFromUser(reply.user, 48);
           return {
             ...reply,
@@ -176,7 +290,7 @@ export async function GET(
               img: replyAvatarUrl,
               avatar: replyAvatarUrl
             },
-            reactions: reply.reactions.map((reaction: any) => ({
+            reactions: reply.reactions.map((reaction: ReplyReactionData) => ({
               ...reaction,
               user: {
                 ...reaction.user,
@@ -221,7 +335,7 @@ export async function POST(
     }
 
     const { postId } = await params;
-    const body = await request.json();
+    const body: { content: string; parentId?: string } = await request.json();
     const { content, parentId } = body;
 
     if (!content || content.trim().length === 0) {
@@ -238,7 +352,6 @@ export async function POST(
       );
     }
 
-    // Verify post exists
     const post = await prisma.post.findUnique({
       where: { id: postId }
     });
@@ -250,7 +363,6 @@ export async function POST(
       );
     }
 
-    // Create comment
     const comment = await prisma.comment.create({
       data: {
         content,
@@ -295,9 +407,8 @@ export async function POST(
           }
         }
       }
-    });
+    }) as unknown as PostCommentData;
 
-    // Award XP for commenting
     await prisma.userXP.upsert({
       where: { userId: user.id },
       create: {
@@ -312,7 +423,6 @@ export async function POST(
       }
     });
 
-    // ✅ FORMAT COMMENT WITH THEMED AVATAR
     const avatarUrl = getAvatarUrlFromUser(comment.user, 48);
 
     const formattedComment = {

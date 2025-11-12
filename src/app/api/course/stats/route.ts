@@ -3,12 +3,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 
-// Define types
-type StatsUpdateData = {
-  activeStudents?: number;
-  courseRating?: number;
-  monthlyIncome?: string;
-  avgGrowth?: string;
+// Type definitions
+type CourseStats = {
+  activeStudents: number;
+  courseRating: number;
+  monthlyIncome: string;
+  avgGrowth: string;
+  lastCalculated: Date | null;
+};
+
+type CourseHomepage = {
+  id: string;
 };
 
 /**
@@ -29,13 +34,13 @@ export async function GET(request: NextRequest) {
     // Get or create course stats
     let stats = await prisma.courseStats.findFirst({
       where: { userId: user.id }
-    });
+    }) as CourseStats | null;
 
     if (!stats) {
       // Create default stats
       const homepage = await prisma.courseHomepage.findFirst({
         where: { userId: user.id }
-      });
+      }) as CourseHomepage | null;
 
       if (homepage) {
         stats = await prisma.courseStats.create({
@@ -47,7 +52,7 @@ export async function GET(request: NextRequest) {
             monthlyIncome: '\$0',
             avgGrowth: '0'
           }
-        });
+        }) as CourseStats;
       } else {
         return NextResponse.json({
           activeStudents: 0,
@@ -90,11 +95,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const data: StatsUpdateData = await request.json();
+    const data = await request.json();
     
     const homepage = await prisma.courseHomepage.findFirst({
       where: { userId: user.id }
-    });
+    }) as CourseHomepage | null;
 
     if (!homepage) {
       return NextResponse.json(
@@ -120,7 +125,7 @@ export async function POST(request: NextRequest) {
         monthlyIncome: data.monthlyIncome ?? '\$0',
         avgGrowth: data.avgGrowth ?? '0'
       }
-    });
+    }) as CourseStats;
 
     return NextResponse.json({
       success: true,

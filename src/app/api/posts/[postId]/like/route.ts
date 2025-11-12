@@ -1,4 +1,4 @@
-//Volumes/vision/codes/course/my-app/src/app/api/posts/[postId]/like/route.ts
+// app/api/posts/[postId]/like/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
@@ -17,7 +17,6 @@ export async function POST(
       );
     }
 
-    // Await params
     const { postId } = await params;
 
     const existingLike = await prisma.postLike.findUnique({
@@ -33,7 +32,6 @@ export async function POST(
     let likesCount: number;
 
     if (existingLike) {
-      // Unlike
       await prisma.$transaction([
         prisma.postLike.delete({
           where: { id: existingLike.id }
@@ -45,7 +43,6 @@ export async function POST(
       ]);
       isLiked = false;
     } else {
-      // Like
       await prisma.$transaction([
         prisma.postLike.create({
           data: {
@@ -60,7 +57,6 @@ export async function POST(
       ]);
       isLiked = true;
 
-      // Award XP to post author
       const post = await prisma.post.findUnique({
         where: { id: postId },
         select: { userId: true }

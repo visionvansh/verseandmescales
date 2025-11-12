@@ -8,6 +8,10 @@ import { stripe } from '@/lib/stripe';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const MIN_WITHDRAWAL = 10; // Minimum \$10
 
+type DecodedToken = {
+  userId: string;
+};
+
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -17,10 +21,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
     const userId = decoded.userId;
 
-    const { amount } = await request.json();
+    const { amount }: { amount: number } = await request.json();
 
     if (!amount || amount < MIN_WITHDRAWAL) {
       return NextResponse.json(

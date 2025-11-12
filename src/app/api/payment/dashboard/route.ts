@@ -7,6 +7,59 @@ import prisma from '@/lib/prisma';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const STRIPE_FEE_PERCENTAGE = 0.029; // 2.9% + \$0.30
 
+// Type definitions
+type DecodedToken = {
+  userId: string;
+};
+
+type Transaction = {
+  id: string;
+  amount: any;
+  platformFee: any;
+  sellerAmount: any;
+  status: string;
+  paymentMethod: string | null;
+  stripePaymentId: string;
+  createdAt: Date;
+  course: {
+    title: string;
+  };
+  buyer: {
+    name: string | null;
+    username: string;
+    email: string;
+  };
+};
+
+type FormattedTransaction = {
+  id: string;
+  amount: number;
+  platformFee: number;
+  stripeFee: number;
+  netAmount: number;
+  sellerAmount: number;
+  courseName: string;
+  buyerName: string;
+  buyerEmail: string;
+  date: string;
+  status: string;
+  paymentMethod: string;
+  stripePaymentId: string;
+};
+
+type MonthlyData = {
+  month: string;
+  sales: number;
+  fees: number;
+  net: number;
+};
+
+type CourseBreakdown = {
+  courseName: string;
+  sales: number;
+  revenue: number;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -16,7 +69,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
     const userId = decoded.userId;
 
     // Get or create earnings record
@@ -67,16 +120,16 @@ export async function GET(request: NextRequest) {
       orderBy: {
         createdAt: 'desc',
       },
-    });
+    }) as Transaction[];
 
     // Calculate fees and net amounts
     const totalPlatformFees = allTransactions
-      .filter(t => t.status === 'succeeded')
-      .reduce((sum, t) => sum + parseFloat(t.platformFee?.toString() || '0'), 0);
+      .filter((t: Transaction) => t.status === 'succeeded')
+      .reduce((sum: number, t: Transaction) => sum + parseFloat(t.platformFee?.toString() || '0'), 0);
 
     const totalStripeFees = allTransactions
-      .filter(t => t.status === 'succeeded')
-      .reduce((sum, t) => {
+      .filter((t: Transaction) => t.status === 'succeeded')
+      .reduce((sum: number, t: Transaction) => {
         const amount = parseFloat(t.amount.toString());
         return sum + (amount * STRIPE_FEE_PERCENTAGE + 0.30);
       }, 0);
@@ -85,7 +138,7 @@ export async function GET(request: NextRequest) {
     const netEarnings = totalEarned - totalPlatformFees - totalStripeFees;
 
     // Format transactions with detailed breakdown
-    const recentTransactions = allTransactions.map((tx) => {
+    const recentTransactions: FormattedTransaction[] = allTransactions.map((tx: Transaction) => {
       const amount = parseFloat(tx.amount.toString());
       const platformFee = parseFloat(tx.platformFee?.toString() || '0');
       const stripeFee = amount * STRIPE_FEE_PERCENTAGE + 0.30;
@@ -115,9 +168,9 @@ export async function GET(request: NextRequest) {
     const courseBreakdown = calculateCourseBreakdown(allTransactions);
 
     // Calculate metrics
-    const succeededTransactions = allTransactions.filter(t => t.status === 'succeeded');
+    const succeededTransactions = allTransactions.filter((t: Transaction) => t.status === 'succeeded');
     const avgTransactionValue = succeededTransactions.length > 0
-      ? succeededTransactions.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0) / succeededTransactions.length
+      ? succeededTransactions.reduce((sum: number, t: Transaction) => sum + parseFloat(t.amount.toString()), 0) / succeededTransactions.length
       : 0;
 
     return NextResponse.json({
@@ -133,7 +186,7 @@ export async function GET(request: NextRequest) {
       transactionCount: succeededTransactions.length,
       avgTransactionValue,
       recentTransactions,
-      withdrawals: earnings.withdrawals.map((w) => ({
+      withdrawals: earnings.withdrawals.map((w: any) => ({
         id: w.id,
         amount: parseFloat(w.amount.toString()),
         status: w.status,
@@ -153,12 +206,12 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function calculateMonthlyData(transactions: any[]) {
-  const monthlyMap = new Map();
+function calculateMonthlyData(transactions: Transaction[]): MonthlyData[] {
+  const monthlyMap = new Map<string, MonthlyData>();
 
   transactions
-    .filter(t => t.status === 'succeeded')
-    .forEach((tx) => {
+    .filter((t: Transaction) => t.status === 'succeeded')
+    .forEach((tx: Transaction) => {
       const date = new Date(tx.createdAt);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       
@@ -171,7 +224,7 @@ function calculateMonthlyData(transactions: any[]) {
         });
       }
 
-      const data = monthlyMap.get(monthKey);
+      const data = monthlyMap.get(monthKey)!;
       const amount = parseFloat(tx.amount.toString());
       const platformFee = parseFloat(tx.platformFee?.toString() || '0');
       const stripeFee = amount * STRIPE_FEE_PERCENTAGE + 0.30;
@@ -184,12 +237,12 @@ function calculateMonthlyData(transactions: any[]) {
   return Array.from(monthlyMap.values()).slice(-6); // Last 6 months
 }
 
-function calculateCourseBreakdown(transactions: any[]) {
-  const courseMap = new Map();
+function calculateCourseBreakdown(transactions: Transaction[]): CourseBreakdown[] {
+  const courseMap = new Map<string, CourseBreakdown>();
 
   transactions
-    .filter(t => t.status === 'succeeded')
-    .forEach((tx) => {
+    .filter((t: Transaction) => t.status === 'succeeded')
+    .forEach((tx: Transaction) => {
       const courseName = tx.course.title;
       
       if (!courseMap.has(courseName)) {
@@ -200,12 +253,12 @@ function calculateCourseBreakdown(transactions: any[]) {
         });
       }
 
-      const data = courseMap.get(courseName);
+      const data = courseMap.get(courseName)!;
       data.sales += 1;
       data.revenue += parseFloat(tx.amount.toString());
     });
 
   return Array.from(courseMap.values())
-    .sort((a, b) => b.revenue - a.revenue)
+    .sort((a: CourseBreakdown, b: CourseBreakdown) => b.revenue - a.revenue)
     .slice(0, 10); // Top 10 courses
 }

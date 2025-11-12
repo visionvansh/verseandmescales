@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/app/api/posts/feed/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ Add import at top

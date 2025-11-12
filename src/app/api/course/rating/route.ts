@@ -3,13 +3,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 
-// Define types
-type RatingData = {
-  rating: number;
+// Type definitions
+type CourseEnrollment = {
+  courseId: string;
+  userId: string;
 };
 
-type CourseRatingWithUser = {
-  id: string;
+type Course = {
+  userId: string;
+  homepage: {
+    id: string;
+  } | null;
+};
+
+type CourseRating = {
   courseId: string;
   userId: string;
   rating: number;
@@ -23,6 +30,10 @@ type CourseRatingWithUser = {
     username: string | null;
     img: string | null;
   };
+};
+
+type RatingRecord = {
+  rating: number;
 };
 
 // ============================================
@@ -65,7 +76,7 @@ export async function POST(request: NextRequest) {
           userId: user.id,
         },
       },
-    });
+    }) as CourseEnrollment | null;
 
     if (!enrollment) {
       return NextResponse.json(
@@ -83,7 +94,7 @@ export async function POST(request: NextRequest) {
           select: { id: true }
         }
       },
-    });
+    }) as Course | null;
 
     if (!course) {
       return NextResponse.json(
@@ -129,16 +140,16 @@ export async function POST(request: NextRequest) {
           },
         },
       },
-    }) as CourseRatingWithUser;
+    }) as CourseRating;
 
     // Calculate new average rating
     const allRatings = await prisma.courseRating.findMany({
       where: { courseId },
       select: { rating: true },
-    }) as RatingData[];
+    }) as RatingRecord[];
 
     const averageRating = allRatings.length > 0
-      ? allRatings.reduce((sum: number, r: RatingData) => sum + r.rating, 0) / allRatings.length
+      ? allRatings.reduce((sum: number, r: RatingRecord) => sum + r.rating, 0) / allRatings.length
       : 0;
 
     // ✅ FIX: Only update CourseStats if homepage exists
@@ -208,24 +219,24 @@ export async function GET(request: NextRequest) {
           userId: user.id,
         },
       },
-    });
+    }) as CourseRating | null;
 
     // Get course rating stats
     const allRatings = await prisma.courseRating.findMany({
       where: { courseId },
       select: { rating: true },
-    }) as RatingData[];
+    }) as RatingRecord[];
 
     const averageRating = allRatings.length > 0
-      ? allRatings.reduce((sum: number, r: RatingData) => sum + r.rating, 0) / allRatings.length
+      ? allRatings.reduce((sum: number, r: RatingRecord) => sum + r.rating, 0) / allRatings.length
       : 0;
 
     const ratingBreakdown = {
-      5: allRatings.filter((r: RatingData) => r.rating === 5).length,
-      4: allRatings.filter((r: RatingData) => r.rating === 4).length,
-      3: allRatings.filter((r: RatingData) => r.rating === 3).length,
-      2: allRatings.filter((r: RatingData) => r.rating === 2).length,
-      1: allRatings.filter((r: RatingData) => r.rating === 1).length,
+      5: allRatings.filter((r: RatingRecord) => r.rating === 5).length,
+      4: allRatings.filter((r: RatingRecord) => r.rating === 4).length,
+      3: allRatings.filter((r: RatingRecord) => r.rating === 3).length,
+      2: allRatings.filter((r: RatingRecord) => r.rating === 2).length,
+      1: allRatings.filter((r: RatingRecord) => r.rating === 1).length,
     };
 
     return NextResponse.json({
@@ -281,10 +292,10 @@ export async function DELETE(request: NextRequest) {
     const allRatings = await prisma.courseRating.findMany({
       where: { courseId },
       select: { rating: true },
-    }) as RatingData[];
+    }) as RatingRecord[];
 
     const averageRating = allRatings.length > 0
-      ? allRatings.reduce((sum: number, r: RatingData) => sum + r.rating, 0) / allRatings.length
+      ? allRatings.reduce((sum: number, r: RatingRecord) => sum + r.rating, 0) / allRatings.length
       : 0;
 
     // Update CourseStats - only if homepage exists
@@ -296,7 +307,7 @@ export async function DELETE(request: NextRequest) {
           select: { id: true }
         }
       },
-    });
+    }) as Course | null;
 
     // ✅ FIX: Only update CourseStats if homepage exists
     if (course?.homepage?.id) {

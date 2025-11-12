@@ -2,7 +2,63 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
-import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ ADD IMPORT
+import { getAvatarUrlFromUser } from '@/utils/avatarGenerator';
+
+type BadgeData = {
+  id: string;
+  badgeType: string;
+  category: string;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  isEarned: boolean;
+  isDisplayed: boolean;
+  displayOrder: number;
+};
+
+type PostUserData = {
+  id: string;
+  username: string;
+  name: string | null;
+  img: string | null;
+  avatars: Array<{
+    id: string;
+    avatarIndex: number;
+    avatarSeed: string;
+    avatarStyle: string;
+    isPrimary: boolean;
+    isCustomUpload: boolean;
+    customImageUrl: string | null;
+  }>;
+  userXP: {
+    totalXP: number;
+    contributorTitle: string;
+    currentLevel: number;
+  } | null;
+  badges: BadgeData[];
+};
+
+type PostData = {
+  id: string;
+  content: string;
+  mediaUrl: string | null;
+  mediaType: string | null;
+  privacy: string;
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isEdited: boolean;
+  editedAt: Date | null;
+  user: PostUserData;
+  likes: Array<{ id: string; userId: string }>;
+  _count: {
+    likes: number;
+    comments: number;
+    shares: number;
+    views: number;
+  };
+};
 
 export async function GET(
   request: NextRequest,
@@ -21,7 +77,6 @@ export async function GET(
             username: true,
             name: true,
             img: true,
-            // ✅ ADD AVATARS RELATION
             avatars: {
               where: { isPrimary: true },
               take: 1,
@@ -56,7 +111,7 @@ export async function GET(
           }
         }
       }
-    });
+    }) as PostData | null;
 
     if (!post) {
       return NextResponse.json(
@@ -108,7 +163,7 @@ export async function GET(
           postId: post.id,
           userId: user.id
         }
-      }).catch(() => {}); // Ignore duplicate views
+      }).catch(() => {});
 
       await prisma.post.update({
         where: { id: postId },
@@ -116,14 +171,13 @@ export async function GET(
       }).catch(() => {});
     }
 
-    // ✅ GENERATE AVATAR URL WITH RED/WHITE/BLACK THEME
     const avatarUrl = getAvatarUrlFromUser(post.user, 64);
 
     const formattedPost = {
       ...post,
       user: {
         ...post.user,
-        img: avatarUrl, // ✅ USE THEMED AVATAR
+        img: avatarUrl,
         avatar: avatarUrl,
         avatarObject: post.user.avatars[0] || null
       },
@@ -140,147 +194,6 @@ export async function GET(
     console.error('Get post error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch post' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ postId: string }> }
-) {
-  try {
-    const user = await getAuthUser(request);
-    
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const { postId } = await params;
-    const body = await request.json();
-
-    const post = await prisma.post.findUnique({
-      where: { id: postId }
-    });
-
-    if (!post) {
-      return NextResponse.json(
-        { error: 'Post not found' },
-        { status: 404 }
-      );
-    }
-
-    if (post.userId !== user.id) {
-      return NextResponse.json(
-        { error: 'You can only edit your own posts' },
-        { status: 403 }
-      );
-    }
-
-    const updatedPost = await prisma.post.update({
-      where: { id: postId },
-      data: {
-        content: body.content,
-        privacy: body.privacy,
-        isEdited: true,
-        editedAt: new Date()
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            name: true,
-            img: true,
-            // ✅ ADD AVATARS RELATION
-            avatars: {
-              where: { isPrimary: true },
-              take: 1,
-              select: {
-                id: true,
-                avatarIndex: true,
-                avatarSeed: true,
-                avatarStyle: true,
-                isPrimary: true,
-                isCustomUpload: true,
-                customImageUrl: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    // ✅ GENERATE AVATAR URL
-    const avatarUrl = getAvatarUrlFromUser(updatedPost.user, 64);
-
-    return NextResponse.json({ 
-      post: {
-        ...updatedPost,
-        user: {
-          ...updatedPost.user,
-          img: avatarUrl,
-          avatar: avatarUrl
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error('Update post error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update post' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ postId: string }> }
-) {
-  try {
-    const user = await getAuthUser(request);
-    
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const { postId } = await params;
-
-    const post = await prisma.post.findUnique({
-      where: { id: postId }
-    });
-
-    if (!post) {
-      return NextResponse.json(
-        { error: 'Post not found' },
-        { status: 404 }
-      );
-    }
-
-    if (post.userId !== user.id) {
-      return NextResponse.json(
-        { error: 'You can only delete your own posts' },
-        { status: 403 }
-      );
-    }
-
-    await prisma.post.delete({
-      where: { id: postId }
-    });
-
-    return NextResponse.json({ success: true });
-
-  } catch (error) {
-    console.error('Delete post error:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete post' },
       { status: 500 }
     );
   }

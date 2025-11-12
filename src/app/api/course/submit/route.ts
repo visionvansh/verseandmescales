@@ -3,36 +3,57 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
 
-// Define types
+// Type definitions
 type Resource = {
   id: string;
 };
 
 type Lesson = {
   id: string;
-  title: string;
+  title: string | null;
   resources: Resource[];
 };
 
 type Module = {
   id: string;
-  title: string;
+  title: string | null;
   lessons: Lesson[];
 };
 
-type CourseData = {
+type CustomSection = {
+  position: number;
+};
+
+type TestimonialItem = {
   id: string;
-  homepage: {
-    mainTitleLine1: string | null;
-    videoUrl: string | null;
-    customSections: any[];
-    testimonials: {
-      testimonials: any[];
-    } | null;
-    faqSection: {
-      faqs: any[];
-    } | null;
-  } | null;
+};
+
+type Testimonials = {
+  testimonials: TestimonialItem[];
+};
+
+type FaqItem = {
+  id: string;
+};
+
+type FaqSection = {
+  faqs: FaqItem[];
+};
+
+type Homepage = {
+  mainTitleLine1: string | null;
+  subheadingText: string | null;
+  videoUrl: string | null;
+  customSections: CustomSection[];
+  testimonials: Testimonials | null;
+  faqSection: FaqSection | null;
+};
+
+type CourseWithRelations = {
+  id: string;
+  title: string;
+  userId: string;
+  homepage: Homepage | null;
   modules: Module[];
 };
 
@@ -47,8 +68,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { courseId } = body;
+    const { courseId } = await req.json();
 
     if (!courseId) {
       return NextResponse.json({ error: "Course ID required" }, { status: 400 });
@@ -80,7 +100,7 @@ export async function POST(req: NextRequest) {
           orderBy: { position: 'asc' }
         }
       }
-    }) as CourseData | null;
+    }) as CourseWithRelations | null;
 
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
@@ -154,7 +174,7 @@ export async function POST(req: NextRequest) {
 /**
  * Validate course has minimum required content
  */
-function validateCourseForSubmission(course: CourseData) {
+function validateCourseForSubmission(course: CourseWithRelations) {
   const issues: string[] = [];
 
   // Homepage validation
@@ -163,6 +183,9 @@ function validateCourseForSubmission(course: CourseData) {
   } else {
     if (!course.homepage.mainTitleLine1?.trim()) {
       issues.push("Main title is required");
+    }
+    if (!course.homepage.subheadingText?.trim()) {
+      issues.push("Subheading is required");
     }
   }
 

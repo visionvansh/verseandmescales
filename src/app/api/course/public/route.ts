@@ -2,10 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-// Define types
+// Type definitions
 type Lesson = {
   id: string;
-  videoDuration: string | null;
+  videoDuration: string;
 };
 
 type Module = {
@@ -13,14 +13,9 @@ type Module = {
 };
 
 type Avatar = {
-  id: string;
   isPrimary: boolean;
   avatarIndex: number;
   createdAt: Date;
-};
-
-type Rating = {
-  rating: number;
 };
 
 type User = {
@@ -35,27 +30,24 @@ type Enrollment = {
   id: string;
 };
 
-type Homepage = {
-  courseStats: {
-    courseRating: number;
-  } | null;
-} | null;
+type Rating = {
+  rating: number;
+};
 
 type Course = {
   id: string;
   title: string | null;
   slug: string | null;
   description: string | null;
-  thumbnail: string | null;
   price: string | null;
   salePrice: string | null;
   saleEndsAt: Date | null;
+  thumbnail: string | null;
   publishedAt: Date | null;
   user: User;
   modules: Module[];
   enrollments: Enrollment[];
   ratings: Rating[];
-  homepage: Homepage;
 };
 
 /**
@@ -171,7 +163,6 @@ export async function GET(request: NextRequest) {
             courseStats: true,
           },
         },
-        // ✅ ADD: Fetch actual ratings to calculate average
         ratings: {
           select: {
             rating: true,
@@ -189,11 +180,11 @@ export async function GET(request: NextRequest) {
       const duration = calculateCourseDuration(course.modules);
       const studentsCount = course.enrollments.length;
 
-      // ✅ Calculate average rating from actual CourseRating records
+      // Calculate average rating from actual CourseRating records
       const actualRatings = course.ratings || [];
       const avgRating = actualRatings.length > 0
         ? actualRatings.reduce((sum: number, r: Rating) => sum + r.rating, 0) / actualRatings.length
-        : 0; // Default to 0 if no ratings
+        : 0;
 
       // Get primary avatar from Avatar table
       const primaryAvatar = course.user.avatars?.find((a: Avatar) => a.isPrimary) || course.user.avatars?.[0] || null;
@@ -204,7 +195,7 @@ export async function GET(request: NextRequest) {
       console.log(`   - Primary Avatar:`, primaryAvatar ? `Index ${primaryAvatar.avatarIndex}` : 'None');
       console.log(`   - Custom Image: ${course.user.img || 'None'}`);
       console.log(`   - Thumbnail: ${course.thumbnail || 'NO THUMBNAIL'}`);
-      console.log(`   - Average Rating: ${avgRating.toFixed(1)} (from ${actualRatings.length} ratings)`); // ✅ ADD LOG
+      console.log(`   - Average Rating: ${avgRating.toFixed(1)} (from ${actualRatings.length} ratings)`);
 
       return {
         id: course.id,
@@ -221,7 +212,7 @@ export async function GET(request: NextRequest) {
         },
         stats: {
           students: studentsCount,
-          rating: avgRating, // ✅ FIXED: Use calculated average instead of fallback
+          rating: avgRating,
           duration: duration,
         },
         price: course.price || '0',

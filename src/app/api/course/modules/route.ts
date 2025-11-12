@@ -3,16 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
 
-// Define types for the data structures
+// Type definitions
 type LessonProgress = {
   lessonId: string;
   isCompleted: boolean;
   progressPercent: number;
   lastPosition: number;
   watchTime: number | null;
-  userId: string;
-  courseId: string;
   moduleId: string;
+  courseId: string;
 };
 
 type Resource = {
@@ -39,7 +38,6 @@ type Module = {
   title: string;
   description: string | null;
   difficulty: string;
-  position: number;
   learningOutcomes: string[];
   lessons: Lesson[];
 };
