@@ -40,9 +40,9 @@ export async function POST(request: NextRequest) {
 
     // Create a map of courseId -> isEnrolled
     const enrollmentMap: Record<string, boolean> = {};
-    enrollments.forEach((enrollment) => {
-      enrollmentMap[enrollment.courseId] = true;
-    });
+enrollments.forEach((enrollment: { courseId: string }) => {
+  enrollmentMap[enrollment.courseId] = true;
+});
 
     return NextResponse.json({ enrollments: enrollmentMap });
 
