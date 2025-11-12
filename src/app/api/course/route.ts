@@ -2,47 +2,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
-import { CourseStatus } from "@prisma/client"; // ✅ ADD THIS IMPORT
-
-// Type definitions
-type CourseStats = {
-  activeStudents: number;
-  courseRating: number;
-};
-
-type Homepage = {
-  mainTitleLine1: string | null;
-  videoUrl: string | null;
-  courseStats: CourseStats | null;
-};
-
-type ModuleCount = {
-  id: string;
-};
-
-type CourseListItem = {
-  id: string;
-  title: string;
-  description: string | null;
-  thumbnail: string | null;
-  price: string | null;
-  salePrice: string | null;
-  status: CourseStatus; // ✅ CHANGE from string to CourseStatus
-  isPublished: boolean;
-  publishedAt: Date | null;
-  submittedAt: Date | null;
-  completionPercentage: number | null;
-  lastEditedSection: string | null;
-  homepageType: string | null;
-  customHomepageFile: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  homepage: Homepage | null;
-  modules: ModuleCount[];
-  _count: {
-    modules: number;
-  };
-};
 
 // GET - Fetch all courses for user
 export async function GET(req: NextRequest) {
@@ -54,7 +13,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const statusParam = searchParams.get("status"); // DRAFT, PUBLISHED, ARCHIVED
+    const status = searchParams.get("status"); // DRAFT, PUBLISHED, ARCHIVED
     const courseId = searchParams.get("id");
 
     // Get single course
@@ -94,19 +53,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(course, { status: 200 });
     }
 
-    // ✅ FIX: Properly type the where clause
-    const whereClause: {
-      userId: string;
-      status?: CourseStatus;
-    } = { userId: user.id };
-    
-    // ✅ FIX: Validate and convert status to CourseStatus enum
-    if (statusParam) {
-      const validStatuses: CourseStatus[] = ['DRAFT', 'PENDING', 'PUBLISHED', 'ARCHIVED'];
-      if (validStatuses.includes(statusParam as CourseStatus)) {
-        whereClause.status = statusParam as CourseStatus;
-      }
-    }
+    // Get all courses
+    const whereClause: any = { userId: user.id };
+    if (status) whereClause.status = status;
 
     const courses = await prisma.course.findMany({
       where: whereClause,
@@ -175,7 +124,7 @@ export async function POST(req: NextRequest) {
       data: {
         userId: user.id,
         title: title || "Untitled Course",
-        status: "DRAFT", // ✅ This is already correct - string literal matches enum
+        status: "DRAFT",
         homepage: {
           create: {
             userId: user.id,
@@ -235,35 +184,15 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Course ID required" }, { status: 400 });
     }
 
-    // ✅ FIX: Properly type the update data with CourseStatus
-    const updateData: {
-      updatedAt: Date;
-      status?: CourseStatus;
-      isPublished?: boolean;
-      publishedAt?: Date;
-      title?: string;
-      description?: string;
-      lastEditedSection?: string;
-      completionPercentage?: number;
-    } = { updatedAt: new Date() };
+    const updateData: any = { updatedAt: new Date() };
     
     if (status) {
-      // ✅ Validate status before assigning
-      const validStatuses: CourseStatus[] = ['DRAFT', 'PENDING', 'PUBLISHED', 'ARCHIVED'];
-      if (validStatuses.includes(status as CourseStatus)) {
-        updateData.status = status as CourseStatus;
-        
-        if (status === "PUBLISHED") {
-          updateData.isPublished = true;
-          updateData.publishedAt = new Date();
-        } else if (status === "DRAFT") {
-          updateData.isPublished = false;
-        }
-      } else {
-        return NextResponse.json(
-          { error: "Invalid status value" },
-          { status: 400 }
-        );
+      updateData.status = status;
+      if (status === "PUBLISHED") {
+        updateData.isPublished = true;
+        updateData.publishedAt = new Date();
+      } else if (status === "DRAFT") {
+        updateData.isPublished = false;
       }
     }
     
