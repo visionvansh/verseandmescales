@@ -16,7 +16,7 @@ interface TokenPayload {
  */
 export async function getAuthUser(request: NextRequest) {
   try {
-    let token = null;
+    let token: string | null = null;
     
     // Try to get token from Authorization header
     const authHeader = request.headers.get('Authorization');
@@ -27,15 +27,23 @@ export async function getAuthUser(request: NextRequest) {
     // If no token in header, try to get from cookie
     if (!token) {
       const cookieStore = await cookies();
-      token = cookieStore.get('auth-token')?.value;
+      const authCookie = cookieStore.get('auth-token');
+      token = authCookie?.value ?? null;
     }
     
     if (!token) {
       return null;
     }
     
+    // Check if JWT_SECRET exists
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('JWT_SECRET is not defined in environment variables');
+      return null;
+    }
+    
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
+    const decoded = jwt.verify(token, jwtSecret) as TokenPayload;
     
     // Check token expiration explicitly
     const now = Math.floor(Date.now() / 1000);
@@ -91,6 +99,8 @@ export async function getAuthUser(request: NextRequest) {
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
       console.error(`JWT verification error: ${error.message}`);
+    } else if (error instanceof Error) {
+      console.error('Auth verification error:', error.message);
     } else {
       console.error('Auth verification error:', error);
     }

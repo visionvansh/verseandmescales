@@ -76,8 +76,9 @@ export const findUserByUsername = async (username: string) => {
   });
 };
 
-// Type for user creation data
-type CreateUserData = Prisma.StudentCreateInput;
+// ✅ FIXED: Use the correct Prisma type accessor
+// The type should match your actual Prisma model name
+type CreateUserData = Parameters<typeof prisma.student.create>[0]['data'];
 
 export const createUser = async (userData: CreateUserData) => {
   return await prisma.student.create({
@@ -89,8 +90,8 @@ export const createUser = async (userData: CreateUserData) => {
   });
 };
 
-// Type for user update data
-type UpdateUserData = Prisma.StudentUpdateInput;
+// ✅ FIXED: Type for user update data
+type UpdateUserData = Parameters<typeof prisma.student.update>[0]['data'];
 
 export const updateUser = async (id: string, userData: UpdateUserData) => {
   return await prisma.student.update({
@@ -103,8 +104,8 @@ export const updateUser = async (id: string, userData: UpdateUserData) => {
   });
 };
 
-// Type for session creation data
-type CreateSessionData = Prisma.UserSessionCreateInput;
+// ✅ FIXED: Type for session creation data
+type CreateSessionData = Parameters<typeof prisma.userSession.create>[0]['data'];
 
 export const createUserSession = async (sessionData: CreateSessionData) => {
   return await prisma.userSession.create({
@@ -130,8 +131,8 @@ export const findActiveSession = async (sessionToken: string) => {
   });
 };
 
-// Type for auth log event data
-type CreateAuthLogData = Prisma.AuthLogCreateInput;
+// ✅ FIXED: Type for auth log event data
+type CreateAuthLogData = Parameters<typeof prisma.authLog.create>[0]['data'];
 
 export const logAuthEvent = async (eventData: CreateAuthLogData) => {
   return await prisma.authLog.create({
@@ -157,10 +158,10 @@ export const findUserBySocialAccount = async (provider: string, providerId: stri
   });
 };
 
-// Type for social account creation - using unchecked input
+// ✅ FIXED: Type for social account creation - using unchecked input
 export const createSocialAccount = async (
   userId: string, 
-  socialData: Omit<Prisma.UserSocialUncheckedCreateInput, 'userId'>
+  socialData: Omit<Parameters<typeof prisma.userSocial.create>[0]['data'], 'userId' | 'user'>
 ) => {
   return await prisma.userSocial.create({
     data: {
