@@ -1,8 +1,142 @@
-//Volumes/vision/codes/course/my-app/src/app/api/posts/feed/route.ts
+// /api/posts/feed/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
-import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ Add import at top
+import { getAvatarUrlFromUser } from '@/utils/avatarGenerator';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
+
+// ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+type UserGoal = {
+  purpose: string;
+};
+
+type TargetUser = {
+  id: string;
+  UserGoals: UserGoal[];
+  profileSettings: {
+    isPublic: boolean;
+  } | null;
+};
+
+type Following = {
+  followingId: string;
+};
+
+type PrismaPostUser = {
+  id: string;
+  username: string;
+  name: string | null;
+  surname: string | null;
+  img: string | null;
+  userXP: {
+    totalXP: number;
+    contributorTitle: string;
+  } | null;
+  badges: Array<{
+    id: string;
+    title: string;
+    icon: string;
+    color: string;
+  }>;
+  avatars: Array<{
+    id: string;
+    avatarIndex: number;
+    avatarSeed: string;
+    avatarStyle: string;
+    isPrimary: boolean;
+    isCustomUpload: boolean;
+    customImageUrl: string | null;
+  }>;
+  UserGoals: UserGoal[];
+  _count: {
+    followers: number;
+    following: number;
+  };
+};
+
+type PrismaPost = {
+  id: string;
+  userId: string;
+  content: string;
+  mediaUrl: string | null;
+  mediaType: string | null;
+  mediaDuration: string | null;
+  mediaWidth: number | null;
+  mediaHeight: number | null;
+  mediaThumbnail: string | null;
+  privacy: string;
+  isPinned: boolean;
+  isEdited: boolean;
+  editedAt: Date | null;
+  createdAt: Date;
+  user: PrismaPostUser;
+  likes?: any[];
+  _count: {
+    likes: number;
+    comments: number;
+    shares: number;
+    views: number;
+  };
+};
+
+type UserType = 'tutor' | 'learner' | 'both';
+
+type FormattedBadge = {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+};
+
+type FormattedUser = {
+  id: string;
+  username: string;
+  name: string;
+  avatar: string;
+  avatarObject: any;
+  type: UserType;
+  xp: number;
+  badges: FormattedBadge[];
+  seekers: number;
+  seeking: number;
+  coursesMade: number;
+  coursesLearning: number;
+  dateJoined: string;
+  isPrivate: boolean;
+};
+
+type FormattedPost = {
+  id: string;
+  userId: string;
+  content: string;
+  mediaUrl: string | null;
+  mediaType: string | null;
+  mediaDuration: string | null;
+  mediaWidth: number | null;
+  mediaHeight: number | null;
+  mediaThumbnail: string | null;
+  privacy: string;
+  isPinned: boolean;
+  isEdited: boolean;
+  editedAt: Date | null;
+  timestamp: string;
+  user: FormattedUser;
+  isLiked: boolean;
+  likes: number;
+  comments: number;
+  shares: number;
+  viewsCount: number;
+  media?: string;
+  videoDuration?: string;
+  type: 'video' | 'image' | 'text';
+};
+
+// ============================================
+// ROUTE HANDLER
+// ============================================
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,13 +147,14 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const username = searchParams.get('username');
 
-    let whereClause: any = {
+    // ✅ Use Prisma's PostWhereInput type
+    const whereClause: Prisma.PostWhereInput = {
       isDeleted: false
     };
 
     // Filter by username if provided
     if (username) {
-      const targetUser = await prisma.student.findUnique({
+      const targetUser: TargetUser | null = await prisma.student.findUnique({
         where: { username: username.toLowerCase() },
         select: { 
           id: true,
@@ -31,7 +166,7 @@ export async function GET(request: NextRequest) {
             select: { isPublic: true }
           }
         }
-      });
+      }) as TargetUser | null;
 
       if (!targetUser) {
         return NextResponse.json(
@@ -40,19 +175,15 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      // ✅ Check privacy rules
       const userGoal = targetUser.UserGoals[0];
       const isTargetOwn = user?.id === targetUser.id;
       
-      // Determine if profile is accessible
       let canView = isTargetOwn;
       
       if (!isTargetOwn) {
         if (userGoal?.purpose === 'teach' || userGoal?.purpose === 'both') {
-          // Tutors and Both are always public
           canView = true;
         } else if (userGoal?.purpose === 'learn') {
-          // Learners: check their privacy setting
           canView = targetUser.profileSettings?.isPublic || false;
         }
       }
@@ -67,24 +198,25 @@ export async function GET(request: NextRequest) {
       whereClause.userId = targetUser.id;
       
     } else if (user) {
-      // Show posts from followed users + own posts + public posts
-      const following = await prisma.follow.findMany({
+      const following: Following[] = await prisma.follow.findMany({
         where: {
           followerId: user.id,
           isAccepted: true
         },
         select: { followingId: true }
-      });
+      }) as Following[];
 
-      const followingIds = following.map(f => f.followingId);
+      const followingIds: string[] = following.map((f: Following) => f.followingId);
 
       whereClause.OR = [
         { userId: user.id },
-        { userId: { in: followingIds }, privacy: { in: ['PUBLIC', 'SEEKERS_ONLY'] } },
+        { 
+          userId: { in: followingIds }, 
+          privacy: { in: ['PUBLIC', 'SEEKERS_ONLY'] } 
+        },
         { privacy: 'PUBLIC' }
       ];
     } else {
-      // Anonymous users only see public posts from public profiles
       whereClause.privacy = 'PUBLIC';
       whereClause.user = {
         OR: [
@@ -98,6 +230,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    // ✅ Remove type assertion - let TypeScript infer the type
     const posts = await prisma.post.findMany({
       where: whereClause,
       take: limit + 1,
@@ -132,7 +265,6 @@ export async function GET(request: NextRequest) {
                 color: true
               }
             },
-            // ✅ ADD THIS
             avatars: {
               where: { isPrimary: true },
               take: 1,
@@ -176,17 +308,17 @@ export async function GET(request: NextRequest) {
     const hasMore = posts.length > limit;
     const postsToReturn = hasMore ? posts.slice(0, -1) : posts;
 
-    const formattedPosts = postsToReturn.map(post => {
+    const formattedPosts: FormattedPost[] = postsToReturn.map((post) => {
       const userGoal = post.user.UserGoals[0];
-      let userType: 'tutor' | 'learner' | 'both' = 'learner';
+      let userType: UserType = 'learner';
       
       if (userGoal) {
         if (userGoal.purpose === 'teach') userType = 'tutor';
         else if (userGoal.purpose === 'both') userType = 'both';
       }
 
-      // ✅ USE HELPER FUNCTION WITH CUSTOM COLORS
-      const avatarUrl = getAvatarUrlFromUser(post.user, 64);
+      // ✅ Ensure avatarUrl is always a string (never null)
+      const avatarUrl = getAvatarUrlFromUser(post.user, 64) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.user.username}`;
       const primaryAvatar = post.user.avatars[0];
 
       return {
@@ -208,11 +340,11 @@ export async function GET(request: NextRequest) {
           id: post.user.id,
           username: post.user.username,
           name: post.user.name || 'User',
-          avatar: avatarUrl, // ✅ NOW WITH RED/WHITE/BLACK THEME
+          avatar: avatarUrl, // ✅ Now always string, never null
           avatarObject: primaryAvatar || null,
           type: userType,
           xp: post.user.userXP?.totalXP || 0,
-          badges: post.user.badges.map(b => ({
+          badges: post.user.badges.map((b) => ({
             id: b.id,
             name: b.title,
             icon: b.icon,
@@ -225,7 +357,7 @@ export async function GET(request: NextRequest) {
           dateJoined: '',
           isPrivate: false
         },
-        isLiked: user ? post.likes?.length > 0 : false,
+        isLiked: user ? (post.likes?.length ?? 0) > 0 : false,
         likes: post._count.likes,
         comments: post._count.comments,
         shares: post._count.shares,

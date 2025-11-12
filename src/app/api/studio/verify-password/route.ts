@@ -1,9 +1,15 @@
-//Volumes/vision/codes/course/my-app/src/app/api/studio/verify-password/route.ts
+// /Volumes/vision/codes/course/my-app/src/app/api/studio/verify-password/route.ts
 import { NextRequest, NextResponse } from "next/server";
+
+// Type for request body
+interface VerifyPasswordBody {
+  password: string;
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { password } = await req.json();
+    const body = await req.json();
+    const { password } = body as VerifyPasswordBody;
 
     // ✅ Simple password check from .env
     const correctPassword = process.env.STUDIO_ACCESS_PASSWORD;

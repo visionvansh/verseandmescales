@@ -1,6 +1,14 @@
+// /Volumes/vision/codes/course/my-app/src/app/api/studio/course-info/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
+
+// Type for Prisma query result
+interface CourseInfo {
+  customHomepageFile: string | null;
+  title: string;
+  thumbnail: string | null;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,7 +35,7 @@ export async function GET(req: NextRequest) {
         title: true,
         thumbnail: true,
       },
-    });
+    }) as CourseInfo | null;
 
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });

@@ -1,6 +1,29 @@
+// /Volumes/vision/codes/course/my-app/src/app/api/studio/card-settings/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
+
+// Type for Prisma course query result
+interface CourseCardSettings {
+  id: string;
+  title: string;
+  description: string | null;
+  thumbnail: string | null;
+  price: string | null;
+  salePrice: string | null;
+  saleEndsAt: Date | null;
+}
+
+// Type for request body
+interface CardSettingsBody {
+  courseId: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  price: string;
+  salePrice: string;
+  saleEndsAt: string | null;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,9 +43,18 @@ export async function GET(req: NextRequest) {
       where: {
         id: courseId,
         userId: user.id,
-        homepageType: "custom", // ✅ Only for custom courses
+        homepageType: "custom",
       },
-    });
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        thumbnail: true,
+        price: true,
+        salePrice: true,
+        saleEndsAt: true,
+      },
+    }) as CourseCardSettings | null;
 
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
@@ -50,7 +82,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { courseId, title, description, thumbnail, price, salePrice, saleEndsAt } = body;
+    const { courseId, title, description, thumbnail, price, salePrice, saleEndsAt } = body as CardSettingsBody;
 
     if (!courseId) {
       return NextResponse.json({ error: "Course ID required" }, { status: 400 });

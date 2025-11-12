@@ -2,7 +2,123 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
-import { redis, CACHE_PREFIX } from '@/lib/redis'; // ✅ ADD THIS IMPORT
+import { redis, CACHE_PREFIX } from '@/lib/redis';
+
+// ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+type UpdateBioBody = {
+  action: 'update_bio';
+  bio?: string;
+  country?: string;
+  location?: string;
+  website?: string;
+};
+
+type UpdateAvatarBody = {
+  action: 'update_avatar';
+  avatarUrl: string;
+};
+
+type ChangeRoleBody = {
+  action: 'change_role';
+  newRole: 'learn' | 'teach' | 'both';
+};
+
+type ToggleVisibilityBody = {
+  action: 'toggle_visibility';
+  isPublic: boolean;
+};
+
+type RequestBody = UpdateBioBody | UpdateAvatarBody | ChangeRoleBody | ToggleVisibilityBody;
+
+type UserGoal = {
+  id: string;
+  userId: string;
+  purpose: string;
+  monthlyGoal: string;
+  timeCommitment: string;
+  completedAt: Date;
+  lastUpdated: Date;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type Course = {
+  id: string;
+  userId: string;
+  title: string;
+  slug: string | null;
+  description: string | null;
+  thumbnail: string | null;
+  price: string | null;
+  salePrice: string | null;
+  saleEndsAt: Date | null;
+  homepageType: string;
+  customHomepageFile: string | null;
+  status: string;
+  isPublished: boolean;
+  publishedAt: Date | null;
+  completionPercentage: number;
+  lastEditedSection: string | null;
+  submittedAt: Date | null;
+  pendingChanges: any;
+  rejectionReason: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type LessonProgress = {
+  id: string;
+  userId: string;
+  lessonId: string;
+  moduleId: string;
+  courseId: string;
+  isCompleted: boolean;
+  completedAt: Date | null;
+  watchTime: number;
+  lastWatchedAt: Date | null;
+  progressPercent: number;
+  lastPosition: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type ProfileSettings = {
+  id: string;
+  userId: string;
+  bio: string | null;
+  country: string | null;
+  location: string | null;
+  website: string | null;
+  isPublic: boolean;
+  showEmail: boolean;
+  showPhone: boolean;
+  showLocation: boolean;
+  showWebsite: boolean;
+  showXP: boolean;
+  showBadges: boolean;
+  allowMessages: boolean;
+  allowFollow: boolean;
+  whoCanComment: string;
+  whoCanSeePosts: string;
+  coverImage: string | null;
+  primaryColor: string;
+  theme: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type UserWithGoalsAndCourses = {
+  id: string;
+  username: string;
+  email: string;
+  UserGoals: UserGoal[];
+  courses: Course[];
+  lessonProgress: LessonProgress[];
+  profileSettings: ProfileSettings | null;
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +131,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const body = await request.json() as RequestBody;
     const { action } = body;
 
     switch (action) {
@@ -46,8 +162,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ✅ UPDATED: Clear cache after bio update
-async function updateBio(userId: string, body: any) {
+async function updateBio(userId: string, body: UpdateBioBody) {
   const { bio, country, location, website } = body;
 
   await prisma.profileSettings.upsert({
@@ -67,7 +182,6 @@ async function updateBio(userId: string, body: any) {
     }
   });
 
-  // ✅ Invalidate cache
   await invalidateUserCache(userId);
 
   return NextResponse.json({
@@ -76,8 +190,7 @@ async function updateBio(userId: string, body: any) {
   });
 }
 
-// ✅ UPDATED: Clear cache after avatar update
-async function updateAvatar(userId: string, body: any) {
+async function updateAvatar(userId: string, body: UpdateAvatarBody) {
   const { avatarUrl } = body;
 
   await prisma.student.update({
@@ -87,7 +200,6 @@ async function updateAvatar(userId: string, body: any) {
     }
   });
 
-  // ✅ Invalidate cache
   await invalidateUserCache(userId);
 
   return NextResponse.json({
@@ -97,8 +209,7 @@ async function updateAvatar(userId: string, body: any) {
   });
 }
 
-// ✅ UPDATED: Clear cache after role change
-async function changeRole(userId: string, body: any) {
+async function changeRole(userId: string, body: ChangeRoleBody) {
   const { newRole } = body;
 
   const user = await prisma.student.findUnique({
@@ -113,7 +224,7 @@ async function changeRole(userId: string, body: any) {
       },
       profileSettings: true
     }
-  });
+  }) as UserWithGoalsAndCourses | null;
 
   if (!user || !user.UserGoals || user.UserGoals.length === 0) {
     return NextResponse.json(
@@ -199,7 +310,6 @@ async function changeRole(userId: string, body: any) {
     });
   }
 
-  // ✅ Invalidate cache IMMEDIATELY after role change
   await invalidateUserCache(userId);
 
   return NextResponse.json({
@@ -210,8 +320,7 @@ async function changeRole(userId: string, body: any) {
   });
 }
 
-// ✅ UPDATED: Clear cache after visibility toggle
-async function toggleVisibility(userId: string, body: any) {
+async function toggleVisibility(userId: string, body: ToggleVisibilityBody) {
   const { isPublic } = body;
 
   const user = await prisma.student.findUnique({
@@ -219,7 +328,7 @@ async function toggleVisibility(userId: string, body: any) {
     include: {
       UserGoals: true
     }
-  });
+  }) as (UserWithGoalsAndCourses & { UserGoals: UserGoal[] }) | null;
 
   if (!user || !user.UserGoals || user.UserGoals.length === 0) {
     return NextResponse.json(
@@ -249,7 +358,6 @@ async function toggleVisibility(userId: string, body: any) {
     }
   });
 
-  // ✅ Invalidate cache
   await invalidateUserCache(userId);
 
   return NextResponse.json({
@@ -259,8 +367,7 @@ async function toggleVisibility(userId: string, body: any) {
   });
 }
 
-// ✅ NEW: Helper function to invalidate all user caches
-async function invalidateUserCache(userId: string) {
+async function invalidateUserCache(userId: string): Promise<void> {
   try {
     const cacheKey = `${CACHE_PREFIX.USER_PROFILE}${userId}`;
     await redis.del(cacheKey);

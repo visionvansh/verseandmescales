@@ -3,7 +3,84 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { checkAndAwardBadges } from '@/lib/profile/badges';
-import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ ADD IMPORT
+import { getAvatarUrlFromUser } from '@/utils/avatarGenerator';
+
+// ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+type UserGoal = {
+  purpose: string;
+};
+
+type Avatar = {
+  id: string;
+  avatarIndex: number;
+  avatarSeed: string;
+  avatarStyle: string;
+  isPrimary: boolean;
+  isCustomUpload: boolean;
+  customImageUrl: string | null;
+};
+
+type ProfileSettings = {
+  isPublic: boolean;
+  coverImage: string | null;
+  showEmail: boolean;
+  showPhone: boolean;
+  showLocation: boolean;
+  showWebsite: boolean;
+  showXP: boolean;
+  showBadges: boolean;
+  bio: string | null;
+  country: string | null;
+  location: string | null;
+  website: string | null;
+};
+
+type UserXP = {
+  totalXP: number;
+  currentLevel: number;
+  contributorTitle: string;
+  xpFromPosts: number;
+  xpFromComments: number;
+  xpFromCourses: number;
+};
+
+type Badge = {
+  id: string;
+  badgeType: string;
+  category: string;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  requirement: string;
+  displayOrder: number;
+  earnedAt: Date | null;
+};
+
+type PrismaUser = {
+  id: string;
+  username: string;
+  name: string | null;
+  surname: string | null;
+  img: string | null;
+  createdAt: Date;
+  lastActiveAt: Date | null;
+  isOnline: boolean;
+  avatars: Avatar[];
+  profileSettings: ProfileSettings | null;
+  userXP: UserXP | null;
+  badges: Badge[];
+  UserGoals: UserGoal[];
+  _count: {
+    followers: number;
+    following: number;
+    courses: number;
+    posts: number;
+  };
+};
 
 export async function GET(
   request: NextRequest,
@@ -11,7 +88,7 @@ export async function GET(
 ) {
   try {
     const currentUser = await getAuthUser(request);
-    const { username } = await params; // ✅ Already awaiting params
+    const { username } = await params;
 
     if (currentUser) {
       await checkAndAwardBadges(currentUser.id);
@@ -103,7 +180,7 @@ export async function GET(
           }
         }
       }
-    });
+    }) as PrismaUser | null;
 
     if (!user) {
       return NextResponse.json(
@@ -146,12 +223,12 @@ export async function GET(
       }
     }
 
+    // ✅ FIXED: Properly type groupBy result
     const coursesLearning = await prisma.lessonProgress.groupBy({
       by: ['courseId'],
       where: { userId: user.id }
     });
 
-    // ✅ USE HELPER FUNCTION WITH RED/WHITE/BLACK THEME
     const avatarUrl = getAvatarUrlFromUser(user, 64);
     const primaryAvatar = user.avatars[0];
 
@@ -160,7 +237,7 @@ export async function GET(
       username: user.username,
       name: user.name || 'User',
       surname: user.surname,
-      avatar: avatarUrl, // ✅ NOW WITH RED/WHITE/BLACK THEME
+      avatar: avatarUrl,
       avatarObject: primaryAvatar || null,
       type: userType,
       xp: user.userXP?.totalXP || 0,
@@ -173,7 +250,7 @@ export async function GET(
       postsCount: user._count.posts,
       coursesLearning: coursesLearning.length,
       
-      badges: user.badges.map(badge => ({
+      badges: user.badges.map((badge: Badge) => ({
         id: badge.id,
         name: badge.title,
         description: badge.description,

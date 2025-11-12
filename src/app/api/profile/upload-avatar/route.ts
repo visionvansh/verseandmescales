@@ -2,7 +2,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
-import { v2 as cloudinary } from 'cloudinary';
+import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
+
+// ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+type CloudinaryUploadResult = UploadApiResponse;
+
+type UpdatedUser = {
+  id: string;
+  username: string;
+  email: string;
+  img: string | null;
+  name: string | null;
+  surname: string | null;
+};
+
+type WebSocketClient = {
+  readyState: number;
+  send: (data: string) => void;
+};
+
+type GlobalWithWSS = typeof globalThis & {
+  wss?: {
+    clients: Set<WebSocketClient>;
+  };
+};
 
 // Configure Cloudinary
 cloudinary.config({
@@ -23,7 +49,7 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as File | null;
 
     if (!file) {
       return NextResponse.json(
@@ -53,7 +79,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     // Upload to Cloudinary
-    const result = await new Promise<any>((resolve, reject) => {
+    const result = await new Promise<CloudinaryUploadResult>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'profile-avatars',
@@ -65,7 +91,8 @@ export async function POST(request: NextRequest) {
         },
         (error, result) => {
           if (error) reject(error);
-          else resolve(result);
+          else if (result) resolve(result);
+          else reject(new Error('Upload failed without error'));
         }
       );
 
@@ -75,12 +102,21 @@ export async function POST(request: NextRequest) {
     // Update user's avatar in database
     const updatedUser = await prisma.student.update({
       where: { id: user.id },
-      data: { img: result.secure_url }
-    });
+      data: { img: result.secure_url },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        img: true,
+        name: true,
+        surname: true
+      }
+    }) as UpdatedUser;
 
     // Broadcast update via WebSocket
-    if (typeof global !== 'undefined' && (global as any).wss) {
-      (global as any).wss.clients.forEach((client: any) => {
+    const globalWithWSS = global as GlobalWithWSS;
+    if (globalWithWSS.wss) {
+      globalWithWSS.wss.clients.forEach((client: WebSocketClient) => {
         if (client.readyState === 1) {
           client.send(JSON.stringify({
             event: 'profile:updated',

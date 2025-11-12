@@ -2,16 +2,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
-import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ Import helper
+import { getAvatarUrlFromUser } from '@/utils/avatarGenerator';
+
+// ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+type UserGoal = {
+  purpose: string;
+};
+
+type Avatar = {
+  id: string;
+  avatarIndex: number;
+  avatarSeed: string;
+  avatarStyle: string;
+  isPrimary: boolean;
+  isCustomUpload: boolean;
+  customImageUrl: string | null;
+};
+
+type Badge = {
+  id: string;
+  title: string;
+  icon: string;
+  color: string;
+};
+
+type UserXP = {
+  totalXP: number;
+  contributorTitle: string;
+};
+
+type FollowingUser = {
+  id: string;
+  username: string;
+  name: string | null;
+  surname: string | null;
+  img: string | null;
+  createdAt: Date;
+  userXP: UserXP | null;
+  badges: Badge[];
+  avatars: Avatar[];
+  UserGoals: UserGoal[];
+  _count: {
+    followers: number;
+    following: number;
+    courses: number;
+  };
+};
+
+type FollowWithUser = {
+  following: FollowingUser;
+};
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ username: string }> } // ✅ Changed to Promise
+  { params }: { params: Promise<{ username: string }> }
 ) {
   try {
     const currentUser = await getAuthUser(request);
-    
-    // ✅ Await params first, then destructure
     const { username } = await params;
 
     const targetUser = await prisma.student.findUnique({
@@ -26,7 +76,7 @@ export async function GET(
       );
     }
 
-    const following = await prisma.follow.findMany({
+    const following: FollowWithUser[] = await prisma.follow.findMany({
       where: {
         followerId: targetUser.id,
         isAccepted: true
@@ -87,7 +137,7 @@ export async function GET(
       orderBy: { createdAt: 'desc' }
     });
 
-    const formattedUsers = following.map(follow => {
+    const formattedUsers = following.map((follow: FollowWithUser) => {
       const user = follow.following;
       const userGoal = user.UserGoals[0];
       let userType: 'tutor' | 'learner' | 'both' = 'learner';
@@ -97,7 +147,6 @@ export async function GET(
         else if (userGoal.purpose === 'both') userType = 'both';
       }
 
-      // ✅ USE HELPER FUNCTION WITH CUSTOM COLORS
       const avatarUrl = getAvatarUrlFromUser(user, 64);
       const primaryAvatar = user.avatars[0];
 
@@ -106,7 +155,7 @@ export async function GET(
         username: user.username,
         name: user.name || 'User',
         surname: user.surname,
-        avatar: avatarUrl, // ✅ NOW WITH RED/WHITE/BLACK THEME
+        avatar: avatarUrl,
         avatarObject: primaryAvatar || null,
         img: avatarUrl,
         type: userType,
@@ -115,7 +164,7 @@ export async function GET(
         seeking: user._count.following,
         coursesMade: user._count.courses,
         coursesLearning: 0,
-        badges: user.badges.map(badge => ({
+        badges: user.badges.map((badge: Badge) => ({
           id: badge.id,
           name: badge.title,
           icon: badge.icon,
