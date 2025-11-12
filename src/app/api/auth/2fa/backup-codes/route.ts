@@ -1,11 +1,11 @@
-//api/auth/2fa/backup-codes
+// app/api/auth/2fa/backup-codes/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { generateBackupCodes } from '@/utils/twoFactorAuth';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+// ✅ REMOVED: Don't instantiate PrismaClient here - use the singleton from @/lib/prisma
 
 // Get existing backup codes status
 export async function GET(request: NextRequest) {
