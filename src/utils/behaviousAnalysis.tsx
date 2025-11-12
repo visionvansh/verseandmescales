@@ -224,6 +224,9 @@ export async function analyzeBehaviorForRisk(
 // User Behavior Profile (Cached)
 // ============================================================================
 
+// ✅ Define the LoginAnalytics type based on Prisma schema
+type PrismaLoginAnalytics = Awaited<ReturnType<typeof prisma.loginAnalytics.findMany>>[number];
+
 async function getUserBehaviorProfile(userId: string): Promise<BehaviorProfile> {
   const cacheKey = `behavior:profile:${userId}`;
   const cached = await redis.get(cacheKey);
@@ -242,7 +245,8 @@ async function getUserBehaviorProfile(userId: string): Promise<BehaviorProfile> 
   const deviceCounts = new Map<string, number>();
   const timeCounts = new Map<string, number>();
 
-  analytics.forEach((log) => {
+  // ✅ FIXED: Explicitly type the 'log' parameter
+  analytics.forEach((log: PrismaLoginAnalytics) => {
     const locKey = `${log.country}:${log.city}`;
     locationCounts.set(locKey, (locationCounts.get(locKey) || 0) + 1);
 
