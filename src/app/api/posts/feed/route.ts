@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import { getAvatarUrlFromUser } from '@/utils/avatarGenerator';
 import prisma from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 
 // ============================================
 // TYPE DEFINITIONS
@@ -134,6 +133,29 @@ type FormattedPost = {
   type: 'video' | 'image' | 'text';
 };
 
+// ✅ Define custom WhereClause type instead of using Prisma.PostWhereInput
+type PostWhereClause = {
+  isDeleted: boolean;
+  userId?: string;
+  privacy?: string | { in: string[] };
+  OR?: Array<{
+    userId?: string | { in: string[] };
+    privacy?: string | { in: string[] };
+    user?: {
+      OR: Array<{
+        UserGoals: { some: { purpose: string } };
+        profileSettings?: { isPublic: boolean };
+      }>;
+    };
+  }>;
+  user?: {
+    OR: Array<{
+      UserGoals: { some: { purpose: string } };
+      profileSettings?: { isPublic: boolean };
+    }>;
+  };
+};
+
 // ============================================
 // ROUTE HANDLER
 // ============================================
@@ -147,8 +169,8 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const username = searchParams.get('username');
 
-    // ✅ Use Prisma's PostWhereInput type
-    const whereClause: Prisma.PostWhereInput = {
+    // ✅ Use custom type instead of Prisma.PostWhereInput
+    const whereClause: PostWhereClause = {
       isDeleted: false
     };
 
@@ -230,9 +252,9 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // ✅ Remove type assertion - let TypeScript infer the type
+    // ✅ Cast whereClause to any to avoid type conflicts with Prisma
     const posts = await prisma.post.findMany({
-      where: whereClause,
+      where: whereClause as any,
       take: limit + 1,
       skip: cursor ? 1 : 0,
       cursor: cursor ? { id: cursor } : undefined,
@@ -308,7 +330,7 @@ export async function GET(request: NextRequest) {
     const hasMore = posts.length > limit;
     const postsToReturn = hasMore ? posts.slice(0, -1) : posts;
 
-    const formattedPosts: FormattedPost[] = postsToReturn.map((post) => {
+    const formattedPosts: FormattedPost[] = postsToReturn.map((post: any) => {
       const userGoal = post.user.UserGoals[0];
       let userType: UserType = 'learner';
       
@@ -317,7 +339,6 @@ export async function GET(request: NextRequest) {
         else if (userGoal.purpose === 'both') userType = 'both';
       }
 
-      // ✅ Ensure avatarUrl is always a string (never null)
       const avatarUrl = getAvatarUrlFromUser(post.user, 64) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.user.username}`;
       const primaryAvatar = post.user.avatars[0];
 
@@ -340,11 +361,11 @@ export async function GET(request: NextRequest) {
           id: post.user.id,
           username: post.user.username,
           name: post.user.name || 'User',
-          avatar: avatarUrl, // ✅ Now always string, never null
+          avatar: avatarUrl,
           avatarObject: primaryAvatar || null,
           type: userType,
           xp: post.user.userXP?.totalXP || 0,
-          badges: post.user.badges.map((b) => ({
+          badges: post.user.badges.map((b: any) => ({
             id: b.id,
             name: b.title,
             icon: b.icon,
@@ -373,7 +394,7 @@ export async function GET(request: NextRequest) {
       nextCursor: hasMore ? posts[posts.length - 1].id : null
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Get feed error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch feed' },
