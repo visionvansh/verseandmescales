@@ -1,7 +1,71 @@
 // api/course/homepage/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
-import prisma from '@/lib/prisma';
+import prisma, { PrismaTx } from '@/lib/prisma';
+
+// Define types for sections
+interface CustomSectionData {
+  id: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  layout?: string;
+  imageUrl?: string | null;
+  imagePosition?: string;
+  imageRounded?: boolean;
+  imageBorder?: boolean;
+  cards?: any[] | null;
+  features?: any[] | null;
+  buttonText?: string | null;
+  buttonIcon?: string | null;
+  buttonLink?: string | null;
+  backgroundColor?: string;
+  paddingTop?: string;
+  paddingBottom?: string;
+  titleWords?: any[] | null;
+  descriptionWords?: any[] | null;
+}
+
+interface ProofImageData {
+  imageUrl?: string;
+  url?: string;
+  title?: string;
+  caption?: string | null;
+  description?: string;
+  altText?: string | null;
+}
+
+interface TestimonialData {
+  name?: string;
+  role?: string | null;
+  company?: string | null;
+  avatarUrl?: string;
+  avatar?: string;
+  thumbnail?: string | null;
+  rating?: number;
+  content?: string;
+  text?: string;
+  highlight?: string;
+  featured?: boolean;
+  instagramHandle?: string | null;
+  linkedinUrl?: string | null;
+  twitterHandle?: string | null;
+}
+
+interface FAQData {
+  question?: string;
+  answer?: string;
+  category?: string | null;
+}
+
+interface SectionBadgeData {
+  sectionId: string;
+  type?: string;
+  sectionType?: string;
+  enabled?: boolean;
+  text?: string;
+  emoji?: string;
+}
 
 /**
  * GET /api/course-homepage
@@ -164,14 +228,14 @@ export async function POST(request: NextRequest) {
 
     // 3. Handle Custom Sections (separate transaction)
     if (homepageData.customSections && Array.isArray(homepageData.customSections)) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: PrismaTx) => {
         await tx.courseCustomSection.deleteMany({
           where: { homepageId: homepage.id }
         });
 
         if (homepageData.customSections.length > 0) {
           await tx.courseCustomSection.createMany({
-            data: homepageData.customSections.map((section: any, index: number) => ({
+            data: homepageData.customSections.map((section: CustomSectionData, index: number) => ({
               homepageId: homepage.id,
               sectionId: section.id,
               position: index,
@@ -199,7 +263,7 @@ export async function POST(request: NextRequest) {
 
     // 4. Handle Proof Section (separate transaction)
     if (homepageData.proofSectionEnabled !== undefined) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: PrismaTx) => {
         if (homepageData.proofSectionEnabled) {
           const proofSection = await tx.courseProofSection.upsert({
             where: { homepageId: homepage.id },
@@ -223,7 +287,7 @@ export async function POST(request: NextRequest) {
 
             if (homepageData.proofImages.length > 0) {
               await tx.courseProofImage.createMany({
-                data: homepageData.proofImages.map((img: any, index: number) => ({
+                data: homepageData.proofImages.map((img: ProofImageData, index: number) => ({
                   proofSectionId: proofSection.id,
                   imageUrl: img.imageUrl || img.url || '',
                   caption: img.title || img.caption || null,
@@ -243,7 +307,7 @@ export async function POST(request: NextRequest) {
 
     // 5. Handle Testimonials Section (separate transaction)
     if (homepageData.testimonialsEnabled !== undefined) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: PrismaTx) => {
         if (homepageData.testimonialsEnabled) {
           const testimonialSection = await tx.courseTestimonialSection.upsert({
             where: { homepageId: homepage.id },
@@ -267,7 +331,7 @@ export async function POST(request: NextRequest) {
 
             if (homepageData.testimonials.length > 0) {
               await tx.courseTestimonial.createMany({
-                data: homepageData.testimonials.map((testimonial: any, index: number) => ({
+                data: homepageData.testimonials.map((testimonial: TestimonialData, index: number) => ({
                   testimonialSectionId: testimonialSection.id,
                   name: testimonial.name || '',
                   role: testimonial.role || null,
@@ -292,9 +356,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 6. Handle FAQ Section (separate transaction) - THIS WAS CAUSING THE ERROR
+    // 6. Handle FAQ Section (separate transaction)
     if (homepageData.faqEnabled !== undefined) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: PrismaTx) => {
         if (homepageData.faqEnabled) {
           const faqSection = await tx.courseFAQSection.upsert({
             where: { homepageId: homepage.id },
@@ -312,15 +376,13 @@ export async function POST(request: NextRequest) {
           });
 
           if (homepageData.faqs && Array.isArray(homepageData.faqs)) {
-            // Delete existing FAQs for this section
             await tx.courseFAQ.deleteMany({
               where: { faqSectionId: faqSection.id }
             });
 
-            // Create new FAQs if any
             if (homepageData.faqs.length > 0) {
               await tx.courseFAQ.createMany({
-                data: homepageData.faqs.map((faq: any, index: number) => ({
+                data: homepageData.faqs.map((faq: FAQData, index: number) => ({
                   faqSectionId: faqSection.id,
                   question: faq.question || '',
                   answer: faq.answer || '',
@@ -331,7 +393,6 @@ export async function POST(request: NextRequest) {
             }
           }
         } else {
-          // Delete FAQ section if disabled
           await tx.courseFAQSection.deleteMany({
             where: { homepageId: homepage.id }
           });
@@ -349,7 +410,6 @@ export async function POST(request: NextRequest) {
         descriptionWords: homepageData.footerDescriptionWords || null,
         price: homepageData.footerPrice || '',
         salePrice: homepageData.footerSalePrice || null,
-        // ❌ REMOVE saleEndsAt from here - it doesn't exist in CourseFooter
         currency: homepageData.footerCurrency || 'USD',
         buttonText: homepageData.ctaButtonText || 'GET STARTED NOW',
         buttonIcon: homepageData.ctaButtonIcon || 'FaRocket',
@@ -367,7 +427,6 @@ export async function POST(request: NextRequest) {
         descriptionWords: homepageData.footerDescriptionWords || null,
         price: homepageData.footerPrice || '',
         salePrice: homepageData.footerSalePrice || null,
-        // ❌ REMOVE saleEndsAt from here too
         buttonText: homepageData.ctaButtonText || 'GET STARTED NOW',
         buttonIcon: homepageData.ctaButtonIcon || 'FaRocket',
         icons: homepageData.footerIcons || null
@@ -376,18 +435,18 @@ export async function POST(request: NextRequest) {
 
     // 8. Handle Section Badges (separate transaction)
     if (homepageData.sectionBadges && Array.isArray(homepageData.sectionBadges)) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: PrismaTx) => {
         await tx.courseSectionBadge.deleteMany({
           where: { homepageId: homepage.id }
         });
 
-        const validBadges = homepageData.sectionBadges.filter((badge: any) => 
+        const validBadges = homepageData.sectionBadges.filter((badge: SectionBadgeData) => 
           badge.sectionId && (badge.enabled || badge.text)
         );
 
         if (validBadges.length > 0) {
           await tx.courseSectionBadge.createMany({
-            data: validBadges.map((badge: any) => ({
+            data: validBadges.map((badge: SectionBadgeData) => ({
               homepageId: homepage.id,
               sectionId: badge.sectionId,
               sectionType: badge.type || badge.sectionType || 'customSection',
