@@ -15,7 +15,6 @@ const prismaClientSingleton = () => {
       { level: 'info', emit: 'stdout' },
       { level: 'warn', emit: 'stdout' },
     ],
-    // Connection pool settings via connection string in .env
   });
 };
 
@@ -32,13 +31,20 @@ type QueryEvent = {
 
 // Add event listeners for better debugging and monitoring
 if (process.env.DEBUG_PRISMA === 'true') {
-  prisma.$on('query' as never, (e: QueryEvent) => {
+  prisma.$on('query', (e: QueryEvent) => {
     console.debug(`Query: ${e.query}`);
     console.debug(`Duration: ${e.duration}ms`);
   });
 }
 
-prisma.$on('error' as never, (e: Error) => {
+// Type for error events from Prisma
+type PrismaErrorEvent = {
+  timestamp: Date;
+  message: string;
+  target: string;
+};
+
+prisma.$on('error', (e: PrismaErrorEvent) => {
   console.error('Prisma error:', e);
 });
 
@@ -83,7 +89,10 @@ export const findUserByUsername = async (username: string) => {
   });
 };
 
-export const createUser = async (userData: any) => {
+// Type for user creation data
+type CreateUserData = Prisma.StudentCreateInput;
+
+export const createUser = async (userData: CreateUserData) => {
   return await prisma.student.create({
     data: userData,
     include: {
@@ -93,7 +102,10 @@ export const createUser = async (userData: any) => {
   });
 };
 
-export const updateUser = async (id: string, userData: any) => {
+// Type for user update data
+type UpdateUserData = Prisma.StudentUpdateInput;
+
+export const updateUser = async (id: string, userData: UpdateUserData) => {
   return await prisma.student.update({
     where: { id },
     data: userData,
@@ -104,7 +116,10 @@ export const updateUser = async (id: string, userData: any) => {
   });
 };
 
-export const createUserSession = async (sessionData: any) => {
+// Type for session creation data
+type CreateSessionData = Prisma.UserSessionCreateInput;
+
+export const createUserSession = async (sessionData: CreateSessionData) => {
   return await prisma.userSession.create({
     data: sessionData
   });
@@ -128,7 +143,10 @@ export const findActiveSession = async (sessionToken: string) => {
   });
 };
 
-export const logAuthEvent = async (eventData: any) => {
+// Type for auth log event data
+type CreateAuthLogData = Prisma.AuthLogCreateInput;
+
+export const logAuthEvent = async (eventData: CreateAuthLogData) => {
   return await prisma.authLog.create({
     data: eventData
   });
@@ -152,11 +170,18 @@ export const findUserBySocialAccount = async (provider: string, providerId: stri
   });
 };
 
-export const createSocialAccount = async (userId: string, socialData: any) => {
+// Type for social account creation data
+type CreateSocialAccountData = Omit<Prisma.UserSocialCreateInput, 'user'> & {
+  userId?: string;
+};
+
+export const createSocialAccount = async (userId: string, socialData: CreateSocialAccountData) => {
   return await prisma.userSocial.create({
     data: {
-      userId,
-      ...socialData
+      ...socialData,
+      user: {
+        connect: { id: userId }
+      }
     }
   });
 };
@@ -164,10 +189,12 @@ export const createSocialAccount = async (userId: string, socialData: any) => {
 // Helper for counting unused 2FA backup codes
 export const countUnusedBackupCodes = async (userId: string) => {
   try {
-    if (typeof prisma.twoFactorBackupCode === 'undefined') {
+    // Check if the model exists in Prisma client
+    if (!('twoFactorBackupCode' in prisma)) {
       console.warn('The twoFactorBackupCode model is not available in Prisma client');
       return 0;
     }
+    
     return await prisma.twoFactorBackupCode.count({
       where: {
         userId,
