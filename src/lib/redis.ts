@@ -1,44 +1,210 @@
-import { Redis } from 'ioredis';
+import { Redis } from '@upstash/redis';
 
-// Get Redis URL from environment variables with fallback
-const getRedisUrl = (): string => {
-  return process.env.REDIS_URL || 'redis://localhost:6379';
+// Get Redis configuration from environment variables
+const getRedisConfig = () => {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) {
+    throw new Error('UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be set');
+  }
+
+  return { url, token };
 };
 
-// Configuration for Redis client
-const getRedisConfig = () => {
+// Create the base Upstash Redis client
+const upstashRedis = new Redis(getRedisConfig());
+
+// Pipeline interface to match ioredis - with proper result format
+interface PipelineCommand {
+  get: (key: string) => PipelineCommand;
+  set: (key: string, value: string, ex?: string, ttl?: number) => PipelineCommand;
+  del: (key: string) => PipelineCommand;
+  ttl: (key: string) => PipelineCommand;
+  incr: (key: string) => PipelineCommand;
+  expire: (key: string, seconds: number) => PipelineCommand;
+  exec: () => Promise<Array<[Error | null, any]>>;
+}
+
+// Create a compatibility wrapper to match ioredis API
+const createRedisWrapper = () => {
   return {
-    maxRetriesPerRequest: 3,
-    connectTimeout: 10000,
-    enableReadyCheck: true,
-    enableOfflineQueue: true,
-    retryStrategy(times: number) {
-      const delay = Math.min(times * 50, 2000);
-      return delay;
+    // GET - returns string or null (compatible with ioredis)
+    async get(key: string): Promise<string | null> {
+      const value = await upstashRedis.get(key);
+      if (value === null || value === undefined) return null;
+      if (typeof value === 'string') return value;
+      return JSON.stringify(value);
+    },
+
+    // SET - accepts both ioredis style (4 args) and Upstash style (2-3 args)
+    async set(key: string, value: string, exOrOptions?: string | number, ttl?: number): Promise<string> {
+      if (typeof exOrOptions === 'string' && exOrOptions.toLowerCase() === 'ex' && typeof ttl === 'number') {
+        // ioredis style: redis.set(key, value, 'EX', seconds)
+        await upstashRedis.set(key, value, { ex: ttl });
+      } else if (typeof exOrOptions === 'number') {
+        // Direct expiration: redis.set(key, value, seconds)
+        await upstashRedis.set(key, value, { ex: exOrOptions });
+      } else {
+        // No expiration
+        await upstashRedis.set(key, value);
+      }
+      return 'OK';
+    },
+
+    // INCR
+    async incr(key: string): Promise<number> {
+      return await upstashRedis.incr(key);
+    },
+
+    // EXPIRE
+    async expire(key: string, seconds: number): Promise<number> {
+      return await upstashRedis.expire(key, seconds);
+    },
+
+    // DEL - accepts single key or multiple keys
+    async del(...keys: string[]): Promise<number> {
+      return await upstashRedis.del(...keys);
+    },
+
+    // MGET - get multiple keys
+   async mget(...keys: string[]): Promise<(string | null)[]> {
+  if (keys.length === 0) return [];
+  const results = await upstashRedis.mget(...keys);
+  return results.map(result => {
+    if (result === null || result === undefined) return null;
+    if (typeof result === 'string') return result;
+    return JSON.stringify(result);
+  });
+},
+    // KEYS - pattern matching (use with caution in production)
+    async keys(pattern: string): Promise<string[]> {
+      return await upstashRedis.keys(pattern);
+    },
+
+    // SETEX - set with expiration
+    async setex(key: string, seconds: number, value: string): Promise<string> {
+      await upstashRedis.set(key, value, { ex: seconds });
+      return 'OK';
+    },
+
+    // TTL - get time to live
+    async ttl(key: string): Promise<number> {
+      return await upstashRedis.ttl(key);
+    },
+
+    // EXISTS - check if key exists
+    async exists(...keys: string[]): Promise<number> {
+      return await upstashRedis.exists(...keys);
+    },
+
+    // PIPELINE - batch commands (returns ioredis-compatible format)
+    pipeline(): PipelineCommand {
+      const commands: Array<() => Promise<any>> = [];
+      
+      const pipelineObj: PipelineCommand = {
+        get: (key: string) => {
+          commands.push(async () => {
+            try {
+              const value = await upstashRedis.get(key);
+              if (value === null || value === undefined) return null;
+              if (typeof value === 'string') return value;
+              return JSON.stringify(value);
+            } catch (error) {
+              throw error;
+            }
+          });
+          return pipelineObj;
+        },
+        
+        set: (key: string, value: string, ex?: string, ttl?: number) => {
+          commands.push(async () => {
+            try {
+              if (typeof ex === 'string' && ex.toLowerCase() === 'ex' && typeof ttl === 'number') {
+                await upstashRedis.set(key, value, { ex: ttl });
+              } else {
+                await upstashRedis.set(key, value);
+              }
+              return 'OK';
+            } catch (error) {
+              throw error;
+            }
+          });
+          return pipelineObj;
+        },
+        
+        del: (key: string) => {
+          commands.push(async () => {
+            try {
+              return await upstashRedis.del(key);
+            } catch (error) {
+              throw error;
+            }
+          });
+          return pipelineObj;
+        },
+        
+        ttl: (key: string) => {
+          commands.push(async () => {
+            try {
+              return await upstashRedis.ttl(key);
+            } catch (error) {
+              throw error;
+            }
+          });
+          return pipelineObj;
+        },
+        
+        incr: (key: string) => {
+          commands.push(async () => {
+            try {
+              return await upstashRedis.incr(key);
+            } catch (error) {
+              throw error;
+            }
+          });
+          return pipelineObj;
+        },
+        
+        expire: (key: string, seconds: number) => {
+          commands.push(async () => {
+            try {
+              return await upstashRedis.expire(key, seconds);
+            } catch (error) {
+              throw error;
+            }
+          });
+          return pipelineObj;
+        },
+        
+        exec: async () => {
+          // Execute all commands and return in ioredis format: [Error | null, result]
+          const results = await Promise.allSettled(commands.map(cmd => cmd()));
+          return results.map(result => {
+            if (result.status === 'fulfilled') {
+              return [null, result.value] as [null, any];
+            } else {
+              return [result.reason, null] as [Error, null];
+            }
+          });
+        }
+      };
+      
+      return pipelineObj;
     }
   };
 };
 
-// Create a global Redis client with connection pooling
-const globalForRedis = global as unknown as { redis: Redis };
+// Create a global Redis client
+const globalForRedis = global as unknown as { redis: ReturnType<typeof createRedisWrapper> };
 
 // Use existing client or create a new one
-export const redis = globalForRedis.redis || 
-  new Redis(getRedisUrl(), getRedisConfig());
+export const redis = globalForRedis.redis || createRedisWrapper();
 
 // Keep the client in development
 if (process.env.NODE_ENV !== 'production') {
   globalForRedis.redis = redis;
 }
-
-// Add event listeners for better error handling
-redis.on('error', (error) => {
-  console.error('Redis connection error:', error);
-});
-
-redis.on('connect', () => {
-  console.log('Redis connected successfully');
-});
 
 // Cache expiry times (in seconds)
 export const CACHE_TIMES = {
@@ -92,7 +258,7 @@ export const CACHE_PREFIX = {
   ACTIVITY_LOGS: 'user:activity:',
   SECURITY_EVENTS: 'user:security:',
   DEVICES: 'user:devices:',
-  TRUSTED_DEVICES: 'user:trusted-devices:', // ADDED
+  TRUSTED_DEVICES: 'user:trusted-devices:',
   PASSWORD: 'user:password:',
   TWO_FACTOR: 'user:2fa:',
   BIOMETRIC: 'user:biometric:',
