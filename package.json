@@ -2,14 +2,15 @@
   "name": "my-app",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "concurrently \"next dev\" \"node websocket-server.js\"",
-    "ws": "node websocket-server.js",
-    "build": "NODE_OPTIONS='--max-old-space-size=4096' next build",
-    "start": "concurrently \"next start\" \"node websocket-server.js\"",
-    "start:prod": "node websocket-server.js & next start",
-    "type-check": "tsc --noEmit --pretty"
-  },
+"scripts": {
+  "dev": "prisma generate && concurrently \"next dev\" \"node websocket-server.js\"",
+  "ws": "node websocket-server.js",
+  "build": "prisma generate && NODE_OPTIONS='--max-old-space-size=4096' next build",
+  "start": "concurrently \"next start\" \"node websocket-server.js\"",
+  "start:prod": "prisma generate && node websocket-server.js & next start",
+  "type-check": "tsc --noEmit --pretty",
+  "postinstall": "prisma generate"
+},
   "dependencies": {
     "@dicebear/collection": "^9.2.4",
     "@dicebear/core": "^9.2.4",
