@@ -22,6 +22,27 @@ const privacySettingsSchema = z.object({
   dataRetentionPeriod: z.number().min(1).max(3650).optional(),
 });
 
+// Type for privacy settings result
+type PrivacySettingsResult = {
+  id: string;
+  userId: string;
+  profileVisibility: string;
+  showEmail: boolean;
+  showPhone: boolean;
+  showLastSeen: boolean;
+  allowDirectMessages: boolean;
+  allowFollowRequests: boolean;
+  showActivityStatus: boolean;
+  dataProcessingConsent: boolean;
+  marketingConsent: boolean;
+  thirdPartySharing: boolean;
+  showMatureContent: boolean;
+  contentFiltering: string;
+  dataRetentionPeriod: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
@@ -65,7 +86,7 @@ export async function GET(request: NextRequest) {
     // Get from database
     let privacySettings = await prisma.privacySettings.findUnique({
       where: { userId: user.id }
-    });
+    }) as PrivacySettingsResult | null;
     
     // Create default settings if not found
     if (!privacySettings) {
@@ -86,7 +107,7 @@ export async function GET(request: NextRequest) {
           contentFiltering: 'moderate',
           dataRetentionPeriod: 365
         }
-      });
+      }) as PrivacySettingsResult;
     }
     
     // Cache the settings
@@ -139,7 +160,7 @@ export async function PUT(request: NextRequest) {
     }
     
     // Parse and validate
-    const body = await request.json();
+    const body = await request.json() as Record<string, unknown>;
     const result = privacySettingsSchema.safeParse(body);
     
     if (!result.success) {
@@ -160,7 +181,7 @@ export async function PUT(request: NextRequest) {
         userId: user.id,
         ...result.data
       }
-    });
+    }) as PrivacySettingsResult;
     
     // Invalidate cache
     await redis.del(`user:privacy:${user.id}`);

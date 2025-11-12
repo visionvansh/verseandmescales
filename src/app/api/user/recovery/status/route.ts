@@ -1,4 +1,3 @@
-//Volumes/vision/codes/course/my-app/src/app/api/user/recovery/status/._route.ts
 //Volumes/vision/codes/course/my-app/src/app/api/user/recovery/status/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';

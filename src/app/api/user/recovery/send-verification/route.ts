@@ -6,8 +6,18 @@ import { redis } from '@/lib/redis';
 import crypto from 'crypto';
 import { sendEmail } from '@/utils/email';
 
+type RequestBody = {
+  type: string;
+  value: string;
+};
+
+type EmailTemplate = {
+  text: string;
+  html: string;
+};
+
 // ✅ PRODUCTION: VerseAndMe Scales Dark Themed Email Template for Recovery Verification
-const getRecoveryVerificationEmailTemplate = (code: string) => {
+const getRecoveryVerificationEmailTemplate = (code: string): EmailTemplate => {
   return {
     text: `VERSEANDME SCALES - Recovery Email Verification
 
@@ -118,7 +128,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = await request.json() as RequestBody;
     const { type, value } = body;
 
     // Validate input

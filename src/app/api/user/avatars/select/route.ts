@@ -1,9 +1,43 @@
-//Volumes/vision/codes/course/my-app/src/app/api/user/avatars/select/route.ts
+// /Volumes/vision/codes/course/my-app/src/app/api/user/avatars/select/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
-import prisma  from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 
-export async function POST(request: NextRequest) {
+// Type for Prisma Avatar
+interface PrismaAvatar {
+  id: string;
+  userId: string;
+  avatarIndex: number;
+  avatarSeed: string;
+  avatarStyle: string;
+  name: string | null;
+  isPrimary: boolean;
+  isCustomUpload: boolean;
+  customImageUrl: string | null;
+  styleConfig: any;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Request body type
+interface SelectAvatarRequestBody {
+  avatarIndex: number;
+  style?: string;
+}
+
+// Response types
+interface SuccessResponse {
+  success: true;
+  avatar: PrismaAvatar;
+}
+
+interface ErrorResponse {
+  error: string;
+}
+
+type SelectAvatarResponse = SuccessResponse | ErrorResponse;
+
+export async function POST(request: NextRequest): Promise<NextResponse<SelectAvatarResponse>> {
   try {
     const user = await getAuthUser(request);
     
@@ -11,7 +45,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { avatarIndex, style } = await request.json();
+    const body: SelectAvatarRequestBody = await request.json();
+    const { avatarIndex, style } = body;
 
     // Unset all primary avatars
     await prisma.avatar.updateMany({
@@ -27,7 +62,7 @@ export async function POST(request: NextRequest) {
           avatarIndex: avatarIndex,
         },
       },
-    });
+    }) as PrismaAvatar | null;
 
     if (!avatar) {
       // Create new avatar
@@ -40,16 +75,16 @@ export async function POST(request: NextRequest) {
           isPrimary: true,
           name: `Avatar #${avatarIndex}`,
         },
-      });
+      }) as PrismaAvatar;
     } else {
       // Set as primary and update style
-      await prisma.avatar.update({
+      avatar = await prisma.avatar.update({
         where: { id: avatar.id },
         data: { 
           isPrimary: true,
           avatarStyle: style || avatar.avatarStyle || 'avataaars',
         },
-      });
+      }) as PrismaAvatar;
     }
 
     // Update user's img field if using generated avatar

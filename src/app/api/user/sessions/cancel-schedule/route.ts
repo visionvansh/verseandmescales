@@ -6,6 +6,24 @@ import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { invalidateUserCache } from '@/lib/enhanced-redis';
 
+// Type definitions
+interface RequestBody {
+  sessionId: string;
+}
+
+interface UserDevice {
+  id: string;
+  trusted: boolean;
+  deviceName: string;
+}
+
+interface UserSession {
+  id: string;
+  userId: string;
+  createdAt: Date;
+  device: UserDevice | null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
@@ -15,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Parse request body
-    const body = await request.json();
+    const body = await request.json() as RequestBody;
     const { sessionId } = body;
     
     if (!sessionId) {
@@ -34,7 +52,7 @@ export async function POST(request: NextRequest) {
       include: {
         device: true
       }
-    });
+    }) as UserSession | null;
     
     if (!session) {
       return NextResponse.json({

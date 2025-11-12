@@ -1,10 +1,19 @@
-//api/user/settings
+// app/api/user/settings/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { redis, CACHE_TIMES, CACHE_PREFIX } from '@/lib/redis';
 import { rateLimit } from '@/lib/rateLimit';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
+
+// Type definitions based on Prisma schema
+type UserGoalPurpose = 'learn' | 'teach' | 'both';
+type ProfileVisibility = 'public' | 'private' | 'friends';
+type Theme = 'light' | 'dark' | 'auto';
+type EmailFrequency = 'instant' | 'daily' | 'weekly';
+type ContentFiltering = 'none' | 'moderate' | 'strict';
+type CommentPermission = 'everyone' | 'followers' | 'none';
 
 // Validation schemas
 const basicUpdateSchema = z.object({
@@ -78,14 +87,20 @@ const privacyUpdateSchema = z.object({
   showMatureContent: z.boolean().optional()
 });
 
-async function invalidateUserCaches(userId: string) {
+// Type for request body
+interface SettingsRequestBody {
+  section: string;
+  data: Record<string, unknown>;
+}
+
+async function invalidateUserCaches(userId: string): Promise<void> {
   const cacheKeys = [
     `${CACHE_PREFIX.USER_PROFILE}${userId}`,
     `profile:${userId}`,
     `user:settings:${userId}`
   ];
   
-  await Promise.all(cacheKeys.map(key => redis.del(key)));
+  await Promise.all(cacheKeys.map((key: string) => redis.del(key)));
   console.log('🗑️ Invalidated caches for user:', userId);
 }
 
@@ -235,7 +250,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const body = await request.json() as SettingsRequestBody;
     const { section, data } = body;
 
     if (!section || !data) {
@@ -262,7 +277,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let result;
+    let result: unknown;
 
     if (section === 'basic') {
       const validated = basicUpdateSchema.parse(data);
@@ -292,10 +307,10 @@ export async function POST(request: NextRequest) {
           select: { purpose: true }
         });
         
-        const role = userGoals?.purpose || 'learner';
+        const role = (userGoals?.purpose || 'learn') as UserGoalPurpose;
         
         // Tutors and Both cannot have private profiles
-        if (role === 'tutor' || role === 'both') {
+        if (role === 'teach' || role === 'both') {
           return NextResponse.json({
             error: 'Tutors and users offering services must have public profiles',
             code: 'ROLE_REQUIRES_PUBLIC_PROFILE'
@@ -320,7 +335,7 @@ export async function POST(request: NextRequest) {
     // Invalidate all related caches
     await invalidateUserCaches(user.id);
 
-    // Log activity
+    // Log activity - FIX: Convert data to Prisma.InputJsonValue
     await prisma.userActivityLog.create({
       data: {
         userId: user.id,
@@ -328,7 +343,10 @@ export async function POST(request: NextRequest) {
         description: `Updated ${section} settings`,
         ipAddress: ip,
         userAgent: request.headers.get('user-agent') || 'unknown',
-        metadata: { section, updates: data }
+        metadata: { 
+          section, 
+          updates: data as Prisma.InputJsonValue 
+        } as Prisma.InputJsonValue
       }
     });
 
@@ -383,7 +401,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { section, data } = await request.json();
+    const { section, data } = await request.json() as SettingsRequestBody;
 
     if (!section || !data) {
       return NextResponse.json({ 
@@ -391,7 +409,7 @@ export async function PATCH(request: NextRequest) {
       }, { status: 400 });
     }
 
-    let result;
+    let result: unknown;
 
     switch (section) {
       case 'basic': {
@@ -424,10 +442,10 @@ export async function PATCH(request: NextRequest) {
             select: { purpose: true }
           });
           
-          const role = userGoals?.purpose || 'learner';
+          const role = (userGoals?.purpose || 'learn') as UserGoalPurpose;
           
           // Tutors and Both cannot have private profiles
-          if (role === 'tutor' || role === 'both') {
+          if (role === 'teach' || role === 'both') {
             return NextResponse.json({
               error: 'Tutors and users offering services must have public profiles',
               code: 'ROLE_REQUIRES_PUBLIC_PROFILE'
@@ -547,7 +565,7 @@ export async function PATCH(request: NextRequest) {
     // Invalidate all related caches
     await invalidateUserCaches(user.id);
 
-    // Log activity
+    // Log activity - FIX: Convert data to Prisma.InputJsonValue
     await prisma.userActivityLog.create({
       data: {
         userId: user.id,
@@ -555,7 +573,10 @@ export async function PATCH(request: NextRequest) {
         description: `Updated ${section} settings`,
         ipAddress: ip,
         userAgent: request.headers.get('user-agent') || 'unknown',
-        metadata: { section, updates: data }
+        metadata: { 
+          section, 
+          updates: data as Prisma.InputJsonValue 
+        } as Prisma.InputJsonValue
       }
     });
 

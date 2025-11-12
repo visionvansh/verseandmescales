@@ -3,6 +3,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 
+// Type definitions
+type UserGoalPurpose = 'learn' | 'teach' | 'both';
+
+interface UserGoalsData {
+  purpose: UserGoalPurpose;
+  monthlyGoal: string | null;
+  timeCommitment: string | null;
+  completedAt: Date;
+  updatedAt: Date;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
@@ -24,7 +35,7 @@ export async function GET(request: NextRequest) {
         completedAt: true,
         updatedAt: true,
       }
-    });
+    }) as UserGoalsData | null;
 
     // Return role based on purpose
     let role = 'Learner';

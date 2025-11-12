@@ -1,3 +1,4 @@
+// app/api/user/password/reset/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
@@ -5,18 +6,24 @@ import { logger } from '@/lib/log';
 import crypto from 'crypto';
 import { redis } from '@/lib/redis';
 
-// Define type for cached user data
-type CachedUser = {
+// Type definitions
+interface CachedUser {
   id: string;
   email: string;
-};
+}
+
+interface ResetData {
+  email: string;
+}
+
+type PipelineResult = [Error | null, string | number | null];
 
 const resetSchema = z.object({
   email: z.string().email("Invalid email address")
 });
 
 // Placeholder for email sending (to be implemented based on your email service)
-async function sendResetEmail(email: string, resetLink: string) {
+async function sendResetEmail(email: string, resetLink: string): Promise<void> {
   // TODO: Implement email sending logic here (e.g., using nodemailer, AWS SES, etc.)
   console.log(`Sending reset email to ${email} with link: ${resetLink}`);
   // Example: Use nodemailer or your email service provider
@@ -31,9 +38,9 @@ export async function POST(request: NextRequest) {
     const pipeline = redis.pipeline();
     pipeline.get(`rate-limit:${ip}:password:reset`);
     pipeline.ttl(`rate-limit:${ip}:password:reset`);
-    const pipelineResults = await pipeline.exec();
+    const pipelineResults = await pipeline.exec() as PipelineResult[] | null;
     
-    const [attemptsResult, ttlResult] = pipelineResults || [[null, '0'], [null, -2]];
+    const [attemptsResult, ttlResult] = pipelineResults || [[null, '0'], [null, -2]] as PipelineResult[];
     const attemptsError = attemptsResult[0];
     const ttlError = ttlResult[0];
     if (attemptsError || ttlError) {
@@ -62,7 +69,7 @@ export async function POST(request: NextRequest) {
     await redis.incr(`rate-limit:${ip}:password:reset`);
     await redis.expire(`rate-limit:${ip}:password:reset`, 60);
     
-    let data;
+    let data: ResetData;
     try {
       const body = await request.json();
       const result = resetSchema.safeParse(body);
@@ -88,11 +95,12 @@ export async function POST(request: NextRequest) {
     if (cached) {
       user = JSON.parse(cached) as CachedUser;
     } else {
-      user = await prisma.student.findUnique({
+      const dbUser = await prisma.student.findUnique({
         where: { email: data.email },
         select: { id: true, email: true }
       });
-      if (user) {
+      if (dbUser) {
+        user = dbUser;
         await redis.set(cacheKey, JSON.stringify(user), 'EX', 300); // Cache for 5 minutes
       }
     }

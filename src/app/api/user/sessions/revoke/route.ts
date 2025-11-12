@@ -6,6 +6,18 @@ import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { invalidateUserCache } from '@/lib/enhanced-redis';
 
+// Type definitions
+interface RequestBody {
+  sessionId: string;
+}
+
+interface UserSession {
+  id: string;
+  userId: string;
+  sessionToken: string;
+  isActive: boolean;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
@@ -15,14 +27,14 @@ export async function POST(request: NextRequest) {
     }
     
     // Get the token
-    let token = null;
+    let token: string | null = null;
     const authHeader = request.headers.get('Authorization');
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
     }
     if (!token) {
       const cookieStore = await cookies();
-      token = cookieStore.get('auth-token')?.value;
+      token = cookieStore.get('auth-token')?.value || null;
     }
     
     if (!token) {
@@ -32,7 +44,7 @@ export async function POST(request: NextRequest) {
     const currentSessionToken = token;
     
     // Parse request body
-    const body = await request.json();
+    const body = await request.json() as RequestBody;
     const { sessionId } = body;
     
     if (!sessionId) {
@@ -48,7 +60,7 @@ export async function POST(request: NextRequest) {
         id: sessionId,
         userId: user.id
       }
-    });
+    }) as UserSession | null;
     
     if (!session) {
       return NextResponse.json({

@@ -1,6 +1,42 @@
+// app/api/user/preferences/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
+
+// Type definitions
+interface UserGoals {
+  id: string;
+  userId: string;
+  purpose: string;
+  monthlyGoal: string;
+  timeCommitment: string;
+  completedAt: Date;
+  lastUpdated: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface UserPreferences {
+  id: string;
+  userId: string;
+  emailNotifications: boolean;
+  smsNotifications: boolean;
+  pushNotifications: boolean;
+  marketingEmails: boolean;
+  twoFactorPreference: string;
+  sessionTimeout: number;
+  requirePasswordChange: boolean;
+  profileVisibility: string;
+  showOnlineStatus: boolean;
+  allowDirectMessages: boolean;
+  theme: string;
+  language: string;
+  currency: string;
+  timezone: string | null;
+  emailFrequency: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 // GET - Fetch all user preferences
 export async function GET(request: NextRequest) {
@@ -17,10 +53,10 @@ export async function GET(request: NextRequest) {
     const [goals, preferences] = await Promise.all([
       prisma.userGoals.findUnique({
         where: { userId: user.id }
-      }),
+      }) as Promise<UserGoals | null>,
       prisma.userPreferences.findUnique({
         where: { userId: user.id }
-      })
+      }) as Promise<UserPreferences | null>
     ]);
 
     return NextResponse.json({
@@ -58,7 +94,7 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         ...body
       }
-    });
+    }) as UserPreferences;
 
     // Broadcast update
     await broadcastPreferencesUpdate(user.id, preferences);
@@ -76,7 +112,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function broadcastPreferencesUpdate(userId: string, preferences: any) {
+async function broadcastPreferencesUpdate(userId: string, preferences: UserPreferences): Promise<void> {
   try {
     if (typeof window !== 'undefined') {
       const event = new CustomEvent('ws-event', {

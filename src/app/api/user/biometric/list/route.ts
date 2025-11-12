@@ -1,51 +1,61 @@
+// /Volumes/vision/codes/course/my-app/src/app/api/user/biometric/list/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { redis } from '@/lib/redis';
 
-// Define the BiometricCredential interface based on Prisma query
 interface BiometricCredential {
   id: string;
   deviceName: string | null;
-  createdAt: Date | null;
-  lastUsed: Date | null;
+  createdAt: Date;
+  lastUsed: Date;
   transports: string | null;
+}
+
+interface ProcessedCredential {
+  id: string;
+  deviceName: string | null;
+  createdAt: Date;
+  lastUsed: Date;
+  transports: string | null;
+  transportOptions: string[];
+  lastUsedAgo: string;
+  createdAgo: string;
+}
+
+interface CredentialsResponse {
+  credentials: ProcessedCredential[];
+  totalCount: number;
 }
 
 export async function GET(request: NextRequest) {
   console.log('Biometric credentials list request received');
   
   try {
-    // Authenticate user
     const user = await getAuthUser(request);
     if (!user) {
       console.warn('Unauthorized biometric list request');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Cache key for this user's biometric list
     const cacheKey = `biometric:list:${user.id}`;
-    const ttl = 300; // 5 minutes
+    const ttl = 300;
 
-    // Try to get from Redis cache
-    let cachedData;
+    let cachedData: string | null = null;
     try {
       cachedData = await redis.get(cacheKey);
       if (cachedData) {
         console.log(`Cache hit for biometric list: ${user.id}`);
-        const data = JSON.parse(cachedData);
-        // Add cache headers
+        const data = JSON.parse(cachedData) as CredentialsResponse;
         const headers = new Headers({ 'Cache-Control': `private, max-age=${ttl}` });
         return NextResponse.json(data, { headers });
       }
     } catch (redisError) {
       console.warn('Redis cache error (falling back to DB):', redisError);
-      // Continue to DB fetch
     }
 
     console.log(`Listing biometric credentials for user: ${user.id}`);
 
-    // Get credentials with more information (original logic)
     const credentials = await prisma.biometricCredential.findMany({
       where: { userId: user.id },
       select: {
@@ -54,21 +64,19 @@ export async function GET(request: NextRequest) {
         createdAt: true,
         lastUsed: true,
         transports: true,
-        // Don't include sensitive data like publicKey
       },
       orderBy: {
-        lastUsed: 'desc' // Show most recently used first
+        lastUsed: 'desc'
       }
-    });
+    }) as BiometricCredential[];
 
     console.log(`Found ${credentials.length} credentials`);
 
-    // Process transport options (original logic)
-    const processedCredentials = credentials.map((cred: BiometricCredential) => {
-      let transportOptions = [];
+    const processedCredentials: ProcessedCredential[] = credentials.map((cred: BiometricCredential) => {
+      let transportOptions: string[] = [];
       try {
         if (cred.transports) {
-          transportOptions = JSON.parse(cred.transports);
+          transportOptions = JSON.parse(cred.transports) as string[];
         }
       } catch (e) {
         console.warn(`Failed to parse transports for credential ${cred.id}:`, e);
@@ -82,12 +90,11 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const responseData = { 
+    const responseData: CredentialsResponse = { 
       credentials: processedCredentials,
       totalCount: credentials.length
     };
 
-    // Cache the response in Redis
     try {
       await redis.set(cacheKey, JSON.stringify(responseData), 'EX', ttl);
       console.log(`Cached biometric list for user: ${user.id}`);
@@ -95,7 +102,6 @@ export async function GET(request: NextRequest) {
       console.warn('Failed to cache biometric list:', redisError);
     }
 
-    // Add cache headers
     const headers = new Headers({ 'Cache-Control': `private, max-age=${ttl}` });
     return NextResponse.json(responseData, { headers });
   } catch (error: unknown) {
@@ -108,7 +114,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Helper function to get human-readable time (unchanged)
 function getTimeAgo(date: Date | null): string {
   if (!date) return 'never';
   const now = new Date();

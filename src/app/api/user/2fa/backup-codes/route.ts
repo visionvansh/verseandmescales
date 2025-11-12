@@ -4,9 +4,21 @@ import { getAuthUser } from '@/utils/auth';
 import crypto from 'crypto';
 import prisma from '@/lib/prisma';
 
+// Define types for Prisma results
+interface BackupCode {
+  id: string;
+  userId: string;
+  code: string;
+  used: boolean;
+  usedAt: Date | null;
+  usedFromIp: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Generate backup codes securely without using bcrypt
 function generateSecureBackupCodes(count = 10): string[] {
-  const codes = [];
+  const codes: string[] = [];
   for (let i = 0; i < count; i++) {
     // Generate a code with format XXXX-XXXX-XXXX-XXXX
     const part1 = crypto.randomBytes(2).toString('hex').toUpperCase();
@@ -31,12 +43,12 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
     
-    if (!user) {
+    if (!user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Generate new backup codes
-    const backupCodes = generateSecureBackupCodes(10);
+    const backupCodes: string[] = generateSecureBackupCodes(10);
     
     // If the model exists, use it, otherwise create a fallback solution
     if (typeof prisma['twoFactorBackupCode'] !== 'undefined') {

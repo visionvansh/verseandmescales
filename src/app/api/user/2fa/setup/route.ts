@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
     
-    if (!user) {
+    if (!user?.id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Parse and validate request
-    let data;
+    let data: z.infer<typeof setupSchema>;
     try {
       const body = await request.json();
       const result = setupSchema.safeParse(body);

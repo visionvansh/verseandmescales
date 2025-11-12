@@ -1,4 +1,3 @@
-
 // api/user/security/events/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
@@ -8,7 +7,7 @@ import { CACHE_PREFIX, CACHE_TIMES, cacheWrapper } from '@/lib/enhanced-redis';
 import prisma from '@/lib/prisma';
 
 // Interface for security event based on Prisma query
-interface SecurityEvent {
+interface PrismaSecurityEvent {
   id: string;
   eventType: string;
   severity: string;
@@ -18,6 +17,30 @@ interface SecurityEvent {
   resolved: boolean;
   resolvedAt: Date | null;
   createdAt: Date;
+}
+
+interface TransformedSecurityEvent {
+  id: string;
+  eventType: string;
+  severity: string;
+  description: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  resolved: boolean;
+  resolvedAt: string | null;
+  createdAt: string;
+}
+
+interface SecurityEventsResponse {
+  events: TransformedSecurityEvent[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -58,7 +81,7 @@ export async function GET(request: NextRequest) {
     
     const cacheKey = `${CACHE_PREFIX.SECURITY_EVENTS}:${user.id}:${page}:${pageSize}`;
     
-    const fetchEvents = async () => {
+    const fetchEvents = async (): Promise<SecurityEventsResponse> => {
       const skip = (page - 1) * pageSize;
       
       const [events, totalCount] = await Promise.all([
@@ -78,7 +101,7 @@ export async function GET(request: NextRequest) {
             resolvedAt: true,
             createdAt: true
           }
-        }),
+        }) as Promise<PrismaSecurityEvent[]>,
         prisma.securityEvent.count({
           where: { userId: user.id }
         })
@@ -87,7 +110,7 @@ export async function GET(request: NextRequest) {
       const totalPages = Math.ceil(totalCount / pageSize);
       
       return {
-        events: events.map((event: SecurityEvent) => ({
+        events: events.map((event: PrismaSecurityEvent): TransformedSecurityEvent => ({
           ...event,
           resolvedAt: event.resolvedAt?.toISOString() || null,
           createdAt: event.createdAt.toISOString()

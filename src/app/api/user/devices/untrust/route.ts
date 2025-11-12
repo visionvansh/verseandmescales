@@ -5,6 +5,17 @@ import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 
+interface JwtPayload {
+  userId: string;
+}
+
+interface DeviceWithFingerprint {
+  id: string;
+  deviceName: string;
+  fingerprint: string;
+  trusted: boolean;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -14,9 +25,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let userId;
+    let userId: string;
     try {
-      const tokenPayload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+      const tokenPayload = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
       userId = tokenPayload.userId;
     } catch (error) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
@@ -46,7 +57,7 @@ export async function POST(request: NextRequest) {
         id: deviceId,
         userId: user.id
       }
-    });
+    }) as DeviceWithFingerprint | null;
     
     if (!device) {
       return NextResponse.json({

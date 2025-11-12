@@ -1,14 +1,24 @@
-//Volumes/vision/codes/course/my-app/src/app/api/users/goals/route.ts
+// app/api/users/goals/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
+
+// Type definitions
+type UserGoalPurpose = 'learn' | 'teach' | 'both';
+type TimeCommitment = 'light' | 'moderate' | 'intensive';
 
 const goalsSchema = z.object({
   purpose: z.enum(['learn', 'teach', 'both']),
   monthlyGoal: z.string(),
   timeCommitment: z.enum(['light', 'moderate', 'intensive'])
 });
+
+interface GoalsRequestBody {
+  purpose: UserGoalPurpose;
+  monthlyGoal: string;
+  timeCommitment: TimeCommitment;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +31,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const body = await request.json() as GoalsRequestBody;
     const validatedData = goalsSchema.parse(body);
 
     // Create or update user goals
@@ -41,7 +51,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // ✅ IMPORTANT: Create ProfileSettings based on purpose
+    // Create ProfileSettings based on purpose
     const isPublic = ['teach', 'both'].includes(validatedData.purpose);
     
     await prisma.profileSettings.upsert({
@@ -68,7 +78,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // ✅ Initialize UserXP if doesn't exist
+    // Initialize UserXP if doesn't exist
     await prisma.userXP.upsert({
       where: { userId: user.id },
       create: {
@@ -97,7 +107,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error },
+        { error: 'Validation error', details: error.issues },
         { status: 400 }
       );
     }
@@ -125,10 +135,13 @@ export async function GET(request: NextRequest) {
       where: { userId: user.id }
     });
 
-    return NextResponse.json({ goals });
+    return NextResponse.json({ 
+      success: true, 
+      goals 
+    });
 
   } catch (error) {
-    console.error('Get goals error:', error);
+    console.error('Fetch goals error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch goals' },
       { status: 500 }

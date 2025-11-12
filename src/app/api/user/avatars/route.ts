@@ -3,7 +3,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 
-export async function GET(request: NextRequest) {
+// Define types based on Prisma schema
+interface PrismaAvatar {
+  id: string;
+  userId: string;
+  avatarIndex: number;
+  avatarSeed: string;
+  avatarStyle: string;
+  name: string | null;
+  isPrimary: boolean;
+  isCustomUpload: boolean;
+  customImageUrl: string | null;
+  styleConfig: any;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface AvatarResponse {
+  avatars: PrismaAvatar[];
+}
+
+interface ErrorResponse {
+  error: string;
+}
+
+export async function GET(request: NextRequest): Promise<NextResponse<AvatarResponse | ErrorResponse>> {
   try {
     const { searchParams } = new URL(request.url);
     const username = searchParams.get('username');
@@ -50,7 +74,7 @@ export async function GET(request: NextRequest) {
         { isPrimary: 'desc' },
         { createdAt: 'desc' }
       ],
-    });
+    }) as PrismaAvatar[];
 
     console.log(`✅ Found ${avatars.length} avatars for user:`, targetUserId);
     return NextResponse.json({ avatars });

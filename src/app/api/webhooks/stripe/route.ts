@@ -21,9 +21,10 @@ export async function POST(request: NextRequest) {
 
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    } catch (err: any) {
-      console.error('❌ Webhook signature verification failed:', err.message);
-      return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('❌ Webhook signature verification failed:', errorMessage);
+      return NextResponse.json({ error: `Webhook Error: ${errorMessage}` }, { status: 400 });
     }
 
     console.log(`✅ Webhook received: ${event.type}`);
@@ -58,17 +59,21 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ received: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('❌ Webhook error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
+
+// Type definitions for Prisma transaction
+type PrismaTx = Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
   const { courseId, buyerId, sellerId, platformFee, sellerAmount } = paymentIntent.metadata;
 
   try {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: PrismaTx) => {
       // Update payment status
       await tx.payment.updateMany({
         where: { stripePaymentId: paymentIntent.id },
@@ -105,6 +110,7 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
           totalEarned: sellerAmountDecimal,
           availableBalance: sellerAmountDecimal,
           pendingBalance: 0,
+          withdrawnAmount: 0,
         },
         update: {
           totalEarned: { increment: sellerAmountDecimal },
@@ -114,7 +120,7 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
     });
 
     console.log('✅ Payment processed successfully');
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Error processing payment:', error);
     throw error;
   }
@@ -127,7 +133,7 @@ async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
       data: { status: 'failed' },
     });
     console.log('⚠️ Payment failed:', paymentIntent.id);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Error handling payment failure:', error);
   }
 }
@@ -143,7 +149,7 @@ async function handleRefund(charge: Stripe.Charge) {
       return;
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: PrismaTx) => {
       await tx.payment.update({
         where: { id: payment.id },
         data: {
@@ -170,7 +176,7 @@ async function handleRefund(charge: Stripe.Charge) {
     });
 
     console.log('✅ Refund processed:', charge.id);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Error handling refund:', error);
   }
 }
@@ -188,7 +194,7 @@ async function handleAccountUpdated(account: Stripe.Account) {
     });
 
     console.log(`✅ Account updated: ${account.id} - Status: ${status}`);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Error updating account:', error);
   }
 }
@@ -204,7 +210,7 @@ async function handlePayoutPaid(payout: Stripe.Payout) {
     });
 
     console.log('✅ Payout completed:', payout.id);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Error handling payout:', error);
   }
 }
@@ -218,7 +224,7 @@ async function handlePayoutFailed(payout: Stripe.Payout) {
 
     if (!withdrawal) return;
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: PrismaTx) => {
       // Mark withdrawal as failed
       await tx.withdrawal.update({
         where: { id: withdrawal.id },
@@ -239,7 +245,7 @@ async function handlePayoutFailed(payout: Stripe.Payout) {
     });
 
     console.log('⚠️ Payout failed:', payout.id);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Error handling payout failure:', error);
   }
 }

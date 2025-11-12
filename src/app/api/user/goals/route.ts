@@ -1,6 +1,29 @@
+//Volumes/vision/codes/course/my-app/src/app/api/user/goals/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
+
+// Type definitions
+interface UserGoals {
+  id: string;
+  purpose: string;
+  monthlyGoal: string;
+  timeCommitment: string;
+  completedAt: Date;
+  lastUpdated: Date;
+}
+
+interface GoalsRequestBody {
+  purpose: string;
+  monthlyGoal: string;
+  timeCommitment: string;
+}
+
+// Broadcast function (placeholder - implement WebSocket logic)
+async function broadcastGoalsUpdate(userId: string, goals: UserGoals): Promise<void> {
+  // TODO: Implement WebSocket broadcast
+  console.log('Broadcasting goals update for user:', userId);
+}
 
 // GET - Fetch user goals
 export async function GET(request: NextRequest) {
@@ -24,7 +47,7 @@ export async function GET(request: NextRequest) {
         completedAt: true,
         lastUpdated: true,
       }
-    });
+    }) as UserGoals | null;
 
     if (!goals) {
       return NextResponse.json(
@@ -58,7 +81,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const body: GoalsRequestBody = await request.json();
     const { purpose, monthlyGoal, timeCommitment } = body;
 
     // Validate required fields
@@ -74,7 +97,7 @@ export async function POST(request: NextRequest) {
       where: { userId: user.id }
     });
 
-    let goals;
+    let goals: UserGoals;
 
     if (existingGoals) {
       // Update existing goals
@@ -86,7 +109,7 @@ export async function POST(request: NextRequest) {
           timeCommitment,
           lastUpdated: new Date(),
         }
-      });
+      }) as UserGoals;
     } else {
       // Create new goals
       goals = await prisma.userGoals.create({
@@ -96,10 +119,10 @@ export async function POST(request: NextRequest) {
           monthlyGoal,
           timeCommitment,
         }
-      });
+      }) as UserGoals;
     }
 
-    // Broadcast update via WebSocket (we'll implement this)
+    // Broadcast update via WebSocket
     await broadcastGoalsUpdate(user.id, goals);
 
     return NextResponse.json({
@@ -128,34 +151,36 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const updates: any = {};
+    const body: Partial<GoalsRequestBody> = await request.json();
 
-    // Only update provided fields
-    if (body.purpose) updates.purpose = body.purpose;
-    if (body.monthlyGoal) updates.monthlyGoal = body.monthlyGoal;
-    if (body.timeCommitment) updates.timeCommitment = body.timeCommitment;
+    // Check if goals exist
+    const existingGoals = await prisma.userGoals.findUnique({
+      where: { userId: user.id }
+    });
 
-    if (Object.keys(updates).length === 0) {
+    if (!existingGoals) {
       return NextResponse.json(
-        { error: 'No fields to update' },
-        { status: 400 }
+        { error: 'Goals not found. Please create goals first.' },
+        { status: 404 }
       );
     }
 
-    updates.lastUpdated = new Date();
-
+    // Update only provided fields
     const goals = await prisma.userGoals.update({
       where: { userId: user.id },
-      data: updates
-    });
+      data: {
+        ...body,
+        lastUpdated: new Date(),
+      }
+    }) as UserGoals;
 
-    // Broadcast update via WebSocket
+    // Broadcast update
     await broadcastGoalsUpdate(user.id, goals);
 
     return NextResponse.json({
       success: true,
-      goals
+      goals,
+      message: 'Goals updated successfully'
     });
   } catch (error) {
     console.error('Error updating goals:', error);
@@ -163,31 +188,5 @@ export async function PATCH(request: NextRequest) {
       { error: 'Failed to update goals' },
       { status: 500 }
     );
-  }
-}
-
-// Helper function to broadcast WebSocket updates
-async function broadcastGoalsUpdate(userId: string, goals: any) {
-  try {
-    // Emit custom event that WebSocket will pick up
-    if (typeof window !== 'undefined') {
-      const event = new CustomEvent('ws-event', {
-        detail: {
-          event: 'goals:updated',
-          data: {
-            userId,
-            goals: {
-              purpose: goals.purpose,
-              monthlyGoal: goals.monthlyGoal,
-              timeCommitment: goals.timeCommitment,
-              lastUpdated: goals.lastUpdated,
-            }
-          }
-        }
-      });
-      window.dispatchEvent(event);
-    }
-  } catch (error) {
-    console.error('Failed to broadcast goals update:', error);
   }
 }

@@ -4,6 +4,35 @@ import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 
+// Type definitions
+interface SessionWithDevice {
+  id: string;
+  createdAt: Date;
+  expiresAt: Date;
+  device: {
+    trusted: boolean;
+  } | null;
+}
+
+interface DeviceWithSessions {
+  id: string;
+  deviceName: string;
+  fingerprint: string;
+  trusted: boolean;
+  isAccountCreationDevice: boolean;
+  sessions: {
+    id: string;
+    createdAt: Date;
+    expiresAt: Date;
+    isActive: boolean;
+  }[];
+}
+
+interface JwtPayload {
+  sessionId: string;
+  userId: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
@@ -35,7 +64,7 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-    });
+    }) as DeviceWithSessions | null;
     
     if (!device) {
       return NextResponse.json({
@@ -45,7 +74,6 @@ export async function POST(request: NextRequest) {
     }
     
     // ✅ SIMPLIFIED VALIDATION: Must have at least one trusted device
-    // This applies to ALL devices, not just account creation devices
     if (!trusted && device.trusted) {
       const totalTrustedCount = await prisma.userDevice.count({
         where: {
@@ -61,7 +89,6 @@ export async function POST(request: NextRequest) {
         isAccountCreation: device.isAccountCreationDevice
       });
       
-      // If this is the only trusted device, block the untrust operation
       if (totalTrustedCount <= 1) {
         return NextResponse.json({
           success: false,
@@ -74,35 +101,37 @@ export async function POST(request: NextRequest) {
     
     // ✅ Check if current user is on a trusted device (for trusting operations)
     if (trusted && !device.trusted) {
-      let token = null;
+      let token: string | null = null;
       const authHeader = request.headers.get('Authorization');
       if (authHeader && authHeader.startsWith('Bearer ')) {
         token = authHeader.split(' ')[1];
       }
       if (!token) {
         const cookieStore = await (await import('next/headers')).cookies();
-        token = cookieStore.get('auth-token')?.value;
+        token = cookieStore.get('auth-token')?.value || null;
       }
       
       if (token) {
-        const decoded = jwt.decode(token) as any;
-        const currentSession = await prisma.userSession.findUnique({
-          where: { id: decoded.sessionId },
-          include: { device: true }
-        });
-        
-        const hasTrustedDevices = await prisma.userDevice.count({
-          where: {
-            userId: user.id,
-            trusted: true
+        const decoded = jwt.decode(token) as JwtPayload | null;
+        if (decoded) {
+          const currentSession = await prisma.userSession.findUnique({
+            where: { id: decoded.sessionId },
+            include: { device: true }
+          }) as SessionWithDevice | null;
+          
+          const hasTrustedDevices = await prisma.userDevice.count({
+            where: {
+              userId: user.id,
+              trusted: true
+            }
+          }) > 0;
+          
+          if (hasTrustedDevices && !currentSession?.device?.trusted) {
+            return NextResponse.json({
+              error: 'Permission denied',
+              message: 'Only trusted devices can mark other devices as trusted'
+            }, { status: 403 });
           }
-        }) > 0;
-        
-        if (hasTrustedDevices && !currentSession?.device?.trusted) {
-          return NextResponse.json({
-            error: 'Permission denied',
-            message: 'Only trusted devices can mark other devices as trusted'
-          }, { status: 403 });
         }
       }
     }

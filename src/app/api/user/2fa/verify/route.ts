@@ -1,15 +1,27 @@
-//Volumes/vision/codes/course/my-app/src/app/api/user/2fa/verify/route.ts
+// app/api/user/2fa/verify/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
-import prisma from '@/lib/prisma';
+import prisma, { PrismaTx } from '@/lib/prisma';
 import { authenticator } from 'otplib';
 import { redis } from '@/lib/redis';
 import { z } from 'zod';
 import crypto from 'crypto';
 
+// Define types for Prisma query results
+interface CurrentUser {
+  id: string;
+  twoFactorEnabled: boolean;
+  twoFactorSecret: string | null;
+}
+
+interface ExistingDevice {
+  id: string;
+}
+
+// Verification schema
 const verifySchema = z.object({
   token: z.string().length(6).regex(/^\d{6}$/),
-  method: z.enum(['app', 'email']), // ✅ REMOVED 'sms'
+  method: z.enum(['app', 'email']),
   email: z.string().email().optional(),
   trustDevice: z.boolean().optional()
 });
@@ -49,7 +61,7 @@ export async function POST(request: NextRequest) {
     await redis.expire(rateLimitKey, 300);
     
     // Parse and validate request
-    let data;
+    let data: z.infer<typeof verifySchema>;
     try {
       const body = await request.json();
       const result = verifySchema.safeParse(body);
@@ -81,7 +93,7 @@ export async function POST(request: NextRequest) {
           twoFactorEnabled: true,
           twoFactorSecret: true
         }
-      });
+      }) as CurrentUser | null;
       
       if (!currentUser) {
         console.error(`User not found during 2FA verification: ${user.id}`);
@@ -92,31 +104,35 @@ export async function POST(request: NextRequest) {
       }
       
       if (method === 'app') {
-        let secret;
+        let secret: string;
         let setupMode = false;
         
         if (!currentUser.twoFactorEnabled) {
           setupMode = true;
           const cacheKey = `2fa:setup:${user.id}`;
-          secret = await redis.get(cacheKey);
+          const cachedSecret = await redis.get(cacheKey);
           
-          if (!secret) {
+          if (!cachedSecret) {
             console.warn(`2FA setup secret not found for user: ${user.id}`);
             return NextResponse.json(
               { error: 'Two-factor setup expired or not found' },
               { status: 400 }
             );
           }
-        } else {
-          secret = currentUser.twoFactorSecret;
           
-          if (!secret) {
+          secret = cachedSecret;
+        } else {
+          const userSecret = currentUser.twoFactorSecret;
+          
+          if (!userSecret) {
             console.error(`2FA secret missing for enabled user: ${user.id}`);
             return NextResponse.json(
               { error: 'Two-factor authentication is not properly configured' },
               { status: 500 }
             );
           }
+          
+          secret = userSecret;
         }
         
         const isValid = authenticator.verify({ token, secret });
@@ -130,8 +146,7 @@ export async function POST(request: NextRequest) {
         }
         
         if (setupMode) {
-          // ✅ FIXED: Remove explicit PrismaClient type
-          const backupCodes = await prisma.$transaction(async (tx) => {
+          const backupCodes = await prisma.$transaction(async (tx: PrismaTx) => {
             await tx.student.update({
               where: { id: user.id },
               data: {
@@ -152,11 +167,11 @@ export async function POST(request: NextRequest) {
               }
             });
             
-            const codes = [];
+            const codes: string[] = [];
             for (let i = 0; i < 10; i++) {
               const buffer = crypto.getRandomValues(new Uint8Array(4));
               const code = Array.from(buffer)
-                .map(b => b.toString(16).padStart(2, '0'))
+                .map((b: number) => b.toString(16).padStart(2, '0'))
                 .join('')
                 .toUpperCase()
                 .match(/.{1,4}/g)!
@@ -265,8 +280,7 @@ export async function POST(request: NextRequest) {
         if (setupMode) {
           const secret = authenticator.generateSecret();
           
-          // ✅ FIXED: Remove explicit PrismaClient type
-          const backupCodes = await prisma.$transaction(async (tx) => {
+          const backupCodes = await prisma.$transaction(async (tx: PrismaTx) => {
             await tx.student.update({
               where: { id: user.id },
               data: {
@@ -289,11 +303,11 @@ export async function POST(request: NextRequest) {
               }
             });
             
-            const codes = [];
+            const codes: string[] = [];
             for (let i = 0; i < 10; i++) {
               const buffer = crypto.getRandomValues(new Uint8Array(4));
               const code = Array.from(buffer)
-                .map(b => b.toString(16).padStart(2, '0'))
+                .map((b: number) => b.toString(16).padStart(2, '0'))
                 .join('')
                 .toUpperCase()
                 .match(/.{1,4}/g)!
@@ -401,7 +415,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function markDeviceAsTrusted(userId: string, request: NextRequest) {
+async function markDeviceAsTrusted(userId: string, request: NextRequest): Promise<void> {
   const deviceId = request.headers.get('device-id') || 
                    request.cookies.get('device-fingerprint')?.value || 
                    'unknown';
@@ -412,7 +426,7 @@ async function markDeviceAsTrusted(userId: string, request: NextRequest) {
         userId,
         fingerprint: deviceId
       }
-    });
+    }) as ExistingDevice | null;
     
     if (existingDevice) {
       await prisma.userDevice.update({

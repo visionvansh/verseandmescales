@@ -6,6 +6,54 @@ import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { CACHE_PREFIX, CACHE_TIMES, cacheWrapper, invalidateUserCache } from '@/lib/enhanced-redis';
 
+// Type definitions
+interface DecodedToken {
+  sessionId: string;
+  userId: string;
+  [key: string]: any;
+}
+
+interface UserDevice {
+  id: string;
+  deviceName: string;
+  browser: string;
+  os: string;
+  trusted: boolean;
+  isAccountCreationDevice: boolean;
+}
+
+interface UserSession {
+  id: string;
+  userId: string;
+  sessionToken: string;
+  deviceId: string | null;
+  location: string | null;
+  ipAddress: string | null;
+  lastUsed: Date;
+  expiresAt: Date;
+  createdAt: Date;
+  sessionType: string;
+  isActive: boolean;
+  device: UserDevice | null;
+}
+
+interface FormattedSession {
+  id: string;
+  deviceId: string | null;
+  deviceName: string;
+  browser: string;
+  os: string;
+  location: string;
+  ipAddress: string;
+  lastUsed: Date;
+  expiresAt: Date;
+  current: boolean;
+  trusted: boolean;
+  isAccountCreationDevice: boolean;
+  sessionType: string;
+  scheduledRevocationDate: string | null;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
@@ -19,24 +67,24 @@ export async function GET(request: NextRequest) {
     const skipCache = url.searchParams.has('skipCache') || url.searchParams.has('_t');
     
     // Get the token and decode it to get session ID
-    let token = null;
+    let token: string | null = null;
     const authHeader = request.headers.get('Authorization');
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
     }
     if (!token) {
       const cookieStore = await cookies();
-      token = cookieStore.get('auth-token')?.value;
+      token = cookieStore.get('auth-token')?.value || null;
     }
     
     if (!token) {
       return NextResponse.json({ error: 'Token not found' }, { status: 401 });
     }
     
-    // ✅ Decode token to get session ID instead of comparing tokens
+    // Decode token to get session ID
     let currentSessionId: string | null = null;
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as DecodedToken;
       currentSessionId = decoded.sessionId;
       console.log('[Sessions API] Decoded token - sessionId:', currentSessionId, 'userId:', decoded.userId);
     } catch (error) {
@@ -44,12 +92,12 @@ export async function GET(request: NextRequest) {
     }
     
     // Helper function to format sessions
-    const formatSessions = (sessions: any[], currentSessionId: string | null) => {
+    const formatSessions = (sessions: UserSession[], currentSessionId: string | null): FormattedSession[] => {
       console.log('[Sessions API] Formatting sessions. Current session ID:', currentSessionId);
-      console.log('[Sessions API] Session IDs in database:', sessions.map(s => s.id));
+      console.log('[Sessions API] Session IDs in database:', sessions.map((s: UserSession) => s.id));
       
-      return sessions.map(session => {
-        // ✅ Compare by session ID instead of token
+      return sessions.map((session: UserSession) => {
+        // Compare by session ID instead of token
         const isCurrent = currentSessionId ? session.id === currentSessionId : false;
         
         console.log(`[Sessions API] Session ${session.id}: isCurrent=${isCurrent}, trusted=${session.device?.trusted}`);
@@ -100,44 +148,33 @@ export async function GET(request: NextRequest) {
         orderBy: {
           lastUsed: 'desc'
         }
-      });
+      }) as UserSession[];
       
       const formattedSessions = formatSessions(sessions, currentSessionId);
-      const currentSession = formattedSessions.find(s => s.current);
+      const currentSession = formattedSessions.find((s: FormattedSession) => s.current);
       
-      console.log('[Sessions API] Current device info:', {
-        deviceId: currentSession?.deviceId,
-        trusted: currentSession?.trusted,
-        isAccountCreationDevice: currentSession?.isAccountCreationDevice,
-        found: !!currentSession
-      });
+      console.log('[Sessions API] Found current session:', currentSession?.id);
       
-      // Set cache headers to prevent browser caching
-      return NextResponse.json(
-        {
-          sessions: formattedSessions,
-          count: formattedSessions.length,
-          currentDevice: currentSession || null,
-          timestamp: Date.now()
-        },
-        {
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-            'X-Content-Type-Options': 'nosniff'
-          }
+      return NextResponse.json({
+        sessions: formattedSessions,
+        currentSessionId: currentSession?.id || null,
+        timestamp: Date.now()
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache'
         }
-      );
+      });
     }
     
-    // Define cache key
+    // Use cache wrapper for cached requests
     const cacheKey = `${CACHE_PREFIX.SESSIONS}:list:${user.id}`;
     
-    // Use cache wrapper for normal requests
-    const response = await cacheWrapper(
+    const result = await cacheWrapper(
       cacheKey,
       async () => {
+        console.log('[Sessions API] Cache miss, fetching from database');
+        
         const sessions = await prisma.userSession.findMany({
           where: {
             userId: user.id,
@@ -152,66 +189,29 @@ export async function GET(request: NextRequest) {
           orderBy: {
             lastUsed: 'desc'
           }
-        });
+        }) as UserSession[];
         
-        const formattedSessions = formatSessions(sessions, currentSessionId);
-        const currentSession = formattedSessions.find(s => s.current);
-        
-        return {
-          sessions: formattedSessions,
-          count: formattedSessions.length,
-          currentDevice: currentSession || null,
-          cached: true
-        };
+        return sessions;
       },
-      CACHE_TIMES.SESSIONS,
-      false
+      CACHE_TIMES.MEDIUM
     );
     
-    return NextResponse.json(response);
+    const formattedSessions = formatSessions(result, currentSessionId);
+    const currentSession = formattedSessions.find((s: FormattedSession) => s.current);
+    
+    console.log('[Sessions API] Returning sessions. Current session:', currentSession?.id);
+    
+    return NextResponse.json({
+      sessions: formattedSessions,
+      currentSessionId: currentSession?.id || null,
+      timestamp: Date.now()
+    });
+    
   } catch (error) {
     console.error('Error fetching sessions:', error);
     return NextResponse.json({
       error: 'Internal server error',
       message: 'Failed to fetch sessions'
     }, { status: 500 });
-  }
-}
-
-// The POST method for modifying sessions should invalidate cache
-export async function POST(request: NextRequest) {
-  try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth-token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    let userId: string;
-    try {
-      const tokenPayload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-      userId = tokenPayload.userId;
-    } catch (error) {
-      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const { action, sessionId } = body;
-
-    // Handle the session action...
-    
-    await invalidateUserCache(userId);
-    
-    return NextResponse.json({
-      success: true,
-      action,
-      sessionId
-    });
-  } catch (error) {
-    console.error('Error processing session action:', error);
-    return NextResponse.json(
-      { error: 'Internal server error', message: 'Failed to process session action' },
-      { status: 500 }
-    );
   }
 }

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import { CACHE_PREFIX, CACHE_TIMES, cacheWrapper, invalidateUserCache } from '@/lib/enhanced-redis';
-import prisma from '@/lib/prisma';
+import prisma, { PrismaTx } from '@/lib/prisma';
 import { logger } from '@/lib/log';
 import { rateLimit } from '@/lib/rateLimit';
 
@@ -39,7 +39,22 @@ interface DeviceSessionResponse {
 }
 
 // Interfaces for Prisma query results
-interface UserDevice {
+interface PrismaSession {
+  id: string;
+  lastUsed: Date;
+  createdAt: Date;
+  expiresAt: Date;
+  location: string | null;
+  ipAddress: string | null;
+  sessionType: string | null;
+  isActive: boolean;
+}
+
+interface PrismaSessionWithToken extends PrismaSession {
+  sessionToken: string;
+}
+
+interface PrismaDevice {
   id: string;
   deviceName: string | null;
   browser: string | null;
@@ -49,19 +64,46 @@ interface UserDevice {
   fingerprint: string | null;
   trusted: boolean;
   deviceType: string | null;
-  sessions: UserSession[];
+  sessions: PrismaSession[];
 }
 
-interface UserSession {
+interface PrismaDeviceWithTokens {
   id: string;
-  lastUsed: Date;
+  deviceName: string | null;
+  browser: string | null;
+  os: string | null;
+  lastUsed: Date | null;
   createdAt: Date;
-  expiresAt: Date;
-  location: string | null;
-  ipAddress: string | null;
-  sessionType: string | null;
-  isActive: boolean;
-  sessionToken?: string; // Optional, used in POST handler
+  fingerprint: string | null;
+  trusted: boolean;
+  deviceType: string | null;
+  sessions: PrismaSessionWithToken[];
+}
+
+interface TransformedDevice {
+  id: string;
+  deviceName: string;
+  browser: string;
+  os: string;
+  lastUsed: string;
+  firstSeen: string;
+  ipAddress: string;
+  location: string;
+  isCurrent: boolean;
+  trusted: boolean;
+  deviceType: string;
+  fingerprint: string | null;
+  sessions: Array<{
+    id: string;
+    lastUsed: string;
+    createdAt: string;
+    expiresAt: string;
+    location: string;
+    ipAddress: string;
+    sessionType: string;
+    isActive: boolean;
+  }>;
+  sessionCount: number;
 }
 
 export async function GET(request: NextRequest) {
@@ -140,21 +182,21 @@ export async function GET(request: NextRequest) {
           }
         },
         orderBy: { lastUsed: 'desc' }
-      });
+      }) as PrismaDevice[];
 
       // Create unique device map
-      const uniqueDeviceMap = new Map<string, any>();
+      const uniqueDeviceMap = new Map<string, TransformedDevice>();
 
-      devices.forEach((device: UserDevice) => {
+      devices.forEach((device: PrismaDevice) => {
         const deviceKey = `${device.browser || 'Unknown'}-${device.os || 'Unknown'}-${device.fingerprint || ''}`;
         
         if (
           !uniqueDeviceMap.has(deviceKey) ||
-          new Date(device.lastUsed || device.createdAt) > new Date(uniqueDeviceMap.get(deviceKey).lastUsed)
+          new Date(device.lastUsed || device.createdAt) > new Date(uniqueDeviceMap.get(deviceKey)!.lastUsed)
         ) {
           const isCurrent = device.fingerprint === currentFingerprint;
           
-          const deviceSessions = device.sessions.map((session: UserSession) => ({
+          const deviceSessions = device.sessions.map((session: PrismaSession) => ({
             id: session.id,
             lastUsed: session.lastUsed.toISOString(),
             createdAt: session.createdAt.toISOString(),
@@ -187,13 +229,13 @@ export async function GET(request: NextRequest) {
       });
 
       const uniqueDevices = Array.from(uniqueDeviceMap.values());
-      const currentDeviceId = uniqueDevices.find((d: any) => d.isCurrent)?.id;
+      const currentDeviceId = uniqueDevices.find((d: TransformedDevice) => d.isCurrent)?.id;
 
       return {
         devices: uniqueDevices,
         currentDeviceId,
         totalDeviceCount: uniqueDevices.length,
-        totalSessionCount: uniqueDevices.reduce((total: number, device: any) => total + device.sessionCount, 0)
+        totalSessionCount: uniqueDevices.reduce((total: number, device: TransformedDevice) => total + device.sessionCount, 0)
       };
     };
 
@@ -269,7 +311,7 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-    });
+    }) as PrismaDeviceWithTokens | null;
 
     if (!device) {
       return NextResponse.json(
@@ -290,8 +332,8 @@ export async function POST(request: NextRequest) {
 
     let result: any;
 
-    // Execute action in transaction - FIXED: Removed type annotation
-    await prisma.$transaction(async (tx) => {
+    // Execute action in transaction
+    await prisma.$transaction(async (tx: PrismaTx) => {
       switch (action) {
         case 'trust':
           result = await tx.userDevice.update({
@@ -356,8 +398,7 @@ export async function POST(request: NextRequest) {
             throw new Error('Session ID is required');
           }
           
-          // FIXED: Use type assertion since we know the structure
-          const session = device.sessions.find((s: { id: string; sessionToken: string }) => s.id === data.sessionId);
+          const session = device.sessions.find((s: PrismaSessionWithToken) => s.id === data.sessionId);
           if (!session) {
             throw new Error('Session not found');
           }

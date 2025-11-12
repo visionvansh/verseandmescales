@@ -1,3 +1,4 @@
+// /Volumes/vision/codes/course/my-app/src/app/api/upload-image/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import { v2 as cloudinary } from 'cloudinary';
@@ -9,7 +10,35 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export async function POST(request: NextRequest) {
+// Type for Cloudinary upload response
+interface CloudinaryUploadResponse {
+  secure_url: string;
+  public_id: string;
+  width: number;
+  height: number;
+  format: string;
+  resource_type: string;
+  created_at: string;
+  bytes: number;
+  url: string;
+  [key: string]: unknown; // For additional fields
+}
+
+// Type for success response
+interface ImageUploadSuccessResponse {
+  success: true;
+  imageUrl: string;
+  publicId: string;
+}
+
+// Type for error response
+interface ImageUploadErrorResponse {
+  error: string;
+}
+
+type ImageUploadResponse = ImageUploadSuccessResponse | ImageUploadErrorResponse;
+
+export async function POST(request: NextRequest): Promise<NextResponse<ImageUploadResponse>> {
   try {
     const user = await getAuthUser(request);
     
@@ -21,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as File | null;
 
     if (!file) {
       return NextResponse.json(
@@ -44,7 +73,7 @@ export async function POST(request: NextRequest) {
         { width: 400, height: 400, crop: 'fill', gravity: 'face' },
         { quality: 'auto', fetch_format: 'auto' }
       ]
-    });
+    }) as CloudinaryUploadResponse;
 
     return NextResponse.json({
       success: true,

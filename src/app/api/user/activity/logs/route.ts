@@ -1,3 +1,4 @@
+// /Volumes/vision/codes/course/my-app/src/app/api/user/activity/logs/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import { logger } from '@/lib/log';
@@ -17,7 +18,30 @@ interface UserActivityLog {
   createdAt: Date;
 }
 
-export async function GET(request: NextRequest) {
+// Response type for activity logs
+interface ActivityLogResponse {
+  id: string;
+  action: string;
+  description: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  metadata: any;
+  createdAt: string;
+}
+
+interface FetchActivityLogsResponse {
+  logs: ActivityLogResponse[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const user = await getAuthUser(request);
     
@@ -95,7 +119,7 @@ async function fetchActivityLogs(
   action?: string, 
   startDate?: Date, 
   endDate?: Date
-) {
+): Promise<FetchActivityLogsResponse> {
   try {
     // Calculate pagination
     const skip = (page - 1) * pageSize;
@@ -118,7 +142,7 @@ async function fetchActivityLogs(
         },
         skip,
         take: pageSize
-      }),
+      }) as Promise<UserActivityLog[]>,
       prisma.userActivityLog.count({
         where: {
           userId,

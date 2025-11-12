@@ -18,17 +18,17 @@ const isDisposableEmail = (email: string): boolean => {
   
   if (disposableDomains.includes(domain)) return true;
   
-  const suspiciousPatterns = [
+  const suspiciousPatterns: RegExp[] = [
     /temp/i, /trash/i, /disposable/i, /throwaway/i,
     /guerrilla/i, /fake/i, /spam/i, /burner/i,
     /10minute/i, /mailinator/i, /maildrop/i
   ];
   
-  return suspiciousPatterns.some(pattern => pattern.test(domain));
+  return suspiciousPatterns.some((pattern: RegExp) => pattern.test(domain));
 };
 
 // ✅ PRODUCTION: VerseAndMe Scales Dark Themed 2FA Email Template
-const get2FAEmailTemplate = (code: string) => {
+const get2FAEmailTemplate = (code: string): { text: string; html: string } => {
   return {
     text: `VERSEANDME SCALES - Two-Factor Authentication
 
@@ -158,12 +158,12 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
     
-    if (!user) {
+    if (!user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
     // Parse and validate request
-    let data;
+    let data: z.infer<typeof sendEmailSchema>;
     try {
       const body = await request.json();
       const result = sendEmailSchema.safeParse(body);

@@ -15,6 +15,21 @@ interface UserDevice {
   trusted: boolean;
 }
 
+interface JwtPayload {
+  userId: string;
+}
+
+interface FormattedDevice {
+  id: string;
+  deviceName: string | null;
+  browser: string;
+  os: string;
+  lastUsed: Date | null;
+  ipAddress: string;
+  isCurrent: boolean;
+  trusted: boolean;
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Get token from cookie
@@ -26,9 +41,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify token
-    let userId;
+    let userId: string;
     try {
-      const tokenPayload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+      const tokenPayload = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
       userId = tokenPayload.userId;
     } catch (error) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
@@ -61,10 +76,10 @@ export async function GET(request: NextRequest) {
       orderBy: {
         lastUsed: 'desc'
       }
-    });
+    }) as UserDevice[];
     
     // Transform devices to include whether each is the current device
-    const formattedDevices = devices.map((device: UserDevice) => {
+    const formattedDevices: FormattedDevice[] = devices.map((device: UserDevice) => {
       const isCurrent = device.fingerprint === currentFingerprint;
       return {
         id: device.id,
@@ -103,9 +118,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify token
-    let userId;
+    let userId: string;
     try {
-      const tokenPayload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+      const tokenPayload = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
       userId = tokenPayload.userId;
     } catch (error) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });

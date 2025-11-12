@@ -6,6 +6,27 @@ import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { invalidateUserCache } from '@/lib/enhanced-redis';
 
+// Type definitions
+interface RequestBody {
+  sessionId: string;
+  scheduledDate: string;
+}
+
+interface UserDevice {
+  id: string;
+  trusted: boolean;
+  deviceName: string;
+}
+
+interface UserSession {
+  id: string;
+  userId: string;
+  sessionToken: string;
+  createdAt: Date;
+  expiresAt: Date;
+  device: UserDevice | null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
@@ -14,14 +35,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    let token = null;
+    let token: string | null = null;
     const authHeader = request.headers.get('Authorization');
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
     }
     if (!token) {
       const cookieStore = await cookies();
-      token = cookieStore.get('auth-token')?.value;
+      token = cookieStore.get('auth-token')?.value || null;
     }
     
     if (!token) {
@@ -30,7 +51,7 @@ export async function POST(request: NextRequest) {
     
     const currentSessionToken = token;
     
-    const body = await request.json();
+    const body = await request.json() as RequestBody;
     const { sessionId, scheduledDate } = body;
     
     if (!sessionId || !scheduledDate) {
@@ -44,7 +65,7 @@ export async function POST(request: NextRequest) {
     const scheduledRemovalDate = new Date(scheduledDate);
     const now = new Date();
     const maxDate = new Date();
-    maxDate.setDate(now.getDate() + 20); // Changed from 28 to 20
+    maxDate.setDate(now.getDate() + 20);
     
     if (scheduledRemovalDate < now) {
       return NextResponse.json({
@@ -69,7 +90,7 @@ export async function POST(request: NextRequest) {
       include: {
         device: true
       }
-    });
+    }) as UserSession | null;
     
     if (!session) {
       return NextResponse.json({

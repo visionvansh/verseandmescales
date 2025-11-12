@@ -1,3 +1,4 @@
+// app/api/user/password/set/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
@@ -8,6 +9,13 @@ import { redis } from '@/lib/redis';
 
 const SALT_ROUNDS = 12;
 
+// Type definitions
+interface SetPasswordData {
+  password: string;
+}
+
+type PipelineResult = [Error | null, string | number | null];
+
 const passwordSchema = z.object({
   password: z.string()
     .min(8, "Password must be at least 8 characters")
@@ -16,11 +24,11 @@ const passwordSchema = z.object({
     .regex(/[0-9]/, "Password must contain at least one number")
     .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character")
     .refine(
-      (password) => !/(123|abc|password|admin|qwerty|welcome)/i.test(password),
+      (password: string) => !/(123|abc|password|admin|qwerty|welcome)/i.test(password),
       "Password contains common patterns. Please choose a stronger password"
     )
     .refine(
-      (password) => !(/(.)\1{2,}/).test(password),
+      (password: string) => !(/(.)\1{2,}/).test(password),
       "Password contains repeated characters. Please choose a stronger password"
     )
 });
@@ -43,9 +51,9 @@ export async function POST(request: NextRequest) {
     const pipeline = redis.pipeline();
     pipeline.get(`rate-limit:${identifier}:password:set`);
     pipeline.ttl(`rate-limit:${identifier}:password:set`);
-    const pipelineResults = await pipeline.exec();
+    const pipelineResults = await pipeline.exec() as PipelineResult[] | null;
     
-    const [attemptsResult, ttlResult] = pipelineResults || [[null, '0'], [null, -2]];
+    const [attemptsResult, ttlResult] = pipelineResults || [[null, '0'], [null, -2]] as PipelineResult[];
     const attemptsError = attemptsResult[0];
     const ttlError = ttlResult[0];
     if (attemptsError || ttlError) {
@@ -74,7 +82,7 @@ export async function POST(request: NextRequest) {
     await redis.incr(`rate-limit:${identifier}:password:set`);
     await redis.expire(`rate-limit:${identifier}:password:set`, 60);
     
-    let data;
+    let data: SetPasswordData;
     try {
       const body = await request.json();
       const result = passwordSchema.safeParse(body);

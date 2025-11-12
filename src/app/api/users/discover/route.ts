@@ -2,7 +2,58 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
-import { getAvatarUrlFromUser } from '@/utils/avatarGenerator'; // ✅ ADD IMPORT
+import { getAvatarUrlFromUser } from '@/utils/avatarGenerator';
+
+// Type definitions
+type UserGoalPurpose = 'learn' | 'teach' | 'both';
+type UserType = 'tutor' | 'learner' | 'both';
+
+interface WhereClause {
+  OR?: Array<Record<string, unknown>>;
+  UserGoals?: {
+    some: {
+      purpose: string;
+    };
+  };
+  NOT?: {
+    id: string;
+  };
+}
+
+interface FormattedBadge {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+}
+
+interface FormattedUser {
+  id: string;
+  username: string;
+  name: string;
+  surname: string | null;
+  avatar: string; // FIX: Changed from string | null to string
+  avatarObject: {
+    id: string;
+    avatarIndex: number;
+    avatarSeed: string;
+    avatarStyle: string;
+    isPrimary: boolean;
+    isCustomUpload: boolean;
+    customImageUrl: string | null;
+  } | null;
+  img: string;
+  type: UserType;
+  xp: number;
+  seekers: number;
+  seeking: number;
+  coursesMade: number;
+  coursesLearning: number;
+  badges: FormattedBadge[];
+  bio: string;
+  dateJoined: string;
+  isPrivate: boolean;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +64,7 @@ export async function GET(request: NextRequest) {
     const filter = searchParams.get('filter') || 'all';
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    let whereClause: any = {};
+    const whereClause: WhereClause = {};
 
     // Search filter
     if (search) {
@@ -96,34 +147,38 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    const formattedUsers = users.map(user => {
+    const formattedUsers: FormattedUser[] = users.map((user) => {
       const userGoal = user.UserGoals[0];
-      let userType: 'tutor' | 'learner' | 'both' = 'learner';
+      let userType: UserType = 'learner';
       
       if (userGoal) {
-        if (userGoal.purpose === 'teach') userType = 'tutor';
-        else if (userGoal.purpose === 'both') userType = 'both';
+        const purpose = userGoal.purpose as UserGoalPurpose;
+        if (purpose === 'teach') userType = 'tutor';
+        else if (purpose === 'both') userType = 'both';
       }
 
-      // ✅ USE HELPER FUNCTION WITH RED/WHITE/BLACK THEME
+      // Use helper function with red/white/black theme
       const avatarUrl = getAvatarUrlFromUser(user, 64);
-      const primaryAvatar = user.avatars[0];
+      const primaryAvatar = user.avatars[0] || null;
+
+      // FIX: Ensure avatar is always a string, never null
+      const finalAvatarUrl = avatarUrl || '/default-avatar.png';
 
       return {
         id: user.id,
         username: user.username,
         name: user.name || 'User',
         surname: user.surname,
-        avatar: avatarUrl, // ✅ NOW WITH RED/WHITE/BLACK THEME
-        avatarObject: primaryAvatar || null,
-        img: avatarUrl,
+        avatar: finalAvatarUrl, // FIX: Always string
+        avatarObject: primaryAvatar,
+        img: finalAvatarUrl, // FIX: Always string
         type: userType,
         xp: user.userXP?.totalXP || 0,
         seekers: user._count.followers,
         seeking: user._count.following,
         coursesMade: user._count.courses,
         coursesLearning: 0,
-        badges: user.badges.map(badge => ({
+        badges: user.badges.map((badge) => ({
           id: badge.id,
           name: badge.title,
           icon: badge.icon,

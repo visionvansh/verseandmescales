@@ -1,8 +1,25 @@
+// app/api/user/password/security/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { redis } from '@/lib/redis';
 import logger from '@/lib/logger';
+
+// Type definitions
+interface SecurityEvent {
+  id: string;
+  eventType: string;
+  severity: string;
+  description: string;
+  createdAt: Date;
+}
+
+interface ActivityLog {
+  id: string;
+  action: string;
+  description: string;
+  createdAt: Date;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,13 +41,15 @@ export async function POST(request: NextRequest) {
       prisma.securityEvent.findMany({
         where: { userId: user.id },
         select: { id: true, eventType: true, severity: true, description: true, createdAt: true },
-        take: 10
-      }),
+        take: 10,
+        orderBy: { createdAt: 'desc' }
+      }) as Promise<SecurityEvent[]>,
       prisma.userActivityLog.findMany({
         where: { userId: user.id },
         select: { id: true, action: true, description: true, createdAt: true },
-        take: 10
-      })
+        take: 10,
+        orderBy: { createdAt: 'desc' }
+      }) as Promise<ActivityLog[]>
     ]);
     
     // Cache results

@@ -5,6 +5,20 @@ import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 
+// Type definitions
+interface DecodedToken {
+  sessionId: string;
+  userId: string;
+  [key: string]: any;
+}
+
+interface UserSession {
+  id: string;
+  userId: string;
+  sessionToken: string;
+  isActive: boolean;
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -16,7 +30,7 @@ export async function DELETE(
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
     
-    const { id: sessionId } = await params; // ✅ Await params before destructuring
+    const { id: sessionId } = await params;
     
     // Ensure the session belongs to the user
     const session = await prisma.userSession.findUnique({
@@ -24,30 +38,30 @@ export async function DELETE(
         id: sessionId,
         userId: user.id
       }
-    });
+    }) as UserSession | null;
     
     if (!session) {
       return NextResponse.json({ message: 'Session not found' }, { status: 404 });
     }
     
-    // Get the token (same logic as getAuthUser)
-    let token = null;
+    // Get the token
+    let token: string | null = null;
     const authHeader = request.headers.get('Authorization');
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
     }
     if (!token) {
       const cookieStore = await cookies();
-      token = cookieStore.get('auth-token')?.value;
+      token = cookieStore.get('auth-token')?.value || null;
     }
     
     if (!token) {
       return NextResponse.json({ message: 'Token not found' }, { status: 401 });
     }
     
-    // Decode the token (since getAuthUser already verified it)
-    const decoded = jwt.decode(token) as any;
-    const currentSessionId = decoded.sessionId;
+    // Decode the token
+    const decoded = jwt.decode(token) as DecodedToken | null;
+    const currentSessionId = decoded?.sessionId;
     
     // Prevent revoking the current session
     if (sessionId === currentSessionId) {

@@ -6,6 +6,18 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { redis } from '@/lib/redis';
 
+// Define type for Redis get result
+type RedisValue = string | null;
+
+// Define types for Prisma query results
+interface UserWithAuth {
+  id: string;
+  twoFactorEnabled: boolean;
+  password: string | null;
+  email: string;
+  emailVerified: boolean;
+}
+
 const disableSchema = z.object({
   password: z.string().optional(),
   emailCode: z.string().optional(),
@@ -16,7 +28,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
     
-    if (!user) {
+    if (!user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
@@ -25,7 +37,7 @@ export async function POST(request: NextRequest) {
     const identifier = `${ip}:${user.id}:2fa-disable`;
     const rateLimitKey = `rate-limit:${identifier}`;
     
-    const currentAttempts = await redis.get(rateLimitKey);
+    const currentAttempts: RedisValue = await redis.get(rateLimitKey);
     if (currentAttempts && parseInt(currentAttempts) >= 5) {
       return NextResponse.json({
         error: 'Too many attempts. Please try again in a few minutes.'
@@ -59,7 +71,7 @@ export async function POST(request: NextRequest) {
         email: true,
         emailVerified: true
       }
-    });
+    }) as UserWithAuth | null;
     
     if (!currentUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -126,7 +138,7 @@ export async function POST(request: NextRequest) {
         }, { status: 401 });
       }
       
-      const storedCode = await redis.get(`2fa:disable:email:${user.id}`);
+      const storedCode: RedisValue = await redis.get(`2fa:disable:email:${user.id}`);
       if (!storedCode || storedCode !== data.emailCode) {
         return NextResponse.json({ error: 'Invalid verification code' }, { status: 401 });
       }

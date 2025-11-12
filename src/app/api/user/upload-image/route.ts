@@ -8,8 +8,17 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-const VALID_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const VALID_TYPES: string[] = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+// Type for updated user result
+type UpdatedUserResult = {
+  id: string;
+  img: string | null;
+  name: string | null;
+  surname: string | null;
+  email: string;
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     // Parse form data
     const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as File | null;
 
     if (!file) {
       return NextResponse.json({ 
@@ -93,7 +102,7 @@ export async function POST(request: NextRequest) {
         surname: true,
         email: true
       }
-    });
+    }) as UpdatedUserResult;
 
     // Invalidate user cache
     const cacheKey = `${CACHE_PREFIX.USER_PROFILE}${user.id}`;

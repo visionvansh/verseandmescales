@@ -6,12 +6,20 @@ import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { invalidateUserCache } from '@/lib/enhanced-redis';
 
-// Interface for user session based on Prisma query
+// Type definitions
+interface RequestBody {
+  password?: string;
+}
+
 interface UserSession {
   id: string;
   userId: string;
   isActive: boolean;
   sessionToken: string;
+}
+
+interface UserWithPassword {
+  password: string | null;
 }
 
 export async function POST(request: NextRequest) {
@@ -23,14 +31,14 @@ export async function POST(request: NextRequest) {
     }
     
     // Get the current session token
-    let token = null;
+    let token: string | null = null;
     const authHeader = request.headers.get('Authorization');
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
     }
     if (!token) {
       const cookieStore = await cookies();
-      token = cookieStore.get('auth-token')?.value;
+      token = cookieStore.get('auth-token')?.value || null;
     }
     
     if (!token) {
@@ -40,14 +48,14 @@ export async function POST(request: NextRequest) {
     const currentSessionToken = token;
     
     // Parse request body
-    const body = await request.json();
+    const body = await request.json() as RequestBody;
     const { password } = body;
     
     // Verify password if user has password set
     const fullUser = await prisma.student.findUnique({
       where: { id: user.id },
       select: { password: true }
-    });
+    }) as UserWithPassword | null;
     
     if (fullUser?.password) {
       if (!password) {
@@ -75,7 +83,7 @@ export async function POST(request: NextRequest) {
           not: currentSessionToken
         }
       }
-    });
+    }) as UserSession[];
     
     if (sessionsToRevoke.length === 0) {
       return NextResponse.json({
@@ -129,14 +137,14 @@ export async function POST(request: NextRequest) {
     });
     
     // CRITICAL: Clear all cache layers immediately
-    const redis = (await import('@/lib/redis')).redis;
-    const CACHE_PREFIX = (await import('@/lib/redis')).CACHE_PREFIX;
+    const redis = (await import('@/lib/enhanced-redis')).redis;
+    const CACHE_PREFIX = (await import('@/lib/enhanced-redis')).CACHE_PREFIX;
     
     console.log('[Revoke All Sessions API] Clearing cache for user:', user.id);
     
     await Promise.all([
-      redis.del(`${CACHE_PREFIX.SESSIONS}list:${user.id}`),
-      redis.del(`${CACHE_PREFIX.USER_PROFILE}${user.id}`),
+      redis.del(`${CACHE_PREFIX.SESSIONS}:list:${user.id}`),
+      redis.del(`${CACHE_PREFIX.USER_PROFILE}:${user.id}`),
       redis.del(`user:sessions:${user.id}`),
       redis.del(`sessions:${user.id}`),
     ]);

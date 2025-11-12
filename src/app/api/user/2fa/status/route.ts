@@ -3,6 +3,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import { findUserById, countUnusedBackupCodes } from '@/lib/prisma';
 
+// Define types for Prisma query results
+interface UserPreferences {
+  twoFactorPreference: string | null;
+}
+
+interface FullUser {
+  id: string;
+  recoveryEmail: string | null;
+  recoveryPhone: string | null;
+  preferences: UserPreferences | null;
+}
+
+interface AuthUser {
+  id: string;
+  twoFactorEnabled: boolean;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
@@ -12,7 +29,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch full user with preferences
-    const fullUser = await findUserById(user.id);
+    const fullUser = await findUserById(user.id) as FullUser | null;
 
     if (!fullUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -22,13 +39,15 @@ export async function GET(request: NextRequest) {
     const backupCodesCount = await countUnusedBackupCodes(user.id);
     
     // Check if recovery options are configured
-    const recoveryOptionsConfigured = !! (fullUser.recoveryEmail || fullUser.recoveryPhone);
+    const recoveryOptionsConfigured = !!(fullUser.recoveryEmail || fullUser.recoveryPhone);
     
     // Determine primary method
-    let primaryMethod = null;
+    let primaryMethod: string | null = null;
     let enabled = false;
     
-    if (user.twoFactorEnabled) {
+    const typedUser = user as AuthUser;
+    
+    if (typedUser.twoFactorEnabled) {
       enabled = true;
       
       if (fullUser.preferences?.twoFactorPreference) {

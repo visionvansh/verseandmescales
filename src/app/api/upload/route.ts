@@ -4,10 +4,23 @@ import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-export async function POST(request: NextRequest) {
+// Type for the response
+interface VideoUploadResponse {
+  url: string;
+  fileName: string;
+  size: number;
+  type: string;
+}
+
+// Type for error response
+interface ErrorResponse {
+  error: string;
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse<VideoUploadResponse | ErrorResponse>> {
   try {
     const formData = await request.formData();
-    const file = formData.get('video') as File;
+    const file = formData.get('video') as File | null;
 
     if (!file) {
       return NextResponse.json(

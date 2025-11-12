@@ -1,8 +1,61 @@
-//api/user/profile
+//Volumes/vision/codes/course/my-app/src/app/api/user/profile/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { redis, CACHE_TIMES, CACHE_PREFIX } from '@/lib/redis';
+
+// Type definitions
+type ParsedUserAgent = {
+  browser: string;
+  os: string;
+  deviceType: 'desktop' | 'mobile' | 'tablet';
+};
+
+type SessionData = {
+  id: string;
+  sessionToken: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  lastUsed: Date;
+  createdAt: Date;
+  expiresAt: Date;
+};
+
+type DeviceData = {
+  id: string;
+  deviceType: string | null;
+  deviceName: string | null;
+  lastUsed: Date | null;
+  createdAt: Date;
+};
+
+type FormattedSession = {
+  id: string;
+  device: {
+    deviceName: string;
+    deviceType: 'desktop' | 'mobile' | 'tablet';
+    browser: string;
+    os: string;
+  };
+  location: string;
+  city: string;
+  region: null;
+  country: string;
+  ipAddress: string | null;
+  isTrusted: boolean;
+  lastUsed: string;
+  createdAt: string;
+  expiresAt: string;
+  userAgent: string | null;
+};
+
+type FormattedDevice = {
+  id: string;
+  deviceName: string;
+  deviceType: string;
+  lastUsed: string;
+  createdAt: string;
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -48,7 +101,6 @@ export async function GET(request: NextRequest) {
         isOnline: true,
         createdAt: true,
         updatedAt: true,
-        // ✅ Profile Settings - INCLUDES BIO
         profileSettings: {
           select: {
             id: true,
@@ -74,11 +126,10 @@ export async function GET(request: NextRequest) {
             updatedAt: true
           }
         },
-        // ✅ User Goals - INCLUDES PURPOSE (ROLE)
         UserGoals: {
           select: {
             id: true,
-            purpose: true, // ✅ This contains 'learn', 'teach', or 'both'
+            purpose: true,
             monthlyGoal: true,
             timeCommitment: true,
             completedAt: true,
@@ -87,7 +138,7 @@ export async function GET(request: NextRequest) {
           orderBy: {
             updatedAt: 'desc'
           },
-          take: 1 // Get the most recent goal
+          take: 1
         },
         preferences: {
           select: {
@@ -153,7 +204,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // ✅ LOG DATA FOR DEBUGGING
     console.log(`✅ User data loaded:`, {
       id: userData.id,
       username: userData.username,
@@ -186,9 +236,9 @@ export async function GET(request: NextRequest) {
           lastUsed: 'desc'
         },
         take: 15
-      }),
+      }) as Promise<SessionData[]>,
       
-      (async () => {
+      (async (): Promise<DeviceData[]> => {
         try {
           return await prisma.userDevice.findMany({
             where: {
@@ -214,7 +264,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Parse user agent for browser/OS info
-    const parseUserAgent = (userAgent: string | null) => {
+    const parseUserAgent = (userAgent: string | null): ParsedUserAgent => {
       if (!userAgent) {
         return {
           browser: 'Unknown Browser',
@@ -246,7 +296,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Format sessions with parsed user agent
-    const formattedSessions = sessions.map((session: any) => {
+    const formattedSessions: FormattedSession[] = sessions.map((session: SessionData) => {
       const { browser, os, deviceType } = parseUserAgent(session.userAgent);
       
       return {
@@ -271,7 +321,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Format devices
-    const formattedDevices = devices.map((device: any) => ({
+    const formattedDevices: FormattedDevice[] = devices.map((device: DeviceData) => ({
       id: device.id,
       deviceName: device.deviceName || 'Unknown Device',
       deviceType: device.deviceType || 'desktop',

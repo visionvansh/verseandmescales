@@ -10,13 +10,21 @@ import { redis } from '@/lib/redis';
 const prisma = new PrismaClient();
 
 // Validate request
-// Extend the schema to support more fields
 const updateDeviceSchema = z.object({
   deviceId: z.string().min(1, "Device ID is required"),
   deviceName: z.string().min(1, "Device name is required").max(50, "Device name cannot exceed 50 characters"),
   notes: z.string().max(200, "Notes cannot exceed 200 characters").optional(),
-  color: z.string().max(20).optional() // Allow users to set custom colors for devices
+  color: z.string().max(20).optional()
 });
+
+type UpdateDeviceInput = z.infer<typeof updateDeviceSchema>;
+
+interface RateLimitResult {
+  success: boolean;
+  limit: number;
+  remaining: number;
+  reset: number;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,7 +40,7 @@ export async function POST(request: NextRequest) {
     // Apply rate limiting
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
     const identifier = `${ip}:${user.id}`;
-    const { success, limit, remaining, reset } = await rateLimit(identifier, 'devices:update');
+    const { success, limit, remaining, reset }: RateLimitResult = await rateLimit(identifier, 'devices:update');
     
     if (!success) {
       return NextResponse.json(
@@ -49,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Validate request
-    let data;
+    let data: UpdateDeviceInput;
     try {
       const body = await request.json();
       const result = updateDeviceSchema.safeParse(body);
