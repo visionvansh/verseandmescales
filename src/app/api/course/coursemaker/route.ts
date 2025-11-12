@@ -33,6 +33,64 @@ interface ModuleData {
   lessons: Lesson[];
 }
 
+// Type for incoming module data from request
+interface IncomingModuleData {
+  id: string;
+  title?: string;
+  description?: string;
+  difficulty?: "Beginner" | "Intermediate" | "Advanced";
+  learningOutcomes?: string[];
+  lessons?: IncomingLessonData[];
+}
+
+interface IncomingLessonData {
+  id: string;
+  title?: string;
+  description?: string;
+  videoUrl?: string;
+  videoDuration?: string;
+  videoSize?: string;
+  resources?: IncomingResourceData[];
+}
+
+interface IncomingResourceData {
+  id: string;
+  title?: string;
+  description?: string;
+  fileUrl?: string;
+  fileType?: string;
+  fileSize?: string;
+}
+
+// Type for Prisma query results
+interface PrismaModule {
+  id: string;
+  title: string;
+  description: string | null;
+  difficulty: string;
+  learningOutcomes: string[];
+  lessons: PrismaLesson[];
+}
+
+interface PrismaLesson {
+  id: string;
+  title: string;
+  description: string | null;
+  videoUrl: string | null;
+  videoDuration: string | null;
+  videoSize: string | null;
+  resources: PrismaResource[];
+}
+
+interface PrismaResource {
+  id: string;
+  title: string;
+  description: string | null;
+  fileUrl: string;
+  fileType: string;
+  fileSize: string | null;
+}
+
 // GET - Fetch course data (modules, lessons, resources)
 export async function GET(req: NextRequest) {
   try {
@@ -83,25 +141,26 @@ export async function GET(req: NextRequest) {
     // Transform to match frontend interface
     const courseData = {
       id: courseId,
-      modules: modules.map((module: any) => ({
+      modules: modules.map((module: PrismaModule) => ({
         id: module.id,
         title: module.title,
-        description: module.description,
+        description: module.description || "",
         difficulty: module.difficulty as "Beginner" | "Intermediate" | "Advanced",
         learningOutcomes: module.learningOutcomes,
-        lessons: module.lessons.map((lesson: any) => ({
+        lessons: module.lessons.map((lesson: PrismaLesson) => ({
           id: lesson.id,
           title: lesson.title,
-          description: lesson.description,
-          videoUrl: lesson.videoUrl,
-          videoDuration: lesson.videoDuration,
-          videoSize: lesson.videoSize,
-          resources: lesson.resources.map((resource: any) => ({
+          description: lesson.description || "",
+          videoUrl: lesson.videoUrl || "",
+          videoDuration: lesson.videoDuration || "",
+          videoSize: lesson.videoSize || "",
+          resources: lesson.resources.map((resource: PrismaResource) => ({
             id: resource.id,
             title: resource.title,
-            description: resource.description,
+            description: resource.description || "",
             fileUrl: resource.fileUrl,
             fileType: resource.fileType,
+            fileSize: resource.fileSize || "",
           })),
         })),
       })),
@@ -131,7 +190,7 @@ export async function POST(req: NextRequest) {
 
     const userId = user.id;
     const body = await req.json();
-    const { courseId, modules } = body;
+    const { courseId, modules }: { courseId: string; modules: IncomingModuleData[] } = body;
 
     if (!courseId) {
       return NextResponse.json(
@@ -148,7 +207,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Use transaction to ensure data consistency
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx) => {
       // Update course last edited section
       await tx.course.update({
         where: { id: courseId, userId: userId },
@@ -163,10 +222,10 @@ export async function POST(req: NextRequest) {
         where: { courseId, userId },
         select: { id: true },
       });
-      const existingModuleIds = existingModules.map((m: { id: string }) => m.id);
+      const existingModuleIds = existingModules.map((m) => m.id);
       const incomingModuleIds = modules
-        .filter((m: any) => !m.id.startsWith("module-"))
-        .map((m: any) => m.id);
+        .filter((m) => !m.id.startsWith("module-"))
+        .map((m) => m.id);
 
       // Delete modules that are no longer present
       const modulesToDelete = existingModuleIds.filter(
@@ -229,10 +288,10 @@ export async function POST(req: NextRequest) {
           where: { moduleId },
           select: { id: true },
         });
-        const existingLessonIds = existingLessons.map((l: { id: string }) => l.id);
+        const existingLessonIds = existingLessons.map((l) => l.id);
         const incomingLessonIds = lessons
-          .filter((l: any) => !l.id.startsWith("lesson-"))
-          .map((l: any) => l.id);
+          .filter((l) => !l.id.startsWith("lesson-"))
+          .map((l) => l.id);
 
         // Delete lessons that are no longer present
         const lessonsToDelete = existingLessonIds.filter(
@@ -294,10 +353,10 @@ export async function POST(req: NextRequest) {
             where: { lessonId },
             select: { id: true },
           });
-          const existingResourceIds = existingResources.map((r: { id: string }) => r.id);
+          const existingResourceIds = existingResources.map((r) => r.id);
           const incomingResourceIds = resources
-            .filter((r: any) => !r.id.startsWith("resource-"))
-            .map((r: any) => r.id);
+            .filter((r) => !r.id.startsWith("resource-"))
+            .map((r) => r.id);
 
           // Delete resources that are no longer present
           const resourcesToDelete = existingResourceIds.filter(
