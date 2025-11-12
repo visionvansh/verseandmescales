@@ -13,39 +13,22 @@ interface BehaviorProfile {
   suspiciousPatterns: string[];
 }
 
-type LoginAnalytics = {
-  userId: string;
-  country: string | null;
-  city: string | null;
-  deviceType: string | null;
-  browser: string | null;
-  os: string | null;
-  dayOfWeek: string;
-  hourOfDay: number;
-  loginDuration: number | null;
-};
-
-type UserSession = {
-  userId: string;
-  isActive: boolean;
-  lastUsed: Date;
-  country: string | null;
-};
-
-// ============================================================================
-// Device Trust Status Helper (FIXED)
-// ============================================================================
-
-// ✅ Infer the UserDevice type from Prisma operations
-type UserDeviceType = Awaited<ReturnType<typeof prisma.userDevice.findFirst>>;
+// ✅ Infer types from Prisma operations
+type PrismaLoginAnalytics = Awaited<ReturnType<typeof prisma.loginAnalytics.findMany>>[number];
+type PrismaUserSession = Awaited<ReturnType<typeof prisma.userSession.findMany>>[number];
+type PrismaUserDevice = Awaited<ReturnType<typeof prisma.userDevice.findFirst>>;
 
 interface DeviceTrustInfo {
   isTrusted: boolean;
   isAccountCreationDevice: boolean;
   existsInDB: boolean;
   existsInRedis: boolean;
-  device?: UserDeviceType;
+  device?: PrismaUserDevice;
 }
+
+// ============================================================================
+// Device Trust Status Helper (FIXED)
+// ============================================================================
 
 async function getDeviceTrustStatus(
   userId: string,
@@ -92,7 +75,7 @@ async function getDeviceTrustStatus(
     isAccountCreationDevice,
     existsInDB: !!device,
     existsInRedis,
-    device
+    device: device ?? undefined
   };
 }
 
@@ -224,9 +207,6 @@ export async function analyzeBehaviorForRisk(
 // User Behavior Profile (Cached)
 // ============================================================================
 
-// ✅ Define the LoginAnalytics type based on Prisma schema
-type PrismaLoginAnalytics = Awaited<ReturnType<typeof prisma.loginAnalytics.findMany>>[number];
-
 async function getUserBehaviorProfile(userId: string): Promise<BehaviorProfile> {
   const cacheKey = `behavior:profile:${userId}`;
   const cached = await redis.get(cacheKey);
@@ -277,7 +257,10 @@ async function getUserBehaviorProfile(userId: string): Promise<BehaviorProfile> 
     });
 
   // ✅ FIXED: Explicitly type both parameters in reduce
-  const totalDuration = analytics.reduce((sum: number, log: PrismaLoginAnalytics) => sum + (log.loginDuration || 0), 0);
+  const totalDuration = analytics.reduce(
+    (sum: number, log: PrismaLoginAnalytics) => sum + (log.loginDuration || 0), 
+    0
+  );
   const avgSessionDuration = analytics.length > 0 ? totalDuration / analytics.length : 0;
 
   const profile: BehaviorProfile = {
@@ -487,9 +470,10 @@ async function checkConcurrentSessions(
     }
   });
 
+  // ✅ FIXED: Explicitly type the parameter 's'
   const countries = new Set(
     recentSessions
-      .map((s) => s.country)
+      .map((s: PrismaUserSession) => s.country)
       .filter((c): c is string => c !== null && c !== 'Unknown')
   );
   
