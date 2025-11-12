@@ -7,8 +7,7 @@
   "ws": "node websocket-server.js",
   "build": "next build",
   "start": "next start",
-  "type-check": "tsc --noEmit --pretty",
-  "postinstall": "prisma generate"
+  "type-check": "tsc --noEmit --pretty"
 },
   "dependencies": {
     "@dicebear/collection": "^9.2.4",
@@ -62,7 +61,8 @@
     "use-debounce": "^10.0.6",
     "uuid": "^13.0.0",
     "winston": "^3.18.3",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "prisma": "^6.17.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
