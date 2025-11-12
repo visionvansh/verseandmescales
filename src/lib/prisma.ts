@@ -12,8 +12,7 @@ export type PrismaTx = Prisma.TransactionClient;
 // Create a singleton Prisma client with proper connection settings
 const prismaClientSingleton = () => {
   return new PrismaClient({
-    log: ['error', 'warn'],
-    // Use stdout logging instead of events to avoid type issues
+    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
 };
 
@@ -23,17 +22,12 @@ const prismaBase = globalThis.prisma || prismaClientSingleton();
 // Create a wrapper that provides typed transactions
 const prisma = prismaBase;
 
-// Type-safe transaction wrapper - FIXED VERSION
+// Type-safe transaction wrapper
 export const transaction = async <T>(
   fn: (tx: PrismaTx) => Promise<T>
 ): Promise<T> => {
   return await prismaBase.$transaction(fn);
 };
-
-// Debug logging (optional - uncomment if needed)
-// if (process.env.DEBUG_PRISMA === 'true') {
-//   console.log('Prisma client initialized with debug mode');
-// }
 
 // Keep the connection alive in development
 if (process.env.NODE_ENV !== 'production') globalThis.prisma = prismaBase;
@@ -76,10 +70,8 @@ export const findUserByUsername = async (username: string) => {
   });
 };
 
-// ✅ FIXED: Use Prisma namespace types directly
-type CreateUserData = Prisma.StudentCreateInput;
-
-export const createUser = async (userData: CreateUserData) => {
+// ✅ FIXED: Using correct Prisma generated types for Student model
+export const createUser = async (userData: Prisma.StudentCreateInput) => {
   return await prisma.student.create({
     data: userData,
     include: {
@@ -90,9 +82,7 @@ export const createUser = async (userData: CreateUserData) => {
 };
 
 // ✅ FIXED: Type for user update data
-type UpdateUserData = Prisma.StudentUpdateInput;
-
-export const updateUser = async (id: string, userData: UpdateUserData) => {
+export const updateUser = async (id: string, userData: Prisma.StudentUpdateInput) => {
   return await prisma.student.update({
     where: { id },
     data: userData,
@@ -104,9 +94,7 @@ export const updateUser = async (id: string, userData: UpdateUserData) => {
 };
 
 // ✅ FIXED: Type for session creation data
-type CreateSessionData = Prisma.UserSessionCreateInput;
-
-export const createUserSession = async (sessionData: CreateSessionData) => {
+export const createUserSession = async (sessionData: Prisma.UserSessionCreateInput) => {
   return await prisma.userSession.create({
     data: sessionData
   });
@@ -131,9 +119,7 @@ export const findActiveSession = async (sessionToken: string) => {
 };
 
 // ✅ FIXED: Type for auth log event data
-type CreateAuthLogData = Prisma.AuthLogCreateInput;
-
-export const logAuthEvent = async (eventData: CreateAuthLogData) => {
+export const logAuthEvent = async (eventData: Prisma.AuthLogCreateInput) => {
   return await prisma.authLog.create({
     data: eventData
   });
@@ -173,14 +159,8 @@ export const createSocialAccount = async (
 };
 
 // Helper for counting unused 2FA backup codes
-export const countUnusedBackupCodes = async (userId: string) => {
+export const countUnusedBackupCodes = async (userId: string): Promise<number> => {
   try {
-    // Check if the model exists in Prisma client
-    if (!('twoFactorBackupCode' in prisma)) {
-      console.warn('The twoFactorBackupCode model is not available in Prisma client');
-      return 0;
-    }
-    
     return await prisma.twoFactorBackupCode.count({
       where: {
         userId,
