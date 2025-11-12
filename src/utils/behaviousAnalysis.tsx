@@ -276,7 +276,8 @@ async function getUserBehaviorProfile(userId: string): Promise<BehaviorProfile> 
       return { day, hour };
     });
 
-  const totalDuration = analytics.reduce((sum, log) => sum + (log.loginDuration || 0), 0);
+  // ✅ FIXED: Explicitly type both parameters in reduce
+  const totalDuration = analytics.reduce((sum: number, log: PrismaLoginAnalytics) => sum + (log.loginDuration || 0), 0);
   const avgSessionDuration = analytics.length > 0 ? totalDuration / analytics.length : 0;
 
   const profile: BehaviorProfile = {
