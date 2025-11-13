@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/app/users/courses/[id]/checkout/success/page.tsx
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";

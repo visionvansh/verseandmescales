@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/lib/redis.ts
 import { Redis } from '@upstash/redis';
 
 // Get Redis configuration from environment variables

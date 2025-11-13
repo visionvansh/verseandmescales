@@ -4,6 +4,11 @@ import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { checkAndAwardBadges } from '@/lib/profile/badges';
 import { getAvatarUrlFromUser } from '@/utils/avatarGenerator';
+import { 
+  getCachedData, 
+  courseCacheKeys, 
+  COURSE_CACHE_TIMES 
+} from '@/lib/cache/course-cache';
 
 // ============================================
 // TYPE DEFINITIONS
@@ -82,6 +87,101 @@ type PrismaUser = {
   };
 };
 
+// ✅ Cached user profile fetching
+async function fetchUserProfile(username: string): Promise<PrismaUser | null> {
+  console.log('🔄 Fetching user profile from database:', username);
+  
+  const user = await prisma.student.findUnique({
+    where: { username: username.toLowerCase() },
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      surname: true,
+      img: true,
+      createdAt: true,
+      lastActiveAt: true,
+      isOnline: true,
+      avatars: {
+        where: { isPrimary: true },
+        take: 1,
+        select: {
+          id: true,
+          avatarIndex: true,
+          avatarSeed: true,
+          avatarStyle: true,
+          isPrimary: true,
+          isCustomUpload: true,
+          customImageUrl: true
+        }
+      },
+      profileSettings: {
+        select: {
+          isPublic: true,
+          coverImage: true,
+          showEmail: true,
+          showPhone: true,
+          showLocation: true,
+          showWebsite: true,
+          showXP: true,
+          showBadges: true,
+          bio: true,
+          country: true,
+          location: true,
+          website: true
+        }
+      },
+      userXP: {
+        select: {
+          totalXP: true,
+          currentLevel: true,
+          contributorTitle: true,
+          xpFromPosts: true,
+          xpFromComments: true,
+          xpFromCourses: true
+        }
+      },
+      badges: {
+        where: { 
+          isEarned: true,
+          isDisplayed: true 
+        },
+        select: {
+          id: true,
+          badgeType: true,
+          category: true,
+          title: true,
+          description: true,
+          icon: true,
+          color: true,
+          requirement: true,
+          displayOrder: true,
+          earnedAt: true
+        },
+        orderBy: { displayOrder: 'asc' },
+        take: 10
+      },
+      UserGoals: {
+        select: {
+          purpose: true
+        },
+        take: 1
+      },
+      _count: {
+        select: {
+          followers: true,
+          following: true,
+          courses: { where: { isPublished: true } },
+          posts: { where: { isDeleted: false } }
+        }
+      }
+    }
+  }) as PrismaUser | null;
+
+  console.log('✅ Fetched user profile from DB');
+  return user;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ username: string }> }
@@ -94,93 +194,13 @@ export async function GET(
       await checkAndAwardBadges(currentUser.id);
     }
 
-    // Get user profile
-    const user = await prisma.student.findUnique({
-      where: { username: username.toLowerCase() },
-      select: {
-        id: true,
-        username: true,
-        name: true,
-        surname: true,
-        img: true,
-        createdAt: true,
-        lastActiveAt: true,
-        isOnline: true,
-        avatars: {
-          where: { isPrimary: true },
-          take: 1,
-          select: {
-            id: true,
-            avatarIndex: true,
-            avatarSeed: true,
-            avatarStyle: true,
-            isPrimary: true,
-            isCustomUpload: true,
-            customImageUrl: true
-          }
-        },
-        profileSettings: {
-          select: {
-            isPublic: true,
-            coverImage: true,
-            showEmail: true,
-            showPhone: true,
-            showLocation: true,
-            showWebsite: true,
-            showXP: true,
-            showBadges: true,
-            bio: true,
-            country: true,
-            location: true,
-            website: true
-          }
-        },
-        userXP: {
-          select: {
-            totalXP: true,
-            currentLevel: true,
-            contributorTitle: true,
-            xpFromPosts: true,
-            xpFromComments: true,
-            xpFromCourses: true
-          }
-        },
-        badges: {
-          where: { 
-            isEarned: true,
-            isDisplayed: true 
-          },
-          select: {
-            id: true,
-            badgeType: true,
-            category: true,
-            title: true,
-            description: true,
-            icon: true,
-            color: true,
-            requirement: true,
-            displayOrder: true,
-            earnedAt: true
-          },
-          orderBy: { displayOrder: 'asc' },
-          take: 10
-        },
-        UserGoals: {
-          select: {
-            purpose: true
-          },
-          take: 1
-        },
-        _count: {
-          select: {
-            followers: true,
-            following: true,
-            courses: { where: { isPublished: true } },
-            posts: { where: { isDeleted: false } }
-          }
-        }
-      }
-    }) as PrismaUser | null;
+    // ✅ Use cache for user profile
+    const user = await getCachedData(
+      courseCacheKeys.userProfile(username),
+      () => fetchUserProfile(username),
+      COURSE_CACHE_TIMES.USER_PROFILE,
+      true
+    );
 
     if (!user) {
       return NextResponse.json(
@@ -230,15 +250,16 @@ export async function GET(
     });
 
     const avatarUrl = getAvatarUrlFromUser(user, 64);
-    const primaryAvatar = user.avatars[0];
+    const finalAvatarUrl = avatarUrl || '/default-avatar.png';
+    const primaryAvatar = user.avatars[0] || null;
 
     const profile = {
       id: user.id,
       username: user.username,
       name: user.name || 'User',
       surname: user.surname,
-      avatar: avatarUrl,
-      avatarObject: primaryAvatar || null,
+      avatar: finalAvatarUrl,
+      avatarObject: primaryAvatar,
       type: userType,
       xp: user.userXP?.totalXP || 0,
       dateJoined: user.createdAt.toISOString(),
@@ -278,7 +299,11 @@ export async function GET(
       lastActiveAt: user.lastActiveAt
     };
 
-    return NextResponse.json({ profile });
+    return NextResponse.json({ profile }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800',
+      },
+    });
 
   } catch (error) {
     console.error('Get profile error:', error);

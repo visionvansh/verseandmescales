@@ -1,6 +1,11 @@
 //Volumes/vision/codes/course/my-app/src/app/api/course/public/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { 
+  getCachedData, 
+  courseCacheKeys, 
+  COURSE_CACHE_TIMES 
+} from '@/lib/cache/course-cache';
 
 // Type definitions
 type Lesson = {
@@ -112,67 +117,78 @@ function calculateCourseDuration(modules: Module[]): string {
   return `${seconds}s`;
 }
 
+// ✅ Cached course fetching
+async function fetchPublicCourses() {
+  console.log('🔄 Fetching courses from database...');
+  
+  const courses = await prisma.course.findMany({
+    where: {
+      status: 'PUBLISHED',
+      isPublished: true,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          img: true,
+          avatars: {
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      },
+      modules: {
+        include: {
+          lessons: {
+            select: {
+              id: true,
+              videoDuration: true,
+            },
+          },
+        },
+        orderBy: {
+          position: 'asc',
+        },
+      },
+      enrollments: {
+        where: {
+          status: 'active',
+        },
+        select: {
+          id: true,
+        },
+      },
+      ratings: {
+        select: {
+          rating: true,
+        },
+      },
+    },
+    orderBy: {
+      publishedAt: 'desc',
+    },
+  }) as Course[];
+
+  console.log(`✅ Fetched ${courses.length} courses from DB`);
+  return courses;
+}
+
 /**
  * GET /api/course/public
  * Fetch all published courses with avatars
  */
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 Fetching public courses...');
+    console.log('📚 GET /api/course/public - Start');
     
-    const courses = await prisma.course.findMany({
-      where: {
-        status: 'PUBLISHED',
-        isPublished: true,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-            img: true,
-            avatars: {
-              orderBy: { createdAt: 'desc' },
-            },
-          },
-        },
-        modules: {
-          include: {
-            lessons: {
-              select: {
-                id: true,
-                videoDuration: true,
-              },
-            },
-          },
-          orderBy: {
-            position: 'asc',
-          },
-        },
-        enrollments: {
-          where: {
-            status: 'active',
-          },
-          select: {
-            id: true,
-          },
-        },
-        homepage: {
-          include: {
-            courseStats: true,
-          },
-        },
-        ratings: {
-          select: {
-            rating: true,
-          },
-        },
-      },
-      orderBy: {
-        publishedAt: 'desc',
-      },
-    }) as Course[];
+    // ✅ Use cache with stale-while-revalidate
+    const courses = await getCachedData(
+      courseCacheKeys.publicCourses(),
+      fetchPublicCourses,
+      COURSE_CACHE_TIMES.PUBLIC_COURSES,
+      true // Enable stale-while-revalidate
+    );
 
     console.log(`📚 Found ${courses.length} published courses`);
 
@@ -227,10 +243,12 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    console.log('✅ Returning transformed courses');
+
     return NextResponse.json(transformedCourses, { 
       status: 200,
       headers: {
-        'Cache-Control': 'no-store, must-revalidate',
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
       },
     });
   } catch (error) {

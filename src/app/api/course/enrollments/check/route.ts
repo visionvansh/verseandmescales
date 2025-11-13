@@ -3,8 +3,35 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
+import {
+  getCachedData,
+  courseCacheKeys,
+  COURSE_CACHE_TIMES,
+} from '@/lib/cache/course-cache';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+// ✅ Cached enrollment check
+async function fetchUserEnrollments(userId: string) {
+  console.log('🔄 Fetching enrollments from database for user:', userId);
+
+  const enrollments = await prisma.courseEnrollment.findMany({
+    where: {
+      userId: userId,
+    },
+    select: {
+      courseId: true,
+    },
+  });
+
+  const enrollmentMap: Record<string, boolean> = {};
+  enrollments.forEach((enrollment) => {
+    enrollmentMap[enrollment.courseId] = true;
+  });
+
+  console.log('✅ Fetched enrollments from DB');
+  return enrollmentMap;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,26 +52,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get all enrollments for the user
-    const enrollments = await prisma.courseEnrollment.findMany({
-      where: {
-        userId: decoded.userId,
-        courseId: {
-          in: courseIds,
-        },
-      },
-      select: {
-        courseId: true,
-      },
+    // ✅ Use cache for user's all enrollments, then filter for requested courseIds
+    const fullEnrollments = await getCachedData(
+      courseCacheKeys.bulkEnrollments(decoded.userId),
+      () => fetchUserEnrollments(decoded.userId),
+      COURSE_CACHE_TIMES.ENROLLMENT_STATUS,
+      true
+    );
+
+    // Create response map only for requested courseIds (matching original behavior: only enrolled ones are true/ present)
+    const enrollments: Record<string, boolean> = {};
+    courseIds.forEach((courseId: string) => {
+      if (fullEnrollments[courseId]) {
+        enrollments[courseId] = true;
+      }
     });
 
-    // Create a map of courseId -> isEnrolled
-    const enrollmentMap: Record<string, boolean> = {};
-enrollments.forEach((enrollment: { courseId: string }) => {
-  enrollmentMap[enrollment.courseId] = true;
-});
-
-    return NextResponse.json({ enrollments: enrollmentMap });
+    return NextResponse.json({ enrollments });
 
   } catch (error: unknown) {
     console.error('Check enrollments error:', error);

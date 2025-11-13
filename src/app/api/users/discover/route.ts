@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
 import { getAvatarUrlFromUser } from '@/utils/avatarGenerator';
+import { redis, CACHE_TIMES } from '@/lib/redis';
 
 // Type definitions
 type UserGoalPurpose = 'learn' | 'teach' | 'both';
@@ -100,6 +101,23 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
     const filter = searchParams.get('filter') || 'all';
     const limit = parseInt(searchParams.get('limit') || '20');
+
+    // ✅ Create cache key based on query params
+    const cacheKey = `discover:users:${search}:${filter}:${limit}`;
+    
+    // ✅ Try cache first
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log('✅ Returning cached discover results');
+      return NextResponse.json(JSON.parse(cached), {
+        headers: {
+          'X-Cache': 'HIT',
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        },
+      });
+    }
+
+    console.log('🔄 Fetching discover users from database');
 
     const whereClause: WhereClause = {};
 
@@ -228,9 +246,26 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({
+    const response = {
       users: formattedUsers,
       total: formattedUsers.length
+    };
+
+    // ✅ Cache the results
+    await redis.set(
+      cacheKey,
+      JSON.stringify(response),
+      'EX',
+      CACHE_TIMES.MEDIUM
+    );
+
+    console.log('✅ Cached discover results');
+
+    return NextResponse.json(response, {
+      headers: {
+        'X-Cache': 'MISS',
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+      },
     });
 
   } catch (error) {

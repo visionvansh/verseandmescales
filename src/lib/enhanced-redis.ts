@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/lib/enhanced-redis.ts
 import { redis } from './redis';
 
 // Export redis explicitly

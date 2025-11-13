@@ -1,5 +1,11 @@
+//Volumes/vision/codes/course/my-app/src/app/api/course/public/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { 
+  getCachedData, 
+  courseCacheKeys, 
+  COURSE_CACHE_TIMES 
+} from '@/lib/cache/course-cache';
 
 // Define types
 type Lesson = {
@@ -63,6 +69,102 @@ type CourseData = {
   payments: Payment[];
 };
 
+// ✅ Cached course detail fetching
+async function fetchCourseDetail(id: string) {
+  console.log('🔄 Fetching course detail from database:', id);
+  
+  const course = await prisma.course.findFirst({
+    where: {
+      id: id,
+      status: 'PUBLISHED',
+      isPublished: true,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          surname: true,
+          username: true,
+          img: true,
+          avatars: {
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      },
+      homepage: {
+        include: {
+          customSections: {
+            orderBy: { position: 'asc' },
+          },
+          proofSection: {
+            include: {
+              images: {
+                orderBy: { position: 'asc' },
+              },
+            },
+          },
+          testimonials: {
+            include: {
+              testimonials: {
+                orderBy: { position: 'asc' },
+              },
+            },
+          },
+          faqSection: {
+            include: {
+              faqs: {
+                orderBy: { position: 'asc' },
+              },
+            },
+          },
+          footer: true,
+          sectionBadges: true,
+          courseStats: true,
+        },
+      },
+      modules: {
+        orderBy: { position: 'asc' },
+        include: {
+          lessons: {
+            orderBy: { position: 'asc' },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              videoDuration: true,
+              position: true,
+            },
+          },
+        },
+      },
+      enrollments: {
+        where: {
+          status: 'active',
+        },
+        select: {
+          id: true,
+          userId: true,
+          enrolledAt: true,
+        },
+      },
+      payments: {
+        where: {
+          status: 'succeeded',
+        },
+        select: {
+          id: true,
+          amount: true,
+          createdAt: true,
+        },
+      },
+    },
+  }) as CourseData | null;
+
+  console.log('✅ Fetched course detail from DB');
+  return course;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -79,95 +181,13 @@ export async function GET(
       );
     }
 
-    // Find published course by ID (all scalar fields like saleEndsAt are included by default)
-    const course = await prisma.course.findFirst({
-      where: {
-        id: id,
-        status: 'PUBLISHED',
-        isPublished: true,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            surname: true,
-            username: true,
-            img: true,
-            avatars: {
-              orderBy: { createdAt: 'desc' },
-            },
-          },
-        },
-        homepage: {
-          include: {
-            customSections: {
-              orderBy: { position: 'asc' },
-            },
-            proofSection: {
-              include: {
-                images: {
-                  orderBy: { position: 'asc' },
-                },
-              },
-            },
-            testimonials: {
-              include: {
-                testimonials: {
-                  orderBy: { position: 'asc' },
-                },
-              },
-            },
-            faqSection: {
-              include: {
-                faqs: {
-                  orderBy: { position: 'asc' },
-                },
-              },
-            },
-            footer: true,
-            sectionBadges: true,
-            courseStats: true,
-          },
-        },
-        modules: {
-          orderBy: { position: 'asc' },
-          include: {
-            lessons: {
-              orderBy: { position: 'asc' },
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                videoDuration: true,
-                position: true,
-              },
-            },
-          },
-        },
-        // ✅ ADD: Include enrollments and payments for real-time stats
-        enrollments: {
-          where: {
-            status: 'active',
-          },
-          select: {
-            id: true,
-            userId: true,
-            enrolledAt: true,
-          },
-        },
-        payments: {
-          where: {
-            status: 'succeeded',
-          },
-          select: {
-            id: true,
-            amount: true,
-            createdAt: true,
-          },
-        },
-      },
-    }) as CourseData | null;
+    // ✅ Use cache with stale-while-revalidate
+    const course = await getCachedData(
+      courseCacheKeys.courseDetail(id),
+      () => fetchCourseDetail(id),
+      COURSE_CACHE_TIMES.COURSE_DETAIL,
+      true
+    );
 
     console.log('📊 Course found:', course ? 'YES' : 'NO');
     console.log('📊 Has homepage:', course?.homepage ? 'YES' : 'NO');
@@ -208,7 +228,12 @@ export async function GET(
       // ✅ NEW: Add homepage type info
       homepageType: course.homepageType || "builder",
       customHomepageFile: course.customHomepageFile || null,
-    }, { status: 200 });
+    }, { 
+      status: 200,
+      headers: {
+        'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
+      },
+    });
   } catch (error) {
     console.error('❌ Error fetching public course:', error);
     return NextResponse.json(
