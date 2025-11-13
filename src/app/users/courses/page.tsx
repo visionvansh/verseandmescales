@@ -298,13 +298,102 @@ const categories = [
   { id: "new", label: "New", icon: FaChartLine },
 ];
 
+// ✅ Atomic data hook
+function useAtomicCoursesData() {
+  const [data, setData] = useState<{
+    courses: CourseCard[];
+    users: Map<string, ExtendedUser>;
+    loading: boolean;
+    error: string | null;
+  }>({
+    courses: [],
+    users: new Map(),
+    loading: true,
+    error: null,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAtomic() {
+      try {
+        console.log('⚡ Loading atomic data...');
+        const startTime = Date.now();
+
+        const response = await fetch('/api/course/atomic', {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch atomic data');
+        }
+
+        const atomicData = await response.json();
+        const loadTime = Date.now() - startTime;
+
+        console.log(`⚡ Atomic data loaded in ${loadTime}ms`);
+        console.log(`📊 Courses: ${atomicData.courses.length}, Users: ${Object.keys(atomicData.users).length}`);
+
+        if (isMounted) {
+          // Convert users object to Map
+          const usersMap = new Map<string, ExtendedUser>(
+            Object.entries(atomicData.users)
+          );
+
+          // Populate global user cache instantly
+          usersMap.forEach((user, username) => {
+            const avatars = atomicData.avatars[username] || [];
+            const primaryAvatar = avatars.find((a: any) => a.isPrimary) || avatars[0] || null;
+
+            userCache.set(username, {
+              data: {
+                ...user,
+                avatars: avatars,
+                primaryAvatar: primaryAvatar,
+              },
+              timestamp: Date.now(),
+            });
+          });
+
+          setData({
+            courses: atomicData.courses,
+            users: usersMap,
+            loading: false,
+            error: null,
+          });
+
+          console.log('✅ Atomic data set, page ready to render');
+        }
+      } catch (error) {
+        console.error('❌ Atomic load error:', error);
+        if (isMounted) {
+          setData({
+            courses: [],
+            users: new Map(),
+            loading: false,
+            error: 'Failed to load courses',
+          });
+        }
+      }
+    }
+
+    loadAtomic();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  return data;
+}
+
 export default function CoursesPage() {
-  
   const router = useRouter();
-  const [courses, setCourses] = useState<CourseCard[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+
+  // ✅ Use atomic data loader
+  const { courses, users, loading, error } = useAtomicCoursesData();
 
   // Hover card states
   const [showHoverCard, setShowHoverCard] = useState(false);
@@ -312,13 +401,6 @@ export default function CoursesPage() {
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  const hasPreloadedRef = useRef(false);
-
-  useEffect(() => {
-    fetchCoursesAndPreloadUsers();
-  }, []);
-
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (hoverTimeout) {
@@ -327,279 +409,14 @@ export default function CoursesPage() {
     };
   }, [hoverTimeout]);
 
-  // ✅ Fetch user profile WITH avatars
-  const fetchUserProfile = async (
-    username: string
-  ): Promise<ExtendedUser | null> => {
-    try {
-      const response = await fetch(`/api/profile/${username}`, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        console.error(`Failed to fetch profile for ${username}`);
-        return null;
-      }
-
-      const data = await response.json();
-      if (data.profile) {
-        try {
-          const avatarResponse = await fetch(
-            `/api/user/avatars?username=${username}`,
-            {
-              credentials: "include",
-            }
-          );
-
-          if (avatarResponse.ok) {
-            const avatarData = await avatarResponse.json();
-            const primaryAvatar =
-              avatarData.avatars?.find((a: UserAvatar) => a.isPrimary) ||
-              avatarData.avatars?.[0] ||
-              null;
-
-            return {
-              ...data.profile,
-              avatars: avatarData.avatars || [],
-              primaryAvatar: primaryAvatar,
-            };
-          }
-        } catch (error) {
-          console.error(`Failed to fetch avatars for ${username}:`, error);
-        }
-
-        return data.profile;
-      }
-
-      return null;
-    } catch (error) {
-      console.error(`Error fetching profile for ${username}:`, error);
-      return null;
-    }
-  };
-
-  // ✅ UPDATED: Bulk fetch users with avatars (returns Promise)
-  const bulkFetchUsers = async (usernames: string[]): Promise<void> => {
-    if (usernames.length === 0) return;
-
-    try {
-      console.log(`🚀 Bulk fetching ${usernames.length} users with avatars...`);
-
-      // Fetch all users in one request
-      const response = await fetch(
-        `/api/users/discover?limit=${usernames.length * 2}`,
-        {
-          credentials: "include",
-        }
-      );
-
-      if (!response.ok) {
-        console.error("❌ Failed to fetch users from discover API");
-        return;
-      }
-
-      const data = await response.json();
-      const users: User[] = data.users || [];
-
-      console.log(`✅ Fetched ${users.length} users from discover API`);
-
-      // For each user, fetch their avatars in parallel
-      const usersWithAvatars = await Promise.all(
-        users.map(async (user) => {
-          if (!user.username || !usernames.includes(user.username)) {
-            return null;
-          }
-
-          try {
-            const avatarResponse = await fetch(
-              `/api/user/avatars?username=${user.username}`,
-              {
-                credentials: "include",
-              }
-            );
-
-            if (avatarResponse.ok) {
-              const avatarData = await avatarResponse.json();
-              const primaryAvatar =
-                avatarData.avatars?.find((a: UserAvatar) => a.isPrimary) ||
-                avatarData.avatars?.[0] ||
-                null;
-
-              return {
-                ...user,
-                avatars: avatarData.avatars || [],
-                primaryAvatar: primaryAvatar,
-              } as ExtendedUser;
-            }
-          } catch (error) {
-            console.error(
-              `Failed to fetch avatars for ${user.username}:`,
-              error
-            );
-          }
-
-          return user as ExtendedUser;
-        })
-      );
-
-      // Cache all users
-      let cachedCount = 0;
-      usersWithAvatars.forEach((user) => {
-        if (user && user.username) {
-          userCache.set(user.username, {
-            data: user,
-            timestamp: Date.now(),
-          });
-          cachedCount++;
-        }
-      });
-
-      console.log(`💾 Cached ${cachedCount} users with avatars`);
-
-      // For any missing users, try individual fetch
-      const missingUsernames = usernames.filter(
-        (username) => !userCache.has(username)
-      );
-      if (missingUsernames.length > 0) {
-        console.log(
-          `⚠️ ${missingUsernames.length} users not found, fetching individually...`
-        );
-        await Promise.all(
-          missingUsernames.map(async (username) => {
-            const userData = await fetchUserProfile(username);
-            if (userData) {
-              userCache.set(username, {
-                data: userData,
-                timestamp: Date.now(),
-              });
-            }
-          })
-        );
-      }
-
-      console.log("✅ All user data loaded successfully");
-    } catch (error) {
-      console.error("❌ Error bulk fetching users:", error);
-    }
-  };
-
-  // ✅ UPDATED: Fetch enrollments after courses are loaded
-  const fetchCoursesAndPreloadUsers = async () => {
-    try {
-      setLoading(true);
-      console.log("🔄 Starting to load all data...");
-
-      // Step 1: Fetch courses
-      console.log("📚 Fetching courses...");
-      const response = await fetch("/api/course/public");
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch courses");
-      }
-
-      const coursesData: CourseCard[] = await response.json();
-      console.log(`✅ Fetched ${coursesData.length} courses`);
-
-      // Step 2: Check enrollment status for all courses
-      try {
-        const enrollmentResponse = await fetch(
-          "/api/course/enrollments/check",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              courseIds: coursesData.map((c) => c.id),
-            }),
-          }
-        );
-
-        if (enrollmentResponse.ok) {
-          const { enrollments } = await enrollmentResponse.json();
-          console.log(`✅ Fetched enrollment data`);
-
-          // Add enrollment status to each course
-          coursesData.forEach((course) => {
-            course.isEnrolled = enrollments[course.id] || false;
-          });
-        }
-      } catch (error) {
-        console.error("Failed to fetch enrollments:", error);
-      }
-
-      setCourses(coursesData);
-
-      // Step 3: Extract unique usernames
-      const uniqueUsernames: string[] = Array.from(
-        new Set(
-          coursesData
-            .map((course) => course.owner.username)
-            .filter((username): username is string => {
-              return typeof username === "string" && username.length > 0;
-            })
-        )
-      );
-
-      console.log(`👥 Found ${uniqueUsernames.length} unique course owners`);
-
-      // Step 4: Fetch ALL users with avatars BEFORE hiding skeleton
-      if (uniqueUsernames.length > 0 && !hasPreloadedRef.current) {
-        hasPreloadedRef.current = true;
-        console.log("⏳ Loading all user avatars...");
-
-        await bulkFetchUsers(uniqueUsernames);
-
-        console.log("✅ All user avatars loaded");
-      }
-
-      console.log("✅ All data loaded successfully - showing page");
-      setLoading(false);
-    } catch (error) {
-      console.error("❌ Error loading page:", error);
-      setCourses([]);
-      setLoading(false);
-    }
-  };
-
-  const filteredCourses = courses.filter((course) => {
-    const matchesSearch =
-      course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.description.toLowerCase().includes(searchQuery.toLowerCase());
-
-    if (selectedCategory === "all") return matchesSearch;
-    if (selectedCategory === "trending")
-      return matchesSearch && course.isTrending;
-    if (selectedCategory === "popular")
-      return matchesSearch && course.isPopular;
-    if (selectedCategory === "new") return matchesSearch;
-
-    return matchesSearch && course.category === selectedCategory;
-  });
-
-  // ✅ Get user from cache
-  const getUserFromCache = (username: string): ExtendedUser | null => {
-    const cached = userCache.get(username);
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      return cached.data;
-    }
-    return null;
-  };
-
-  // ✅ FIXED: Add null check for username
-  const handleUserHover = async (
-    owner: CourseCard["owner"],
-    e: React.MouseEvent
-  ) => {
+  // ✅ Instant user hover (no API calls needed)
+  const handleUserHover = (owner: CourseCard["owner"], e: React.MouseEvent) => {
     if (hoverTimeout) {
       clearTimeout(hoverTimeout);
     }
 
-    if (!owner.username) {
-      console.log("⚠️ No username available for hover card");
-      return;
-    }
+    if (!owner.username) return;
 
-    // Calculate position immediately
     const rect = e.currentTarget.getBoundingClientRect();
     const scrollY = window.scrollY || window.pageYOffset;
     const scrollX = window.scrollX || window.pageXOffset;
@@ -609,29 +426,13 @@ export default function CoursesPage() {
       y: rect.top + scrollY,
     });
 
-    // Try to get from cache first
-    const userData = getUserFromCache(owner.username);
+    // ✅ User is ALWAYS in cache from atomic load
+    const userData = userCache.get(owner.username);
 
     if (userData) {
-      console.log(
-        "✅ Showing cached hover card instantly for:",
-        owner.username
-      );
-      setHoveredUser(userData);
+      console.log('⚡ Showing instant hover card for:', owner.username);
+      setHoveredUser(userData.data);
       setShowHoverCard(true);
-    } else {
-      console.log("⏳ User not cached yet:", owner.username);
-      const timeout = setTimeout(() => {
-        if (owner.username) {
-          const freshData = getUserFromCache(owner.username);
-          if (freshData) {
-            setHoveredUser(freshData);
-            setShowHoverCard(true);
-          }
-        }
-      }, 150);
-
-      setHoverTimeout(timeout);
     }
   };
 
@@ -655,11 +456,28 @@ export default function CoursesPage() {
     setShowHoverCard(true);
   };
 
+  const filteredCourses = courses.filter((course) => {
+    const matchesSearch =
+      course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      course.description.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (selectedCategory === "all") return matchesSearch;
+    if (selectedCategory === "trending") return matchesSearch && course.isTrending;
+    if (selectedCategory === "popular") return matchesSearch && course.isPopular;
+    if (selectedCategory === "new") return matchesSearch;
+
+    return matchesSearch && course.category === selectedCategory;
+  });
+
   return (
     <LazyMotion features={domAnimation}>
       <div className="relative z-10 mt-20">
         {loading ? (
           <CoursesPageSkeleton />
+        ) : error ? (
+          <div className="text-center py-20">
+            <p className="text-red-500 text-xl">{error}</p>
+          </div>
         ) : (
           <div className="container mx-auto px-3 xs:px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 py-6 sm:py-8 md:py-10 lg:py-12">
             <div className="max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto">
@@ -751,7 +569,6 @@ export default function CoursesPage() {
                 </m.div>
               </m.div>
 
-              {/* Courses Grid */}
               {filteredCourses.length === 0 ? (
                 <m.div
                   initial={{ opacity: 0 }}

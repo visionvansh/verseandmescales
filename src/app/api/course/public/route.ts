@@ -117,61 +117,66 @@ function calculateCourseDuration(modules: Module[]): string {
   return `${seconds}s`;
 }
 
-// ✅ Cached course fetching
-async function fetchPublicCourses() {
-  console.log('🔄 Fetching courses from database...');
-  
-  const courses = await prisma.course.findMany({
-    where: {
-      status: 'PUBLISHED',
-      isPublished: true,
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          username: true,
-          img: true,
-          avatars: {
-            orderBy: { createdAt: 'desc' },
-          },
-        },
+// ✅ Cached course fetching - FIXED to always return array
+async function fetchPublicCourses(): Promise<Course[]> {
+  try {
+    console.log('🔄 Fetching courses from database...');
+    
+    const courses = await prisma.course.findMany({
+      where: {
+        status: 'PUBLISHED',
+        isPublished: true,
       },
-      modules: {
-        include: {
-          lessons: {
-            select: {
-              id: true,
-              videoDuration: true,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            img: true,
+            avatars: {
+              orderBy: { createdAt: 'desc' },
             },
           },
         },
-        orderBy: {
-          position: 'asc',
+        modules: {
+          include: {
+            lessons: {
+              select: {
+                id: true,
+                videoDuration: true,
+              },
+            },
+          },
+          orderBy: {
+            position: 'asc',
+          },
+        },
+        enrollments: {
+          where: {
+            status: 'active',
+          },
+          select: {
+            id: true,
+          },
+        },
+        ratings: {
+          select: {
+            rating: true,
+          },
         },
       },
-      enrollments: {
-        where: {
-          status: 'active',
-        },
-        select: {
-          id: true,
-        },
+      orderBy: {
+        publishedAt: 'desc',
       },
-      ratings: {
-        select: {
-          rating: true,
-        },
-      },
-    },
-    orderBy: {
-      publishedAt: 'desc',
-    },
-  }) as Course[];
+    }) as Course[];
 
-  console.log(`✅ Fetched ${courses.length} courses from DB`);
-  return courses;
+    console.log(`✅ Fetched ${courses.length} courses from DB`);
+    return courses || []; // ✅ FIXED: Always return array
+  } catch (error) {
+    console.error('❌ Error in fetchPublicCourses:', error);
+    return []; // ✅ FIXED: Return empty array on error
+  }
 }
 
 /**
@@ -189,6 +194,15 @@ export async function GET(request: NextRequest) {
       COURSE_CACHE_TIMES.PUBLIC_COURSES,
       true // Enable stale-while-revalidate
     );
+
+    // ✅ FIXED: Validate that courses is an array
+    if (!Array.isArray(courses)) {
+      console.error('❌ Courses is not an array:', typeof courses);
+      return NextResponse.json(
+        { error: 'Invalid data format returned' },
+        { status: 500 }
+      );
+    }
 
     console.log(`📚 Found ${courses.length} published courses`);
 
