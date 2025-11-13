@@ -243,6 +243,62 @@ const PUBLIC_ROUTE_PREFIXES = [
   "/users/courses", // ✅ Make courses public
 ];
 
+// contexts/AuthContext.tsx - Add this hook
+function useAtomicAuth() {
+  const [data, setData] = useState<{
+    user: any | null;
+    sessions: any[];
+    loading: boolean;
+    error: string | null;
+  }>({
+    user: null,
+    sessions: [],
+    loading: true,
+    error: null,
+  });
+
+  const loadAtomicAuth = useCallback(async (forceRefresh = false) => {
+    try {
+      console.log('⚡ Loading atomic auth data...');
+      const startTime = Date.now();
+
+      const response = await fetch('/api/atomic/complete', {
+        credentials: 'include',
+        cache: forceRefresh ? 'no-store' : 'default',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch atomic auth data');
+      }
+
+      const atomicData = await response.json();
+      const loadTime = Date.now() - startTime;
+
+      console.log(`⚡ Atomic auth data loaded in ${loadTime}ms`);
+
+      setData({
+        user: atomicData.user,
+        sessions: atomicData.sessions,
+        loading: false,
+        error: null,
+      });
+
+      return atomicData;
+    } catch (error) {
+      console.error('❌ Atomic auth load failed:', error);
+      setData({
+        user: null,
+        sessions: [],
+        loading: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }, []);
+
+  return { ...data, loadAtomicAuth };
+}
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
@@ -1432,15 +1488,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // ✅ UPDATED: checkAuthStatus as useCallback with concurrency prevention and debouncing
+  // Update checkAuthStatus to use atomic loading:
   const checkAuthStatus = useCallback(async (forceRefresh = false) => {
-    // ✅ Prevent concurrent checks
     if (checkInProgressRef.current && !forceRefresh) {
       console.log('[Auth] Check already in progress, skipping');
       return;
     }
 
-    // ✅ Debounce rapid calls
     const now = Date.now();
     if (!forceRefresh && lastCheckRef.current && (now - lastCheckRef.current < 2000)) {
       console.log('[Auth] Check called too soon, skipping');
@@ -1450,90 +1504,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       checkInProgressRef.current = true;
       lastCheckRef.current = now;
+      setIsLoading(true);
 
-      const currentPath = pathname || "/";
-      
-      console.log('[Auth] checkAuthStatus called for path:', currentPath);
-
-      const isPublic = isPublicRoute(currentPath);
-      const isPublicCourses = isPublicCoursesRoute(currentPath);
-      const shouldCheckAuthOnPublic = PUBLIC_ROUTES_WITH_AUTH_CHECK.some(prefix => 
-        currentPath.startsWith(prefix)
-      );
-
-      // ✅ For public courses, set states but continue check
-      if (isPublicCourses) {
-        console.log("[Auth] Public courses route - ensuring states are set");
-        setAuthChecked(true);
-        setIsLoading(false);
-      }
-
-      // ✅ For other public routes
-      if (isPublic && !shouldCheckAuthOnPublic && !isPublicCourses && !forceRefresh) {
-        console.log("[Auth] Other public route, setting authChecked=true");
-        setAuthChecked(true);
-        setIsLoading(false);
-        setUser(null);
-        return;
-      }
-
-      // ✅ Check cache
-      if (!forceRefresh && authCacheRef.current) {
-        const cacheAge = Date.now() - authCacheRef.current.timestamp;
-        const fingerprintMatch = authCacheRef.current.deviceFingerprint === deviceFingerprint;
-        
-        if (cacheAge < AUTH_CACHE_DURATION && fingerprintMatch) {
-          console.log('[Auth] Using cached auth state');
-          setUser(authCacheRef.current.user);
-          setAuthChecked(true);
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // ✅ Check for social auth flow
-      const urlParams = new URLSearchParams(window.location.search);
-      const hasSocialToken = urlParams.has("social_token");
-      const hasProvider = urlParams.has("provider");
-
-      if (
-        (currentPath === "/auth/signup" ||
-          currentPath === "/auth/2fa-verify") &&
-        hasSocialToken &&
-        hasProvider &&
-        !forceRefresh
-      ) {
-        console.log("[Auth] Social auth flow in progress, skipping auth check");
-        setAuthChecked(true);
-        setIsLoading(false);
-        return;
-      }
-
-      console.log("[Auth] Fetching auth status from API...");
-
-      const response = await fetch("/api/auth/me", {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-        headers: {
-          "X-Skip-Auth-Refresh": "true",
-        },
+      // ✅ Use atomic endpoint instead of separate /me call
+      const response = await fetch('/api/atomic/complete', {
+        credentials: 'include',
+        cache: forceRefresh ? 'no-store' : 'default',
       });
 
       if (response.ok) {
-        const userData = await response.json();
+        const atomicData = await response.json();
 
-        if (userData.user) {
-          console.log('[Auth] ✅ User authenticated:', userData.user.email);
-          setUser(userData.user);
-          emitAuthChange(userData.user);
+        if (atomicData.user) {
+          console.log('[Auth] ✅ User authenticated via atomic load');
+          setUser(atomicData.user);
+          setSessions(atomicData.sessions || []);
+          emitAuthChange(atomicData.user);
           
-          setDeviceTrusted(userData.deviceTrusted || false);
-          setSuspiciousActivity(userData.suspiciousActivity || false);
+          setDeviceTrusted(atomicData.user.deviceTrusted || false);
 
           // Update cache
           authCacheRef.current = {
-            user: userData.user,
+            user: atomicData.user,
             timestamp: Date.now(),
             deviceFingerprint: deviceFingerprint,
           };
@@ -1541,56 +1533,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Update navbar cache
           sessionStorage.setItem('navbar_user_cache', JSON.stringify({
             user: {
-              id: userData.user.id,
-              email: userData.user.email,
-              username: userData.user.username,
-              name: userData.user.name,
-              img: userData.user.img,
+              id: atomicData.user.id,
+              email: atomicData.user.email,
+              username: atomicData.user.username,
+              name: atomicData.user.name,
+              img: atomicData.user.img,
             },
             timestamp: Date.now(),
           }));
-
-          if (userData.expiresIn) {
-            setupTokenRefresh(userData.expiresIn);
-          }
-
-          if (
-            (currentPath === "/auth/signin" || currentPath === "/auth/signup") &&
-            !hasSocialToken &&
-            !isPublicCourses
-          ) {
-            console.log("[Auth] Already authenticated, redirecting to /users");
-            router.push("/users");
-          }
-
-          fetchSessions();
-          fetchSecurityEvents();
         }
       } else if (response.status === 401) {
         console.log('[Auth] Not authenticated');
         setUser(null);
+        setSessions([]);
         emitAuthChange(null);
         authCacheRef.current = null;
         sessionStorage.removeItem('navbar_user_cache');
-
-        if (isProtectedRoute(currentPath) && !isPublicCourses) {
-          console.log("[Auth] Protected route requires auth, redirecting to signin");
-          router.push("/auth/signin?redirect=" + encodeURIComponent(currentPath));
-        }
       }
     } catch (error) {
       console.error("[Auth] Check failed:", error);
       setUser(null);
+      setSessions([]);
       emitAuthChange(null);
       authCacheRef.current = null;
-      sessionStorage.removeItem('navbar_user_cache');
     } finally {
       setIsLoading(false);
       setAuthChecked(true);
       initialCheckDone.current = true;
-      checkInProgressRef.current = false; // ✅ Release lock
+      checkInProgressRef.current = false;
     }
-  }, [pathname, deviceFingerprint, isPublicRoute, isPublicCoursesRoute, isProtectedRoute, router]); // ✅ Add all dependencies
+  }, [pathname, deviceFingerprint, isPublicRoute, isPublicCoursesRoute, isProtectedRoute, router]);
 
   const clearAllData = () => {
     setUser(null);

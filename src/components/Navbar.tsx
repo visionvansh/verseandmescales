@@ -61,6 +61,116 @@ interface UserAvatar {
   customImageUrl: string | null;
 }
 
+// ✅ Atomic data hook - FIXED: Always call hooks in the same order
+function useAtomicNavbarData() {
+  const { user, authChecked } = useAuth();
+  const [data, setData] = useState<{
+    navbarUser: any | null;
+    userGoals: any | null;
+    primaryAvatar: any | null;
+    sessions: any[];
+    loading: boolean;
+    error: string | null;
+  }>({
+    navbarUser: null,
+    userGoals: null,
+    primaryAvatar: null,
+    sessions: [],
+    loading: true,
+    error: null,
+  });
+
+  const loadedRef = useRef(false);
+  const loadingRef = useRef(false);
+
+  // ✅ FIXED: Always call useEffect hooks in the same order
+  useEffect(() => {
+    // Don't load until auth is checked
+    if (!authChecked) {
+      console.log('[Navbar] Waiting for auth check...');
+      return;
+    }
+
+    // If no user, set loading to false immediately
+    if (!user) {
+      console.log('[Navbar] No user, skipping atomic load');
+      setData({
+        navbarUser: null,
+        userGoals: null,
+        primaryAvatar: null,
+        sessions: [],
+        loading: false,
+        error: null,
+      });
+      return;
+    }
+
+    // Prevent duplicate loads
+    if (loadedRef.current || loadingRef.current) {
+      console.log('[Navbar] Already loaded or loading, skipping');
+      return;
+    }
+
+    loadingRef.current = true;
+
+    async function loadAtomic() {
+      try {
+        console.log('⚡ Loading atomic navbar data...');
+        const startTime = Date.now();
+
+        const response = await fetch('/api/atomic/navbar', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch navbar data');
+        }
+
+        const atomicData = await response.json();
+        const loadTime = Date.now() - startTime;
+
+        console.log(`⚡ Navbar atomic data loaded in ${loadTime}ms`);
+
+        setData({
+          navbarUser: atomicData.user,
+          userGoals: atomicData.userGoals,
+          primaryAvatar: atomicData.primaryAvatar,
+          sessions: atomicData.sessions || [],
+          loading: false,
+          error: null,
+        });
+
+        loadedRef.current = true;
+        console.log('✅ Navbar ready to render');
+      } catch (error) {
+        console.error('❌ Navbar atomic load error:', error);
+        setData({
+          navbarUser: null,
+          userGoals: null,
+          primaryAvatar: null,
+          sessions: [],
+          loading: false,
+          error: 'Failed to load navbar',
+        });
+      } finally {
+        loadingRef.current = false;
+      }
+    }
+
+    loadAtomic();
+  }, [user, authChecked]);
+
+  // Reset loaded ref when user changes
+  useEffect(() => {
+    if (user?.id) {
+      loadedRef.current = false;
+    }
+  }, [user?.id]);
+
+  return data;
+}
+
 // ✅ Locked Command Palette for Non-Logged-In Users
 const LockedCommandPalette = ({ onClose }: { onClose: () => void }) => {
   return (
@@ -309,167 +419,38 @@ const ProfileAvatar = ({
 };
 
 const CommandHeader = () => {
-  const { user, logout, isLoading, authChecked } = useAuth();
+  const { user, logout, isLoading: authLoading, authChecked } = useAuth();
+  const pathname = usePathname();
   
+  // ✅ ALWAYS call hooks in the same order - no conditional hooks
+  const { navbarUser, userGoals, primaryAvatar, sessions, loading: navbarLoading } = useAtomicNavbarData();
+  
+  // ✅ ALL useState hooks MUST be called before any conditional returns
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const pathname = usePathname();
-
-  const [userRole, setUserRole] = useState<string>('Learner');
-  const [userGoals, setUserGoals] = useState<UserGoalsData | null>(null);
-  const [primaryAvatar, setPrimaryAvatar] = useState<UserAvatar | null>(null);
-
-  // ✅ NEW: Track if component has mounted (fixes hydration)
   const [isMounted, setIsMounted] = useState(false);
 
-  const isLoadingGoalsRef = useRef(false);
-  const isLoadingAvatarRef = useRef(false);
-
-  // ✅ FIXED: Only access sessionStorage after mount
-  const [cachedUser, setCachedUser] = useState<any>(null);
-
-  // ✅ Set mounted state
-  useEffect(() => {
-    setIsMounted(true);
-    
-    // Load cached user after mount
-    const cached = sessionStorage.getItem('navbar_user_cache');
-    if (cached) {
-      try {
-        const parsedCache = JSON.parse(cached);
-        const cacheAge = Date.now() - parsedCache.timestamp;
-        if (cacheAge < 30000) {
-          console.log('[Navbar] Using cached user on mount');
-          setCachedUser(parsedCache.user);
-        }
-      } catch (e) {
-        console.error('[Navbar] Cache parse error:', e);
-      }
-    }
-  }, []);
-
-  // Command Palette Items
-  const commandItems: CommandCategory[] = [
-    {
-      category: 'Quick Actions',
-      items: [
-        { icon: FaPlus, label: 'Create new course', shortcut: 'C', href: '/users/management', color: 'text-red-400' },
-        { icon: FaVideo, label: 'Explore Courses', shortcut: 'E', href: '/users/courses', color: 'text-blue-400' },
-        { icon: FaChartLine, label: 'Your Profile', shortcut: 'P', href: '/users/profile', color: 'text-purple-400' },
-        { icon: FaMoneyBillWave, label: 'Check earnings', shortcut: 'E', href: '/users/payout', color: 'text-green-400' },
-      ]
-    },
-    {
-      category: 'Navigation',
-      items: [
-        { icon: FaBookOpen, label: 'My Courses', href: '/users/my-courses', color: 'text-green-400' },
-        { icon: FaUserFriends, label: 'Students', href: '/users/students', color: 'text-cyan-400' },
-        { icon: FaGraduationCap, label: 'Learning', href: '/users/learning', color: 'text-purple-400' },
-        { icon: FaCog, label: 'Settings', href: '/users/settings', color: 'text-gray-400' },
-      ]
-    },
-    {
-      category: 'Recent',
-      items: [
-        { icon: FaClock, label: 'Advanced Marketing Course', subtext: 'Edited 2 hours ago', href: '/users/my-courses', color: 'text-yellow-400' },
-        { icon: FaClock, label: 'Loading... Messages', subtext: '5 unread', href: '/users/messages', color: 'text-blue-400' },
-        { icon: FaClock, label: 'Revenue Report', subtext: 'Viewed yesterday', href: '/users/analytics', color: 'text-green-400' },
-      ]
-    }
-  ];
-
-  // Update cache when user changes
-  useEffect(() => {
-    if (!isMounted) return;
-    
-    if (user && authChecked) {
-      const cacheData = {
-        user: {
-          id: user.id,
-          email: user.email,
-          username: user.username,
-          name: user.name,
-          img: user.img,
-        },
-        timestamp: Date.now(),
-      };
-      sessionStorage.setItem('navbar_user_cache', JSON.stringify(cacheData));
-      setCachedUser(user);
-    } else if (!user && authChecked) {
-      sessionStorage.removeItem('navbar_user_cache');
-      setCachedUser(null);
-    }
-  }, [user, authChecked, isMounted]);
-
-  // Fetch User Goals
-  const fetchUserGoals = useCallback(async () => {
-    if (!user?.id || isLoadingGoalsRef.current) return;
-
+  // ✅ ALL useCallback hooks
+  const handleLogout = useCallback(async () => {
     try {
-      isLoadingGoalsRef.current = true;
-      const response = await fetch('/api/users/goal', {
-        method: 'GET',
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data) {
-          setUserGoals(result.data);
-          setUserRole(result.data.role);
-        }
-      }
+      await logout();
     } catch (error) {
-      console.error('Error fetching user goals:', error);
-    } finally {
-      isLoadingGoalsRef.current = false;
+      console.error("Logout error:", error);
     }
-  }, [user?.id]);
+  }, [logout]);
 
-  // Fetch User Avatars
-  const fetchUserAvatars = useCallback(async () => {
-    if (!user?.id || isLoadingAvatarRef.current) return;
+  const userRole = useCallback(() => {
+    if (!userGoals?.purpose) return 'Learner';
+    if (userGoals.purpose === 'teach') return 'Tutor';
+    if (userGoals.purpose === 'both') return 'Tutor & Learner';
+    return 'Learner';
+  }, [userGoals]);
 
-    try {
-      isLoadingAvatarRef.current = true;
-      const response = await fetch('/api/user/avatars', {
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.avatars && data.avatars.length > 0) {
-          const primary = data.avatars.find((a: UserAvatar) => a.isPrimary);
-          setPrimaryAvatar(primary || data.avatars[0]);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching avatars:', error);
-    } finally {
-      isLoadingAvatarRef.current = false;
-    }
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (user?.id) {
-      fetchUserGoals();
-      fetchUserAvatars();
-    }
-  }, [user?.id, fetchUserGoals, fetchUserAvatars]);
-
-  const refreshUserGoals = useCallback(() => {
-    fetchUserGoals();
-  }, [fetchUserGoals]);
-
-  const refreshUserAvatars = useCallback(() => {
-    fetchUserAvatars();
-  }, [fetchUserAvatars]);
-
-  const getRoleBadgeColor = (role: string) => {
+  const getRoleBadgeColor = useCallback((role: string) => {
     if (role.includes('Tutor') && role.includes('Learner')) {
       return 'bg-gradient-to-r from-purple-500 to-blue-500';
     } else if (role.includes('Tutor')) {
@@ -477,26 +458,23 @@ const CommandHeader = () => {
     } else {
       return 'bg-gradient-to-r from-blue-500 to-cyan-500';
     }
-  };
+  }, []);
+
+  // ✅ ALL useEffect hooks MUST be called in the same order every render
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
-    if (isMounted) {
-      (window as any).refreshNavbarGoals = refreshUserGoals;
-      (window as any).refreshNavbarAvatars = refreshUserAvatars;
-    }
-  }, [refreshUserGoals, refreshUserAvatars, isMounted]);
-
-  useEffect(() => {
-    const handleAvatarUpdate = () => {
-      console.log('🔄 Avatar updated, refreshing navbar...');
-      refreshUserAvatars();
+    const handleRefresh = async () => {
+      console.log('🔄 Navbar refresh triggered');
+      window.location.reload();
     };
 
-    window.addEventListener('avatar-updated', handleAvatarUpdate);
-    return () => window.removeEventListener('avatar-updated', handleAvatarUpdate);
-  }, [refreshUserAvatars]);
+    window.addEventListener('navbar-refresh', handleRefresh);
+    return () => window.removeEventListener('navbar-refresh', handleRefresh);
+  }, []);
 
-  // Keyboard shortcut handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -515,7 +493,6 @@ const CommandHeader = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -531,7 +508,6 @@ const CommandHeader = () => {
     }
   }, [isProfileOpen, isNotificationsOpen]);
 
-  // Mock notifications
   useEffect(() => {
     if (user?.id) {
       const mockNotifications: Notification[] = [
@@ -571,42 +547,12 @@ const CommandHeader = () => {
     }
   }, [user?.id]);
 
-  // Listen for auth changes
   useEffect(() => {
     const handleAuthChange = async (event: Event) => {
       if (!(event instanceof CustomEvent)) return;
       
       const { user: newUser } = event.detail;
-      
       console.log('[Navbar] 🔥 Auth state changed:', newUser?.email);
-      
-      if (newUser) {
-        setCachedUser(newUser);
-        
-        if (isMounted) {
-          const cacheData = {
-            user: {
-              id: newUser.id,
-              email: newUser.email,
-              username: newUser.username,
-              name: newUser.name,
-              img: newUser.img,
-            },
-            timestamp: Date.now(),
-          };
-          sessionStorage.setItem('navbar_user_cache', JSON.stringify(cacheData));
-        }
-        
-        fetchUserGoals();
-        fetchUserAvatars();
-      } else {
-        setCachedUser(null);
-        if (isMounted) {
-          sessionStorage.removeItem('navbar_user_cache');
-        }
-        setUserGoals(null);
-        setPrimaryAvatar(null);
-      }
     };
 
     window.addEventListener('auth-state-changed', handleAuthChange);
@@ -614,15 +560,61 @@ const CommandHeader = () => {
     return () => {
       window.removeEventListener('auth-state-changed', handleAuthChange);
     };
-  }, [fetchUserGoals, fetchUserAvatars, isMounted]);
+  }, []);
 
-  const handleLogout = useCallback(async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error("Logout error:", error);
+  // ✅ Determine loading state (after all hooks)
+  const isLoading = authLoading || navbarLoading || !authChecked;
+  const displayUser = user || navbarUser;
+  const isPublicCoursesRoute = pathname === '/users/courses' || pathname?.startsWith('/users/courses/');
+  const showLockedState = !displayUser && !isPublicCoursesRoute;
+
+  // ✅ NOW we can do conditional rendering (after all hooks are called)
+  if (!isMounted) {
+    return <NavbarSkeleton />;
+  }
+
+  if (isLoading) {
+    console.log('[Navbar] Loading state, showing skeleton');
+    return <NavbarSkeleton />;
+  }
+
+  console.log('[Navbar] Render:', {
+    hasUser: !!user,
+    hasNavbarUser: !!navbarUser,
+    hasDisplayUser: !!displayUser,
+    userRole: userRole(),
+    isLoading,
+  });
+
+  // Command Palette Items
+  const commandItems: CommandCategory[] = [
+    {
+      category: 'Quick Actions',
+      items: [
+        { icon: FaPlus, label: 'Create new course', shortcut: 'C', href: '/users/management', color: 'text-red-400' },
+        { icon: FaVideo, label: 'Explore Courses', shortcut: 'E', href: '/users/courses', color: 'text-blue-400' },
+        { icon: FaChartLine, label: 'Your Profile', shortcut: 'P', href: '/users/profile', color: 'text-purple-400' },
+        { icon: FaMoneyBillWave, label: 'Check earnings', shortcut: 'E', href: '/users/payout', color: 'text-green-400' },
+      ]
+    },
+    {
+      category: 'Navigation',
+      items: [
+        { icon: FaBookOpen, label: 'My Courses', href: '/users/my-courses', color: 'text-green-400' },
+        { icon: FaUserFriends, label: 'Students', href: '/users/students', color: 'text-cyan-400' },
+        { icon: FaGraduationCap, label: 'Learning', href: '/users/learning', color: 'text-purple-400' },
+        { icon: FaCog, label: 'Settings', href: '/users/settings', color: 'text-gray-400' },
+      ]
+    },
+    {
+      category: 'Recent',
+      items: [
+        { icon: FaClock, label: 'Advanced Marketing Course', subtext: 'Edited 2 hours ago', href: '/users/my-courses', color: 'text-yellow-400' },
+        { icon: FaClock, label: 'Loading... Messages', subtext: '5 unread', href: '/users/messages', color: 'text-blue-400' },
+        { icon: FaClock, label: 'Revenue Report', subtext: 'Viewed yesterday', href: '/users/analytics', color: 'text-green-400' },
+      ]
     }
-  }, [logout]);
+  ];
 
   const filteredCommands = commandItems.map(category => ({
     ...category,
@@ -630,44 +622,6 @@ const CommandHeader = () => {
       item.label.toLowerCase().includes(searchQuery.toLowerCase())
     )
   })).filter(category => category.items.length > 0);
-
-  // ✅ CRITICAL FIX: Determine displayUser consistently
-  const displayUser = user || cachedUser;
-
-  const isPublicCoursesRoute = 
-    pathname === '/users/courses' || 
-    pathname?.startsWith('/users/courses/');
-
-  // ✅ Don't show skeleton on client-side if already mounted
-  const shouldShowSkeleton = 
-    !isMounted || // Always show skeleton on server
-    (!isPublicCoursesRoute && isLoading && !authChecked && !displayUser);
-
-  console.log('[Navbar] Render state:', {
-    isMounted,
-    pathname,
-    isPublicCoursesRoute,
-    isLoading,
-    authChecked,
-    hasUser: !!user,
-    hasCachedUser: !!cachedUser,
-    shouldShowSkeleton,
-  });
-
-  // ✅ Server-side: always show skeleton to prevent hydration mismatch
-  if (!isMounted) {
-    return <NavbarSkeleton />;
-  }
-
-  // ✅ Client-side only after mount
-  if (shouldShowSkeleton) {
-    console.log('[Navbar] Showing skeleton');
-    return <NavbarSkeleton />;
-  }
-
-  const showLockedState = !displayUser && !isPublicCoursesRoute;
-
-  console.log('[Navbar] showLockedState:', showLockedState);
 
   return (
     <>
@@ -875,9 +829,9 @@ const CommandHeader = () => {
                               {displayUser?.username}
                             </div>
                             <div className="flex items-center gap-1">
-                              <div className={`w-1.5 h-1.5 rounded-full ${getRoleBadgeColor(userRole)}`} />
+                              <div className={`w-1.5 h-1.5 rounded-full ${getRoleBadgeColor(userRole())}`} />
                               <div className="text-[10px] text-gray-500 leading-tight">
-                                {userRole}
+                                {userRole()}
                               </div>
                             </div>
                           </div>
@@ -920,9 +874,9 @@ const CommandHeader = () => {
                                           {displayUser?.email}
                                         </p>
                                         <div className="flex items-center gap-1 mt-1">
-                                          <div className={`w-1.5 h-1.5 rounded-full ${getRoleBadgeColor(userRole)}`} />
+                                          <div className={`w-1.5 h-1.5 rounded-full ${getRoleBadgeColor(userRole())}`} />
                                           <span className="text-[10px] text-gray-500">
-                                            {userRole}
+                                            {userRole()}
                                           </span>
                                         </div>
                                       </div>
@@ -1089,9 +1043,9 @@ const CommandHeader = () => {
                                       {displayUser?.email}
                                     </p>
                                     <div className="flex items-center gap-1 mt-0.5">
-                                      <div className={`w-1.5 h-1.5 rounded-full ${getRoleBadgeColor(userRole)}`} />
+                                      <div className={`w-1.5 h-1.5 rounded-full ${getRoleBadgeColor(userRole())}`} />
                                       <span className="text-[9px] text-gray-500">
-                                        {userRole}
+                                        {userRole()}
                                       </span>
                                     </div>
                                   </div>

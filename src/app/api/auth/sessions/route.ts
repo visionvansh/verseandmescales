@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
 import { CACHE_PREFIX, CACHE_TIMES, cacheWrapper, invalidateUserCache, redis } from '@/lib/enhanced-redis';
+import { loadCompleteAtomicData } from '@/lib/loaders/atomic-loader'; // Assuming this is the import path for loadCompleteAtomicData
 
 // ✅ FIXED: Define the type to match Prisma schema exactly
 type SessionWithDevice = {
@@ -35,122 +36,17 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    // ✅ Check for cache-busting parameters
-    const url = new URL(request.url);
-    const skipCache = url.searchParams.has('_t') || url.searchParams.get('refresh') === 'true';
-    
-    // Get the token (same logic as getAuthUser)
-    let token = null;
-    const authHeader = request.headers.get('Authorization');
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    }
-    if (!token) {
-      const cookieStore = await cookies();
-      token = cookieStore.get('auth-token')?.value;
-    }
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Token not found' }, { status: 401 });
-    }
-    
-    const currentSessionToken = token;
-    
-    // ✅ Function to fetch and format sessions
-    const fetchSessions = async () => {
-      console.log('[Sessions API] Fetching fresh data from database for user:', user.id);
-      
-      // Get active sessions for the user
-      const sessions = await prisma.userSession.findMany({
-        where: {
-          userId: user.id,
-          isActive: true,
-          expiresAt: {
-            gt: new Date()
-          }
-        },
-        include: {
-          device: true
-        },
-        orderBy: {
-          lastUsed: 'desc'
-        }
-      });
-      
-      console.log(`[Sessions API] Found ${sessions.length} active sessions`);
-      
-      // Transform sessions with additional info
-      const formattedSessions = sessions.map((session: SessionWithDevice) => {
-        const isCurrent = session.sessionToken === currentSessionToken;
-        
-        return {
-          id: session.id,
-          deviceId: session.deviceId, // ✅ Now correctly nullable
-          deviceName: session.device?.deviceName || 'Unknown device',
-          browser: session.device?.browser || 'Unknown browser',
-          os: session.device?.os || 'Unknown OS',
-          location: session.location || 'Unknown location',
-          ipAddress: session.ipAddress || 'Unknown IP',
-          lastUsed: session.lastUsed,
-          expiresAt: session.expiresAt,
-          current: isCurrent,
-          trusted: session.device?.trusted || false,
-          isAccountCreationDevice: session.device?.isAccountCreationDevice || false,
-          sessionType: session.sessionType,
-          // Check for manually scheduled revocation
-          scheduledRevocationDate: (() => {
-            const standardExpiration = new Date(session.createdAt);
-            standardExpiration.setDate(standardExpiration.getDate() + (session.device?.trusted ? 150 : 28));
-            
-            const timeDiff = Math.abs(session.expiresAt.getTime() - standardExpiration.getTime());
-            const daysDiff = timeDiff / (1000 * 3600 * 24);
-            
-            if (daysDiff > 1 && session.expiresAt < standardExpiration) {
-              return session.expiresAt.toISOString();
-            }
-            return null;
-          })()
-        };
-      });
-      
-      return {
-        sessions: formattedSessions,
-        count: formattedSessions.length,
-        timestamp: Date.now()
-      };
-    };
-    
-    // ✅ If skipCache or refresh requested, bypass cache and get fresh data
-    if (skipCache) {
-      console.log('[Sessions API] Cache bypass requested, fetching fresh data');
-      const data = await fetchSessions();
-      
-      return NextResponse.json(data, {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-          'X-Cache': 'BYPASS'
-        }
-      });
-    }
-    
-    // ✅ Define cache key
-    const cacheKey = `${CACHE_PREFIX.SESSIONS}:list:${user.id}`;
-    
-    // ✅ Use cache wrapper with SHORT TTL for near real-time updates
-    const response = await cacheWrapper(
-      cacheKey,
-      fetchSessions,
-      10,
-      true
-    );
-    
-    return NextResponse.json(response, {
+
+    // ✅ Use atomic data instead of separate query
+    const atomicData = await loadCompleteAtomicData(user.id);
+
+    return NextResponse.json({
+      sessions: atomicData.sessions,
+      count: atomicData.sessions.length,
+      timestamp: atomicData.timestamp
+    }, {
       headers: {
-        'Cache-Control': 'private, max-age=10, must-revalidate',
-        'X-Cache': 'HIT'
+        'Cache-Control': 'private, max-age=60, must-revalidate',
       }
     });
     
@@ -158,7 +54,6 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching sessions:', error);
     return NextResponse.json({
       error: 'Internal server error',
-      message: 'Failed to fetch sessions'
     }, { status: 500 });
   }
 }
