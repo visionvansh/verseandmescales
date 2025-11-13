@@ -286,6 +286,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const fingerprintGeneratedRef = useRef<boolean>(false);
   const initialCheckDone = useRef<boolean>(false);
 
+  // ✅ NEW: Refs for concurrency and debouncing
+  const checkInProgressRef = useRef(false);
+  const lastCheckRef = useRef<number | null>(null);
+
   // Helper: Check if route is public
   const isPublicRoute = useCallback((path: string) => {
     // Check exact matches
@@ -1428,9 +1432,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // ✅ Update checkAuthStatus to Respect Initial State
-  const checkAuthStatus = async (forceRefresh = false) => {
+  // ✅ UPDATED: checkAuthStatus as useCallback with concurrency prevention and debouncing
+  const checkAuthStatus = useCallback(async (forceRefresh = false) => {
+    // ✅ Prevent concurrent checks
+    if (checkInProgressRef.current && !forceRefresh) {
+      console.log('[Auth] Check already in progress, skipping');
+      return;
+    }
+
+    // ✅ Debounce rapid calls
+    const now = Date.now();
+    if (!forceRefresh && lastCheckRef.current && (now - lastCheckRef.current < 2000)) {
+      console.log('[Auth] Check called too soon, skipping');
+      return;
+    }
+
     try {
+      checkInProgressRef.current = true;
+      lastCheckRef.current = now;
+
       const currentPath = pathname || "/";
       
       console.log('[Auth] checkAuthStatus called for path:', currentPath);
@@ -1441,12 +1461,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         currentPath.startsWith(prefix)
       );
 
-      // ✅ For public courses, ONLY update states if not already set
+      // ✅ For public courses, set states but continue check
       if (isPublicCourses) {
         console.log("[Auth] Public courses route - ensuring states are set");
         setAuthChecked(true);
         setIsLoading(false);
-        // ✅ Continue checking auth in background without blocking
       }
 
       // ✅ For other public routes
@@ -1569,8 +1588,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(false);
       setAuthChecked(true);
       initialCheckDone.current = true;
+      checkInProgressRef.current = false; // ✅ Release lock
     }
-  };
+  }, [pathname, deviceFingerprint, isPublicRoute, isPublicCoursesRoute, isProtectedRoute, router]); // ✅ Add all dependencies
 
   const clearAllData = () => {
     setUser(null);

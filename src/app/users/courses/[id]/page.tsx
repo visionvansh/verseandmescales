@@ -314,98 +314,128 @@ const CoursePageSkeleton = () => {
   );
 };
 
+// ✅ NEW: Atomic data hook (replaces all the separate useEffects)
+function useAtomicCourseData(id: string) {
+  const [data, setData] = useState<{
+    courseData: any;
+    owner: any;
+    currentUserAvatars: any[];
+    enrollmentStatus: { enrolled: boolean; isOwner: boolean } | null;
+    loading: boolean;
+    error: string | null;
+  }>({
+    courseData: null,
+    owner: null,
+    currentUserAvatars: [],
+    enrollmentStatus: null,
+    loading: true,
+    error: null,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAtomic() {
+      try {
+        console.log('⚡ Loading atomic course data...');
+        const startTime = Date.now();
+
+        const response = await fetch(`/api/course/atomic/${id}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error('Course not found or not published');
+          }
+          throw new Error('Failed to fetch course data');
+        }
+
+        const atomicData = await response.json();
+        const loadTime = Date.now() - startTime;
+
+        console.log(`⚡ Atomic course data loaded in ${loadTime}ms`);
+
+        if (isMounted) {
+          // ✅ Populate owner in user cache instantly
+          if (atomicData.owner && atomicData.owner.username) {
+            userCache.set(atomicData.owner.username, {
+              data: atomicData.owner,
+              timestamp: Date.now(),
+            });
+          }
+
+          setData({
+            courseData: atomicData.course,
+            owner: atomicData.owner,
+            currentUserAvatars: atomicData.currentUserAvatars || [],
+            enrollmentStatus: atomicData.enrollmentStatus,
+            loading: false,
+            error: null,
+          });
+
+          console.log('✅ Atomic course data set, page ready to render');
+        }
+      } catch (error) {
+        console.error('❌ Atomic load error:', error);
+        if (isMounted) {
+          setData({
+            courseData: null,
+            owner: null,
+            currentUserAvatars: [],
+            enrollmentStatus: null,
+            loading: false,
+            error:
+              error instanceof Error ? error.message : 'Failed to load course',
+          });
+        }
+      }
+    }
+
+    loadAtomic();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
+  return data;
+}
+
 export default function PublicCoursePage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
   const { user, logout, checkAuthStatus } = useAuth();
 
-  const [courseData, setCourseData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [enrolling, setEnrolling] = useState(false);
-  const [enrollmentStatus, setEnrollmentStatus] = useState<{
-    enrolled: boolean;
-    isOwner: boolean;
-  } | null>(null);
+  // ✅ Use atomic data loader - replaces all separate fetches
+  const { courseData, owner, currentUserAvatars, enrollmentStatus, loading, error } =
+    useAtomicCourseData(id);
 
-  // ✅ ADD: Track if we've checked auth
-  const [authChecked, setAuthChecked] = useState(false);
+  // Set primary avatar from atomic data
+  const primaryAvatar = currentUserAvatars?.find((a) => a.isPrimary) || currentUserAvatars?.[0] || null;
 
   // Navbar states
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-
-  // ✅ Avatar States
-  const [primaryAvatar, setPrimaryAvatar] = useState<UserAvatar | null>(null);
-  const [isLoadingAvatar, setIsLoadingAvatar] = useState(true);
+  const [enrolling, setEnrolling] = useState(false);
 
   // ✅ Hover card states
   const [showOwnerHoverCard, setShowOwnerHoverCard] = useState(false);
   const [hoveredOwner, setHoveredOwner] = useState<ExtendedUser | null>(null);
   const [ownerHoverPosition, setOwnerHoverPosition] = useState({ x: 0, y: 0 });
-  const [ownerHoverTimeout, setOwnerHoverTimeout] =
-    useState<NodeJS.Timeout | null>(null);
-  const hasPreloadedOwnerRef = useRef(false);
+  const [ownerHoverTimeout, setOwnerHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
   // ✅ FIRST: Check auth on mount
   useEffect(() => {
     const initAuth = async () => {
       console.log("[Course Page] Checking auth on mount");
       await checkAuthStatus(true); // Force check
-      setAuthChecked(true);
     };
 
-    if (!authChecked) {
+    if (id) {
       initAuth();
     }
-  }, [checkAuthStatus, authChecked]);
-
-  // ✅ SECOND: Fetch course data after auth is checked
-  useEffect(() => {
-    if (authChecked && id) {
-      console.log("[Course Page] Auth checked, fetching course data");
-      fetchCourseData();
-    }
-  }, [authChecked, id]);
-
-  // ✅ THIRD: Check enrollment when user state changes
-  useEffect(() => {
-    if (authChecked && id) {
-      if (user) {
-        console.log("[Course Page] User authenticated, checking enrollment");
-        checkEnrollmentStatus();
-      } else {
-        console.log("[Course Page] No user, setting default enrollment status");
-        setEnrollmentStatus({
-          enrolled: false,
-          isOwner: false,
-        });
-      }
-    }
-  }, [user, id, authChecked]);
-
-  // ✅ ADD: Check if returning from signup
-  useEffect(() => {
-    const handlePostSignup = async () => {
-      const isReturningFromSignup = sessionStorage.getItem("just_signed_up");
-
-      if (isReturningFromSignup && id) {
-        console.log("[Course] User just signed up, refreshing auth state");
-        sessionStorage.removeItem("just_signed_up");
-
-        // Force auth check
-        await checkAuthStatus();
-
-        // Small delay to ensure auth is updated
-        setTimeout(() => {
-          checkEnrollmentStatus();
-        }, 500);
-      }
-    };
-
-    handlePostSignup();
-  }, [id, checkAuthStatus]);
+  }, [checkAuthStatus, id]);
 
   // Add this effect to handle return from signup:
   useEffect(() => {
@@ -418,18 +448,11 @@ export default function PublicCoursePage() {
         
         // Force immediate auth check
         await checkAuthStatus(true);
-        
-        // Small delay to ensure state updates
-        setTimeout(() => {
-          checkEnrollmentStatus();
-        }, 300);
       }
     };
 
-    if (authChecked) {
-      handleReturnFromSignup();
-    }
-  }, [authChecked, checkAuthStatus]);
+    handleReturnFromSignup();
+  }, [checkAuthStatus]);
 
   // ✅ Cleanup timeout on unmount
   useEffect(() => {
@@ -440,134 +463,57 @@ export default function PublicCoursePage() {
     };
   }, [ownerHoverTimeout]);
 
-  // ✅ Fetch user profile WITH avatars from /discover endpoint
-  const fetchUserProfile = async (
-    username: string
-  ): Promise<ExtendedUser | null> => {
-    try {
-      // First try to get from discover API (same as /courses)
-      const discoverResponse = await fetch(
-        `/api/users/discover?search=${username}&limit=1`,
-        {
-          credentials: "include",
-        }
-      );
-
-      if (discoverResponse.ok) {
-        const discoverData = await discoverResponse.json();
-        const foundUser = discoverData.users?.find(
-          (u: any) => u.username === username
-        );
-
-        if (foundUser) {
-          console.log("✅ Found user from discover API:", foundUser);
-          return foundUser as ExtendedUser;
-        }
-      }
-
-      // Fallback to profile API
-      const response = await fetch(`/api/profile/${username}`, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        console.error(`Failed to fetch profile for ${username}`);
-        return null;
-      }
-
-      const data = await response.json();
-      if (data.profile) {
-        try {
-          const avatarResponse = await fetch(
-            `/api/user/avatars?username=${username}`,
-            {
-              credentials: "include",
-            }
-          );
-
-          if (avatarResponse.ok) {
-            const avatarData = await avatarResponse.json();
-            const primaryAvatar =
-              avatarData.avatars?.find((a: UserAvatar) => a.isPrimary) ||
-              avatarData.avatars?.[0] ||
-              null;
-
-            return {
-              ...data.profile,
-              avatars: avatarData.avatars || [],
-              primaryAvatar: primaryAvatar,
-            };
-          }
-        } catch (error) {
-          console.error(`Failed to fetch avatars for ${username}:`, error);
-        }
-
-        return data.profile;
-      }
-
-      return null;
-    } catch (error) {
-      console.error(`Error fetching profile for ${username}:`, error);
-      return null;
-    }
-  };
-
-  // ✅ Preload course owner data
-  const preloadCourseOwner = async (ownerUsername: string) => {
-    if (!ownerUsername || hasPreloadedOwnerRef.current) return;
-
-    console.log("🔄 Preloading course owner data:", ownerUsername);
-    hasPreloadedOwnerRef.current = true;
-
-    const cached = getUserFromCache(ownerUsername);
-    if (cached) {
-      console.log("✅ Owner already cached");
-      return;
+  // ✅ Owner hover handlers (owner is ALWAYS in cache from atomic load)
+  const handleOwnerHover = (e: React.MouseEvent) => {
+    if (ownerHoverTimeout) {
+      clearTimeout(ownerHoverTimeout);
     }
 
-    const ownerData = await fetchUserProfile(ownerUsername);
+    if (!owner?.username) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const scrollY = window.scrollY || window.pageYOffset;
+    const scrollX = window.scrollX || window.pageXOffset;
+
+    setOwnerHoverPosition({
+      x: rect.left + scrollX + rect.width / 2,
+      y: rect.top + scrollY,
+    });
+
+    // ✅ Owner is ALWAYS in cache from atomic load
+    const ownerData = userCache.get(owner.username);
+
     if (ownerData) {
-      userCache.set(ownerUsername, {
-        data: ownerData,
-        timestamp: Date.now(),
-      });
-      console.log("✅ Course owner cached successfully");
+      console.log('⚡ Showing instant owner hover card');
+      setHoveredOwner(ownerData.data);
+      setShowOwnerHoverCard(true);
     }
   };
 
-  const fetchCourseData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const handleOwnerLeave = () => {
+    if (ownerHoverTimeout) {
+      clearTimeout(ownerHoverTimeout);
+    }
 
-      const response = await fetch(`/api/course/public/${id}`);
+    const timeout = setTimeout(() => {
+      setShowOwnerHoverCard(false);
+      setHoveredOwner(null);
+    }, 150);
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          setError("Course not found or not published");
-        } else {
-          setError("Failed to load course");
-        }
-        return;
-      }
+    setOwnerHoverTimeout(timeout);
+  };
 
-      const data = await response.json();
-      console.log("✅ Course data received:", data);
-      
-      // ✅ NEW: Check homepage type
-      console.log("📄 Homepage Type:", data.homepageType);
-      console.log("📄 Custom File:", data.customHomepageFile);
-      
-      setCourseData(data);
+  const handleOwnerHoverCardEnter = () => {
+    if (ownerHoverTimeout) {
+      clearTimeout(ownerHoverTimeout);
+    }
+    setShowOwnerHoverCard(true);
+  };
 
-      if (data.owner?.username) {
-        await preloadCourseOwner(data.owner.username);
-      }
-    } catch (err) {
-      console.error("Error fetching course:", err);
-      setError("Failed to load course");
-    } finally {
-      setLoading(false);
+  const handleOwnerClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (owner?.username) {
+      router.push(`/users/profile/${owner.username}`);
     }
   };
 
@@ -602,186 +548,6 @@ export default function PublicCoursePage() {
         enrolling={enrolling}
       />
     );
-  };
-
-  // ✅ UPDATE: Check enrollment status
-  const checkEnrollmentStatus = async () => {
-    if (!user) {
-      setEnrollmentStatus({
-        enrolled: false,
-        isOwner: false,
-      });
-      return;
-    }
-
-    try {
-      console.log("[Course Page] 🔍 Checking enrollment for user:", user.email);
-      const response = await fetch(`/api/course/enroll?id=${id}`, {
-        credentials: "include",
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log("[Course Page] ✅ Enrollment status:", data);
-        setEnrollmentStatus(data);
-      } else {
-        console.error(
-          "[Course Page] ❌ Failed to check enrollment:",
-          response.status
-        );
-        setEnrollmentStatus({
-          enrolled: false,
-          isOwner: false,
-        });
-      }
-    } catch (err) {
-      console.error("[Course Page] ❌ Error checking enrollment:", err);
-      setEnrollmentStatus({
-        enrolled: false,
-        isOwner: false,
-      });
-    }
-  };
-
-  const fetchUserAvatars = useCallback(async () => {
-    if (!user?.id) {
-      setIsLoadingAvatar(false);
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/user/avatars", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.avatars && data.avatars.length > 0) {
-          const primary = data.avatars.find((a: UserAvatar) => a.isPrimary);
-          setPrimaryAvatar(primary || data.avatars[0]);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching avatars:", error);
-    } finally {
-      setIsLoadingAvatar(false);
-    }
-  }, [user?.id]);
-
-  const refreshUserAvatars = useCallback(() => {
-    setIsLoadingAvatar(true);
-    fetchUserAvatars();
-  }, [fetchUserAvatars]);
-
-  useEffect(() => {
-    if (user?.id) {
-      fetchUserAvatars();
-    } else {
-      setIsLoadingAvatar(false);
-    }
-  }, [user?.id]);
-
-  useEffect(() => {
-    const handleAvatarUpdate = () => {
-      console.log("🔄 Avatar updated, refreshing...");
-      refreshUserAvatars();
-    };
-
-    window.addEventListener("avatar-updated", handleAvatarUpdate);
-    return () =>
-      window.removeEventListener("avatar-updated", handleAvatarUpdate);
-  }, [refreshUserAvatars]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      (window as any).refreshCourseNavbarAvatars = refreshUserAvatars;
-    }
-  }, [refreshUserAvatars]);
-
-  // ✅ Get user from cache
-  const getUserFromCache = (username: string): ExtendedUser | null => {
-    const cached = userCache.get(username);
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      return cached.data;
-    }
-    return null;
-  };
-
-  // ✅ Owner hover handlers
-  const handleOwnerHover = async (e: React.MouseEvent) => {
-    if (ownerHoverTimeout) {
-      clearTimeout(ownerHoverTimeout);
-    }
-
-    if (!courseData?.owner?.username) {
-      console.log("⚠️ No owner username available for hover card");
-      return;
-    }
-
-    // Calculate position immediately
-    const rect = e.currentTarget.getBoundingClientRect();
-    const scrollY = window.scrollY || window.pageYOffset;
-    const scrollX = window.scrollX || window.pageXOffset;
-
-    setOwnerHoverPosition({
-      x: rect.left + scrollX + rect.width / 2,
-      y: rect.top + scrollY,
-    });
-
-    // Try to get from cache first
-    const ownerData = getUserFromCache(courseData.owner.username);
-
-    if (ownerData) {
-      console.log("✅ Showing cached owner hover card instantly");
-      setHoveredOwner(ownerData);
-      setShowOwnerHoverCard(true);
-    } else {
-      console.log("⏳ Owner not cached yet, fetching...");
-      const timeout = setTimeout(async () => {
-        const freshData = await fetchUserProfile(courseData.owner.username);
-        if (freshData) {
-          userCache.set(courseData.owner.username, {
-            data: freshData,
-            timestamp: Date.now(),
-          });
-          setHoveredOwner(freshData);
-          setShowOwnerHoverCard(true);
-        }
-      }, 150);
-
-      setOwnerHoverTimeout(timeout);
-    }
-  };
-
-  const handleOwnerLeave = () => {
-    if (ownerHoverTimeout) {
-      clearTimeout(ownerHoverTimeout);
-    }
-
-    const timeout = setTimeout(() => {
-      setShowOwnerHoverCard(false);
-      setHoveredOwner(null);
-    }, 150);
-
-    setOwnerHoverTimeout(timeout);
-  };
-
-  const handleOwnerHoverCardEnter = () => {
-    if (ownerHoverTimeout) {
-      clearTimeout(ownerHoverTimeout);
-    }
-    setShowOwnerHoverCard(true);
-  };
-
-  const handleOwnerClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (courseData?.owner?.username) {
-      router.push(`/users/profile/${courseData.owner.username}`);
-    }
   };
 
   // Update the handleEnroll function:
@@ -847,19 +613,18 @@ export default function PublicCoursePage() {
       const target = e.target as HTMLElement;
       if (!target.closest(".dropdown-container")) {
         setIsProfileOpen(false);
-        setIsNotificationsOpen(false);
       }
     };
 
-    if (isProfileOpen || isNotificationsOpen) {
+    if (isProfileOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       return () =>
         document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [isProfileOpen, isNotificationsOpen]);
+  }, [isProfileOpen]);
 
   // ✅ UPDATE: Show loading while checking auth
-  if (loading || !authChecked) {
+  if (loading) {
     return <CoursePageSkeleton />;
   }
 
@@ -897,10 +662,9 @@ export default function PublicCoursePage() {
     hasUser: !!user,
     userEmail: user?.email,
     enrollmentStatus,
-    authChecked,
   });
 
-  const ownerPrimaryAvatar = courseData.owner?.primaryAvatar || null;
+  const ownerPrimaryAvatar = owner?.primaryAvatar || null;
 
   return (
     <div className="relative min-h-screen">
@@ -932,9 +696,9 @@ export default function PublicCoursePage() {
                       onClick={handleOwnerClick}
                     >
                       <ProfileAvatar
-                        customImage={courseData.owner.img}
+                        customImage={owner.img}
                         avatar={ownerPrimaryAvatar}
-                        userId={courseData.owner.id}
+                        userId={owner.id}
                         size={32}
                       />
                     </div>
@@ -950,7 +714,7 @@ export default function PublicCoursePage() {
                         onClick={handleOwnerClick}
                       >
                         <FaUser className="text-red-400 text-[10px]" />
-                        by {courseData.owner.fullName}
+                        by {owner.fullName}
                       </p>
                     </div>
                   </div>
@@ -1098,7 +862,6 @@ export default function PublicCoursePage() {
                         whileTap={{ scale: 0.98 }}
                         onClick={() => {
                           setIsProfileOpen(!isProfileOpen);
-                          setIsNotificationsOpen(false);
                         }}
                         className="relative flex items-center gap-2 px-3 py-2 rounded-xl overflow-hidden"
                       >
@@ -1240,9 +1003,9 @@ export default function PublicCoursePage() {
                     onClick={handleOwnerClick}
                   >
                     <ProfileAvatar
-                      customImage={courseData.owner.img}
+                      customImage={owner.img}
                       avatar={ownerPrimaryAvatar}
-                      userId={courseData.owner.id}
+                      userId={owner.id}
                       size={28}
                     />
                   </div>
@@ -1255,7 +1018,7 @@ export default function PublicCoursePage() {
                       className="text-gray-400 text-[10px] truncate cursor-pointer hover:text-white transition-colors"
                       onClick={handleOwnerClick}
                     >
-                      by {courseData.owner.fullName}
+                      by {owner.fullName}
                     </p>
                   </div>
                 </div>
@@ -1266,7 +1029,6 @@ export default function PublicCoursePage() {
                     <button
                       onClick={() => {
                         setIsProfileOpen(!isProfileOpen);
-                        setIsNotificationsOpen(false);
                       }}
                       className="relative p-0.5 rounded-lg overflow-hidden"
                     >
@@ -1429,6 +1191,17 @@ export default function PublicCoursePage() {
           <FaPlay className="text-2xl" />
         </motion.button>
       )}
+
+      {/* Hover Card Portal */}
+      <div onMouseEnter={handleOwnerHoverCardEnter} onMouseLeave={handleOwnerLeave}>
+        {hoveredOwner && (
+          <UserHoverCard
+            user={hoveredOwner}
+            isVisible={showOwnerHoverCard}
+            position={ownerHoverPosition}
+          />
+        )}
+      </div>
     </div>
   );
 }

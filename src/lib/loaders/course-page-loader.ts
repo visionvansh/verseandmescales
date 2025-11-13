@@ -83,6 +83,7 @@ export async function loadCompleteCoursesData(userId?: string): Promise<AtomicCo
                   followers: true,
                   following: true,
                   courses: true,
+                  posts: true,
                 },
               },
               // ✅ Get profile settings
@@ -162,36 +163,61 @@ export async function loadCompleteCoursesData(userId?: string): Promise<AtomicCo
     const processedCourses = courses.map((course) => {
       const { user, modules, enrollments, ratings, ...courseData } = course;
 
-      // ✅ Store complete user data
+      // ✅ Store complete user data with CORRECT isPrivate logic
       if (user && user.username) {
         const primaryAvatar =
           user.avatars?.find((a) => a.isPrimary) || user.avatars?.[0] || null;
 
-        const userType =
-          user.UserGoals?.[0]?.purpose === 'teach'
-            ? 'tutor'
-            : user.UserGoals?.[0]?.purpose === 'both'
-            ? 'both'
-            : 'learner';
+        // ✅ FIX: Determine user type first
+        const userGoal = user.UserGoals?.[0];
+        let userType: 'tutor' | 'learner' | 'both' = 'learner';
+        
+        if (userGoal) {
+          if (userGoal.purpose === 'teach') userType = 'tutor';
+          else if (userGoal.purpose === 'both') userType = 'both';
+          else if (userGoal.purpose === 'learn') userType = 'learner';
+        }
+
+        // ✅ FIX: Apply the SAME logic as profile API
+        let isPrivate = false;
+        
+        // Tutors and "both" are always public
+        if (userType === 'tutor' || userType === 'both') {
+          isPrivate = false;
+        } 
+        // Learners use their privacy settings
+        else if (userType === 'learner') {
+          isPrivate = !user.profileSettings?.isPublic;
+        }
+
+        console.log(`👤 User ${user.username}: type=${userType}, isPublic=${user.profileSettings?.isPublic}, isPrivate=${isPrivate}`);
+
+        // ✅ Get courses learning count
+        const coursesLearningCount = user._count?.posts || 0; // You'll need to add proper query for this
 
         usersMap.set(user.username, {
           id: user.id,
           username: user.username,
           name: user.name || 'User',
-          surname: user.surname,
+          surname: user.surname || '',
           img: user.img,
           avatar: user.img || null,
           primaryAvatar: primaryAvatar,
+          avatars: user.avatars || [],
           type: userType,
           xp: user.userXP?.totalXP || 0,
-          seekers: user._count.followers,
-          seeking: user._count.following,
-          coursesMade: user._count.courses,
+          contributorTitle: user.userXP?.contributorTitle || null,
+          seekers: user._count?.followers || 0,
+          seeking: user._count?.following || 0,
+          coursesMade: user._count?.courses || 0,
+          postsCount: user._count?.posts || 0,
+          coursesLearning: 0, // Will be calculated separately if needed
+          badges: [], // You can add badges query if needed
           bio: user.profileSettings?.bio || '',
           country: user.profileSettings?.country || '',
           location: user.profileSettings?.location || '',
           website: user.profileSettings?.website || '',
-          isPrivate: !user.profileSettings?.isPublic,
+          isPrivate: isPrivate, // ✅ Now uses correct logic
           dateJoined: user.createdAt.toISOString(),
         });
 
