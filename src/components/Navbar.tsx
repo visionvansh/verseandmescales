@@ -16,6 +16,12 @@ import {
 import { IconType } from "react-icons";
 import AvatarGenerator from "@/components/settings/AvatarGenerator";
 
+// ✅ Add this helper function near the top after imports
+const isCoursesPublicRoute = (path: string | null) => {
+  if (!path) return false;
+  return path === '/users/courses' || path.startsWith('/users/courses/');
+};
+
 // Define proper types for command items
 interface BaseCommandItem {
   icon: IconType;
@@ -379,6 +385,7 @@ const ProfileAvatar = ({
         width={size} 
         height={size} 
         className={`object-cover rounded-full ${className}`}
+        unoptimized
       />
     );
   }
@@ -391,6 +398,7 @@ const ProfileAvatar = ({
         width={size} 
         height={size} 
         className={`object-cover rounded-full ${className}`}
+        unoptimized
       />
     );
   }
@@ -433,6 +441,10 @@ const CommandHeader = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
+
+  // ✅ Add these checks after the atomic data loading
+  const isPublicCoursesRoute = isCoursesPublicRoute(pathname);
+  const shouldLockFeatures = isPublicCoursesRoute && !user && authChecked;
 
   // ✅ ALL useCallback hooks
   const handleLogout = useCallback(async () => {
@@ -565,8 +577,6 @@ const CommandHeader = () => {
   // ✅ Determine loading state (after all hooks)
   const isLoading = authLoading || navbarLoading || !authChecked;
   const displayUser = user || navbarUser;
-  const isPublicCoursesRoute = pathname === '/users/courses' || pathname?.startsWith('/users/courses/');
-  const showLockedState = !displayUser && !isPublicCoursesRoute;
 
   // ✅ NOW we can do conditional rendering (after all hooks are called)
   if (!isMounted) {
@@ -662,8 +672,16 @@ const CommandHeader = () => {
 
                 {/* Center: Command Bar */}
                 <div className="flex justify-center">
+                  {/* ✅ Update the Command Palette button (Desktop - Center) */}
                   <motion.button
-                    onClick={() => setIsCommandOpen(true)}
+                    onClick={() => {
+                      if (shouldLockFeatures) {
+                        // Show locked state
+                        setIsCommandOpen(true);
+                      } else {
+                        setIsCommandOpen(true);
+                      }
+                    }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className="w-full max-w-lg relative rounded-xl overflow-hidden group"
@@ -678,15 +696,14 @@ const CommandHeader = () => {
                     <div className="relative flex items-center gap-3 px-4 py-2.5">
                       <FaSearch className="text-gray-500 text-sm" />
                       <span className="flex-1 text-left text-sm text-gray-500">
-                        Search or jump to...
+                        {shouldLockFeatures ? 'Sign in to search...' : 'Search or jump to...'}
                       </span>
-                      {/* ✅ FIXED: Always render kbd to prevent hydration mismatch */}
-                      {displayUser ? (
+                      {shouldLockFeatures ? (
+                        <FaLock className="text-gray-600 text-xs" />
+                      ) : displayUser ? (
                         <kbd className="px-2 py-1 bg-gray-800/50 border border-gray-700/50 rounded text-xs text-gray-400 font-mono">
                           ⌘K
                         </kbd>
-                      ) : !isPublicCoursesRoute ? (
-                        <FaLock className="text-gray-600 text-xs" />
                       ) : null}
                     </div>
                   </motion.button>
@@ -933,21 +950,35 @@ const CommandHeader = () => {
                   ) : (
                     <>
                       {/* Guest Profile Icon */}
+                      {/* ✅ Update the Profile section (Desktop - Right) */}
                       <div className="relative dropdown-container">
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => setIsProfileOpen(!isProfileOpen)}
+                          onClick={() => {
+                            if (shouldLockFeatures) {
+                              // Show locked profile dropdown
+                              setIsProfileOpen(true);
+                            } else {
+                              setIsProfileOpen(!isProfileOpen);
+                            }
+                          }}
                           className="relative p-2.5 rounded-xl text-gray-400 hover:text-white transition-colors"
+                          disabled={shouldLockFeatures && isProfileOpen === false}
                         >
                           <div className="absolute inset-0 bg-gray-900/30 hover:bg-gray-900/50 backdrop-blur-sm rounded-xl transition-all" />
                           <div className="absolute inset-0 border border-gray-700/30 hover:border-gray-600/50 rounded-xl transition-all" />
-                          <FaUserCircle className="w-5 h-5 relative z-10" />
+                          <FaUserCircle className={`w-5 h-5 relative z-10 ${shouldLockFeatures ? 'text-gray-600' : ''}`} />
+                          {shouldLockFeatures && (
+                            <FaLock className="absolute top-0 right-0 text-red-500 text-xs bg-gray-900 rounded-full p-0.5" />
+                          )}
                         </motion.button>
 
                         <AnimatePresence>
-                          {isProfileOpen && !isPublicCoursesRoute && (
-                            <LockedProfileDropdown onClose={() => setIsProfileOpen(false)} />
+                          {isProfileOpen && (
+                            shouldLockFeatures ? (
+                              <LockedProfileDropdown onClose={() => setIsProfileOpen(false)} />
+                            ) : null
                           )}
                         </AnimatePresence>
                       </div>
@@ -965,8 +996,15 @@ const CommandHeader = () => {
                   </div>
                 </Link>
 
+                {/* ✅ Update Mobile search button */}
                 <motion.button
-                  onClick={() => setIsCommandOpen(true)}
+                  onClick={() => {
+                    if (shouldLockFeatures) {
+                      setIsCommandOpen(true);
+                    } else {
+                      setIsCommandOpen(true);
+                    }
+                  }}
                   whileTap={{ scale: 0.98 }}
                   className="flex-1 max-w-[200px] sm:max-w-xs mx-auto relative rounded-lg overflow-hidden"
                 >
@@ -976,9 +1014,9 @@ const CommandHeader = () => {
                   <div className="relative flex items-center gap-2 px-3 py-2">
                     <FaSearch className="text-gray-500 text-xs flex-shrink-0" />
                     <span className="flex-1 text-left text-xs text-gray-500 truncate">
-                      Search...
+                      {shouldLockFeatures ? 'Sign in...' : 'Search...'}
                     </span>
-                    {!displayUser && !isPublicCoursesRoute && <FaLock className="text-gray-600 text-[10px]" />}
+                    {shouldLockFeatures && <FaLock className="text-gray-600 text-[10px]" />}
                   </div>
                 </motion.button>
 
@@ -1018,7 +1056,7 @@ const CommandHeader = () => {
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                            className="fixed right-2 mt-2 w-[calc(100vw-1rem)] max-w-xs rounded-xl overflow-hidden shadow-2xl z-[100001]"
+                            className="fixed right-2 mt-2 w-[calc(100vw - 1rem)] max-w-xs rounded-xl overflow-hidden shadow-2xl z-[100001]"
                             style={{ top: '60px' }}
                           >
                             <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
@@ -1104,7 +1142,7 @@ const CommandHeader = () => {
                           </motion.div>
                         </>
                       ) : (
-                        !isPublicCoursesRoute && (
+                        shouldLockFeatures && (
                           <>
                             <div 
                               className="fixed inset-0 z-[100000]" 
@@ -1114,7 +1152,7 @@ const CommandHeader = () => {
                               initial={{ opacity: 0, y: 10, scale: 0.95 }}
                               animate={{ opacity: 1, y: 0, scale: 1 }}
                               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                              className="fixed right-2 left-2 mt-2 mx-auto w-[calc(100vw-1rem)] max-w-xs rounded-xl overflow-hidden shadow-2xl z-[100001]"
+                              className="fixed right-2 left-2 mt-2 mx-auto w-[calc(100vw - 1rem)] max-w-xs rounded-xl overflow-hidden shadow-2xl z-[100001]"
                               style={{ top: '60px' }}
                             >
                               <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
@@ -1156,8 +1194,10 @@ const CommandHeader = () => {
 
       {/* Command Palette */}
       <AnimatePresence>
+        
         {isCommandOpen && (
-          (displayUser || isPublicCoursesRoute) ? (
+          shouldLockFeatures ? (
+            <LockedCommandPalette onClose={() => setIsCommandOpen(false)} />) : (
             <>
               <motion.div
                 initial={{ opacity: 0 }}
@@ -1263,12 +1303,9 @@ const CommandHeader = () => {
                 </motion.div>
               </div>
             </>
-          ) : (
-            <LockedCommandPalette onClose={() => setIsCommandOpen(false)} />
-          )
-        )}
-      </AnimatePresence>
-    </>
+          ))}
+        </AnimatePresence>
+      </>
   );
 };
 

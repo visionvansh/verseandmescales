@@ -1,4 +1,4 @@
-//Volumes/vision/codes/course/my-app/src/app/users/courses/page.tsx
+// app/users/courses/page.tsx
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
@@ -21,6 +21,7 @@ import Image from "next/image";
 import UserHoverCard from "@/components/profile/UserHoverCard";
 import { User } from "@/components/profile/data/mockProfileData";
 import AvatarGenerator from "@/components/settings/AvatarGenerator";
+import { useAuth } from "@/contexts/AuthContext";
 
 // ✅ Avatar Interface
 interface UserAvatar {
@@ -388,12 +389,16 @@ function useAtomicCoursesData() {
 }
 
 export default function CoursesPage() {
+  const { user, authChecked } = useAuth(); // ✅ Get authChecked
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
   // ✅ Use atomic data loader
   const { courses, users, loading, error } = useAtomicCoursesData();
+
+  // ✅ Show skeleton while auth is being checked OR courses are loading
+  const shouldShowSkeleton = loading || !authChecked;
 
   // Hover card states
   const [showHoverCard, setShowHoverCard] = useState(false);
@@ -472,7 +477,7 @@ export default function CoursesPage() {
   return (
     <LazyMotion features={domAnimation}>
       <div className="relative z-10 mt-20">
-        {loading ? (
+        {shouldShowSkeleton ? (
           <CoursesPageSkeleton />
         ) : error ? (
           <div className="text-center py-20">
@@ -613,7 +618,7 @@ export default function CoursesPage() {
         )}
       </div>
 
-      {/* Hover Card Portal */}
+      {/* Hover cards work for both authenticated and non-authenticated users */}
       <div onMouseEnter={handleHoverCardEnter} onMouseLeave={handleUserLeave}>
         {hoveredUser && (
           <UserHoverCard

@@ -240,7 +240,7 @@ const PROTECTED_ROUTE_PREFIXES = [
 // ✅ Define public route prefixes (including /users/courses)
 const PUBLIC_ROUTE_PREFIXES = [
   "/auth/",
-  "/users/courses", // ✅ Make courses public
+  "/users/courses", // ✅ Courses are public
 ];
 
 // contexts/AuthContext.tsx - Add this hook
@@ -1580,34 +1580,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   // Initialize auth
-  useEffect(() => {
-    const initAuth = async () => {
-      console.log("[Auth] Initializing for route:", pathname);
-      await generateDeviceFingerprint();
+useEffect(() => {
+  const initAuth = async () => {
+    console.log("[Auth] Initializing for route:", pathname);
+    await generateDeviceFingerprint();
 
-      const currentPath = pathname || "/";
-      const isPublic = isPublicRoute(currentPath);
-      const isCourses = isPublicCoursesRoute(currentPath);
+    const currentPath = pathname || "/";
+    const isPublic = isPublicRoute(currentPath);
+    const isCourses = isPublicCoursesRoute(currentPath);
 
-      if (isPublic) {
-        console.log("[Auth] Public route, setting states immediately");
-        setAuthChecked(true);
-        setIsLoading(false);
-        setUser(null);
-        if (isCourses) {
-          // Background check for courses
-          checkAuthStatus(false).catch(console.error);
-        }
-      } else {
-        console.log("[Auth] Protected route, setting loading state and checking");
-        setIsLoading(true);
-        setAuthChecked(false);
-        await checkAuthStatus(false);
-      }
-    };
+    if (isPublic && !isCourses) {
+      // Regular public routes - no auth check needed
+      console.log("[Auth] Public route, setting states immediately");
+      setAuthChecked(true);
+      setIsLoading(false);
+      setUser(null);
+    } else if (isCourses) {
+      // ✅ Courses route - check auth but don't block
+      console.log("[Auth] Public courses route, checking auth in background");
+      setIsLoading(false); // Don't block rendering
+      await checkAuthStatus(false); // Check auth silently
+      setAuthChecked(true);
+    } else {
+      // Protected routes - must auth first
+      console.log("[Auth] Protected route, checking auth");
+      setIsLoading(true);
+      setAuthChecked(false);
+      await checkAuthStatus(false);
+    }
+  };
 
-    initAuth();
-  }, [pathname]);
+  initAuth();
+}, [pathname]);
 
   // Cleanup on unmount
   useEffect(() => {
