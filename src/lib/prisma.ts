@@ -9,10 +9,17 @@ declare global {
 // ✅ Export transaction client type
 export type PrismaTx = Prisma.TransactionClient;
 
-// Create a singleton Prisma client with proper connection settings
+// ✅ Create a singleton Prisma client with proper connection settings for Supabase
 const prismaClientSingleton = () => {
   return new PrismaClient({
-    log: ['error', 'warn'],
+    log: process.env.NODE_ENV === 'development' 
+      ? ['error', 'warn'] 
+      : ['error'],
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
   });
 };
 
@@ -26,18 +33,37 @@ const prisma = prismaBase;
 export const transaction = async <T>(
   fn: (tx: PrismaTx) => Promise<T>
 ): Promise<T> => {
-  return await prismaBase.$transaction(fn);
+  return await prismaBase.$transaction(fn, {
+    maxWait: 5000, // ✅ Maximum time to wait for a connection (5 seconds)
+    timeout: 10000, // ✅ Maximum time for the transaction to complete (10 seconds)
+  });
 };
 
 // Keep the connection alive in development
 if (process.env.NODE_ENV !== 'production') globalThis.prisma = prismaBase;
 
-// Ensure connections are released on exit
-process.on('beforeExit', async () => {
+// ✅ Graceful shutdown - ensure connections are released properly
+const shutdown = async () => {
+  console.log('🔌 Disconnecting Prisma...');
   await prismaBase.$disconnect();
-});
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+process.on('beforeExit', shutdown);
 
 export default prisma;
+
+// ✅ Health check helper
+export const checkDatabaseConnection = async (): Promise<boolean> => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return true;
+  } catch (error) {
+    console.error('❌ Database connection check failed:', error);
+    return false;
+  }
+};
 
 // Helper functions that use the Prisma client
 export const findUserByEmail = async (email: string) => {
@@ -70,7 +96,6 @@ export const findUserByUsername = async (username: string) => {
   });
 };
 
-// ✅ FIXED: Extract types from Prisma Client methods directly
 export const createUser = async (userData: {
   username: string;
   email: string;
@@ -82,7 +107,7 @@ export const createUser = async (userData: {
   emailVerified?: boolean;
   phoneVerified?: boolean;
   twoFactorEnabled?: boolean;
-  [key: string]: any; // Allow additional fields
+  [key: string]: any;
 }) => {
   return await prisma.student.create({
     data: userData,
@@ -93,7 +118,6 @@ export const createUser = async (userData: {
   });
 };
 
-// ✅ FIXED: Type for user update data - use inferred type
 export const updateUser = async (id: string, userData: Partial<{
   username?: string;
   email?: string;
@@ -120,7 +144,6 @@ export const updateUser = async (id: string, userData: Partial<{
   });
 };
 
-// ✅ FIXED: Type for session creation data
 export const createUserSession = async (sessionData: {
   userId: string;
   sessionToken: string;
@@ -158,7 +181,6 @@ export const findActiveSession = async (sessionToken: string) => {
   });
 };
 
-// ✅ FIXED: Type for auth log event data
 export const logAuthEvent = async (eventData: {
   action: string;
   ipAddress: string;
@@ -200,7 +222,6 @@ export const findUserBySocialAccount = async (provider: string, providerId: stri
   });
 };
 
-// ✅ FIXED: Type for social account creation
 export const createSocialAccount = async (
   userId: string, 
   socialData: {
