@@ -15,19 +15,22 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-// ✅ Initialize cache warming ONCE at module level (not on every render)
+// ✅ Initialize cache warming AFTER database is ready
 let cacheInitialized = false;
 
 if (typeof window === 'undefined' && !cacheInitialized) {
   cacheInitialized = true;
-  console.log('🔥 Initializing cache warming (once)...');
   
-  // ✅ Use dynamic import to prevent blocking
-  import('@/lib/cache/init').then(({ initializeCacheWarming }) => {
-    initializeCacheWarming().catch(err => {
-      console.error('❌ Cache init failed:', err);
+  // ✅ Wait for Next.js to be ready, then initialize
+  setTimeout(() => {
+    console.log('🔥 Initializing cache warming (delayed)...');
+    
+    import('@/lib/cache/init').then(({ initializeCacheWarming }) => {
+      initializeCacheWarming().catch(err => {
+        console.error('❌ Cache init failed:', err);
+      });
     });
-  });
+  }, 5000); // ✅ Wait 5 seconds after app starts
 }
 
 export default function RootLayout({

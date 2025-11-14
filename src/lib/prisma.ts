@@ -1,51 +1,50 @@
 // lib/prisma.ts
 import { PrismaClient, Prisma } from '@prisma/client';
 
-// Types for global augmentation
 declare global {
   var prisma: PrismaClient | undefined;
 }
 
-// ✅ Export transaction client type
 export type PrismaTx = Prisma.TransactionClient;
 
-// ✅ Create a singleton Prisma client with proper connection settings for Supabase
+// ✅ Optimized Prisma client for Supabase
 const prismaClientSingleton = () => {
   return new PrismaClient({
-    log: process.env.NODE_ENV === 'development' 
-      ? ['error', 'warn'] 
-      : ['error'],
+    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     datasources: {
       db: {
         url: process.env.DATABASE_URL,
       },
     },
+    // ✅ REMOVED connectionTimeout - not a valid option
   });
 };
 
-// Create a typed Prisma client that includes the $transaction method
 const prismaBase = globalThis.prisma || prismaClientSingleton();
-
-// Create a wrapper that provides typed transactions
 const prisma = prismaBase;
 
-// Type-safe transaction wrapper
+// ✅ Optimized transaction wrapper
 export const transaction = async <T>(
   fn: (tx: PrismaTx) => Promise<T>
 ): Promise<T> => {
   return await prismaBase.$transaction(fn, {
-    maxWait: 5000, // ✅ Maximum time to wait for a connection (5 seconds)
-    timeout: 10000, // ✅ Maximum time for the transaction to complete (10 seconds)
+    maxWait: 10000, // 10 seconds to wait for a connection
+    timeout: 20000, // 20 seconds for the transaction to complete
+    isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
   });
 };
 
-// Keep the connection alive in development
 if (process.env.NODE_ENV !== 'production') globalThis.prisma = prismaBase;
 
-// ✅ Graceful shutdown - ensure connections are released properly
+// ✅ Graceful shutdown
 const shutdown = async () => {
   console.log('🔌 Disconnecting Prisma...');
-  await prismaBase.$disconnect();
+  try {
+    await prismaBase.$disconnect();
+    console.log('✅ Prisma disconnected');
+  } catch (error) {
+    console.error('❌ Error disconnecting Prisma:', error);
+  }
 };
 
 process.on('SIGTERM', shutdown);
@@ -54,10 +53,15 @@ process.on('beforeExit', shutdown);
 
 export default prisma;
 
-// ✅ Health check helper
-export const checkDatabaseConnection = async (): Promise<boolean> => {
+// ✅ Enhanced health check with timeout
+export const checkDatabaseConnection = async (timeout = 5000): Promise<boolean> => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await Promise.race([
+      prisma.$queryRaw`SELECT 1`,
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connection timeout')), timeout)
+      )
+    ]);
     return true;
   } catch (error) {
     console.error('❌ Database connection check failed:', error);

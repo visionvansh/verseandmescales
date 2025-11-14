@@ -2171,6 +2171,7 @@ model Earnings {
   @@index([userId])
 }
 
+
 model Withdrawal {
   id                String   @id @default(cuid())
   earningsId        String
