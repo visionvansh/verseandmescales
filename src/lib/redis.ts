@@ -39,7 +39,7 @@ const createRedisWrapper = () => {
     },
 
     // SET - accepts both ioredis style (4 args) and Upstash style (2-3 args)
-    async set(key: string, value: string, exOrOptions?: string | number, ttl?: number): Promise<string> {
+    async set(key: string, value: string, exOrOptions?: string | number, ttl?: number, p0?: string): Promise<string> {
       if (typeof exOrOptions === 'string' && exOrOptions.toLowerCase() === 'ex' && typeof ttl === 'number') {
         // ioredis style: redis.set(key, value, 'EX', seconds)
         await upstashRedis.set(key, value, { ex: ttl });
