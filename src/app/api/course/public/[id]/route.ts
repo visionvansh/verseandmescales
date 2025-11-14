@@ -181,7 +181,6 @@ export async function GET(
       );
     }
 
-    // ✅ Use cache with stale-while-revalidate
     const course = await getCachedData(
       courseCacheKeys.courseDetail(id),
       () => fetchCourseDetail(id),
@@ -190,14 +189,8 @@ export async function GET(
     );
 
     console.log('📊 Course found:', course ? 'YES' : 'NO');
+    console.log('📊 Homepage type:', course?.homepageType || 'builder');
     console.log('📊 Has homepage:', course?.homepage ? 'YES' : 'NO');
-    // ✅ NEW: Log sale/timer data for debugging
-    console.log('💰 Sale/Timer Data from DB:', {
-      price: course?.price,
-      salePrice: course?.salePrice,
-      saleEndsAt: course?.saleEndsAt ? course.saleEndsAt.toISOString() : null,
-      hasActiveSale: !!(course?.salePrice && course?.saleEndsAt && new Date() < new Date(course.saleEndsAt))
-    });
 
     if (!course) {
       console.log('❌ Course not found with id:', id);
@@ -207,15 +200,25 @@ export async function GET(
       );
     }
 
-    if (!course.homepage) {
-      console.log('❌ Course has no homepage:', course.id);
+    // ✅ FIX: Only check for homepage if it's a builder course
+    if (course.homepageType === 'builder' && !course.homepage) {
+      console.log('❌ Builder course has no homepage:', course.id);
       return NextResponse.json(
         { error: 'Course homepage not configured' },
         { status: 404 }
       );
     }
 
-    // ✅ Calculate real-time stats
+    // ✅ For custom homepage courses, we don't need the homepage relation
+    if (course.homepageType === 'custom' && !course.customHomepageFile) {
+      console.log('❌ Custom course has no homepage file:', course.id);
+      return NextResponse.json(
+        { error: 'Custom homepage file not configured' },
+        { status: 404 }
+      );
+    }
+
+    // Calculate real-time stats
     const realTimeStats = calculateRealTimeStats(course);
 
     // Transform the data
@@ -225,7 +228,6 @@ export async function GET(
 
     return NextResponse.json({
       ...transformedData,
-      // ✅ NEW: Add homepage type info
       homepageType: course.homepageType || "builder",
       customHomepageFile: course.customHomepageFile || null,
     }, { 

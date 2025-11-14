@@ -1,4 +1,4 @@
-//Volumes/vision/codes/course/my-app/src/app/users/courses/[id]/checkout/success/page.tsx
+// src/app/users/courses/[id]/checkout/success/page.tsx
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -237,7 +237,7 @@ export default function CheckoutSuccess() {
       
       console.log('[Success] 🔍 Verifying payment intent:', paymentIntentId);
       
-      const response = await fetch('/api/checkout/verify-payment', {
+      const response = await fetch('/api/atomic/checkout/success', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -246,7 +246,7 @@ export default function CheckoutSuccess() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Payment verification failed');
+        throw new Error(data.details || data.error || 'Payment verification failed');
       }
 
       const data = await response.json();

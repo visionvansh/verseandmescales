@@ -5,6 +5,7 @@ import "./globals.css";
 
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { initializeCacheWarming } from "@/lib/cache/init";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -17,6 +18,14 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = 'force-dynamic'
+
+// ✅ Initialize cache warming once at module load (server-side only)
+if (typeof window === 'undefined') {
+  console.log('🔥 Root layout loaded on server, initializing cache warming...');
+  initializeCacheWarming().catch(err => {
+    console.error('❌ Cache warming initialization failed:', err);
+  });
+}
 
 export default function RootLayout({
   children,

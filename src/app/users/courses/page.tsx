@@ -11,9 +11,6 @@ import {
   FaUsers,
   FaClock,
   FaBook,
-  FaFilter,
-  FaTrophy,
-  FaChartLine,
   FaPlay,
   FaUserCircle,
 } from "react-icons/fa";
@@ -66,8 +63,6 @@ interface CourseCard {
   saleEndsAt?: string | null;
   thumbnail?: string;
   category?: string;
-  isPopular?: boolean;
-  isTrending?: boolean;
   isEnrolled?: boolean;
 }
 
@@ -115,10 +110,9 @@ const CountdownTimer = ({ endsAt }: { endsAt: string }) => {
     return null;
   }
 
-  // ✅ Determine urgency level for styling
   const totalMinutes = timeLeft.hours * 60 + timeLeft.minutes;
-  const isUrgent = totalMinutes < 60; // Less than 1 hour
-  const isCritical = totalMinutes < 10; // Less than 10 minutes
+  const isUrgent = totalMinutes < 60;
+  const isCritical = totalMinutes < 10;
 
   return (
     <m.div
@@ -217,14 +211,14 @@ const ProfileAvatar = ({
   }
 
   return (
-  <AvatarGenerator
-    userId={userId}
-    avatarIndex={-1}
-    size={size}
-    useDefault={true}
-    className={className}
-  />
-);
+    <AvatarGenerator
+      userId={userId}
+      avatarIndex={-1}
+      size={size}
+      useDefault={true}
+      className={className}
+    />
+  );
 };
 
 // ✅ Optimized Skeleton Loader Component
@@ -239,15 +233,6 @@ const CoursesPageSkeleton = () => {
           </div>
           <div className="max-w-full sm:max-w-2xl md:max-w-3xl mx-auto mb-6 sm:mb-8">
             <div className="relative h-12 sm:h-14 bg-gray-900/50 rounded-lg border border-red-500/20 animate-pulse" />
-          </div>
-          <div className="flex gap-3 overflow-hidden mb-6 sm:mb-8">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className="relative h-10 w-24 bg-gray-900/50 rounded-lg flex-shrink-0 animate-pulse"
-                style={{ animationDelay: `${i * 80}ms` }}
-              />
-            ))}
           </div>
         </div>
 
@@ -292,11 +277,9 @@ const CoursesPageSkeleton = () => {
   );
 };
 
+// ✅ Removed categories (no more trending/popular filters)
 const categories = [
-  { id: "all", label: "All", icon: FaBook },
-  { id: "trending", label: "Trending", icon: FaFire },
-  { id: "popular", label: "Popular", icon: FaTrophy },
-  { id: "new", label: "New", icon: FaChartLine },
+  { id: "all", label: "All Courses", icon: FaBook },
 ];
 
 // ✅ Atomic data hook
@@ -336,12 +319,10 @@ function useAtomicCoursesData() {
         console.log(`📊 Courses: ${atomicData.courses.length}, Users: ${Object.keys(atomicData.users).length}`);
 
         if (isMounted) {
-          // Convert users object to Map
           const usersMap = new Map<string, ExtendedUser>(
             Object.entries(atomicData.users)
           );
 
-          // Populate global user cache instantly
           usersMap.forEach((user, username) => {
             const avatars = atomicData.avatars[username] || [];
             const primaryAvatar = avatars.find((a: any) => a.isPrimary) || avatars[0] || null;
@@ -389,15 +370,13 @@ function useAtomicCoursesData() {
 }
 
 export default function CoursesPage() {
-  const { user, authChecked } = useAuth(); // ✅ Get authChecked
+  const { user, authChecked } = useAuth();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  // ✅ Use atomic data loader
   const { courses, users, loading, error } = useAtomicCoursesData();
 
-  // ✅ Show skeleton while auth is being checked OR courses are loading
   const shouldShowSkeleton = loading || !authChecked;
 
   // Hover card states
@@ -414,7 +393,6 @@ export default function CoursesPage() {
     };
   }, [hoverTimeout]);
 
-  // ✅ Instant user hover (no API calls needed)
   const handleUserHover = (owner: CourseCard["owner"], e: React.MouseEvent) => {
     if (hoverTimeout) {
       clearTimeout(hoverTimeout);
@@ -431,7 +409,6 @@ export default function CoursesPage() {
       y: rect.top + scrollY,
     });
 
-    // ✅ User is ALWAYS in cache from atomic load
     const userData = userCache.get(owner.username);
 
     if (userData) {
@@ -461,17 +438,12 @@ export default function CoursesPage() {
     setShowHoverCard(true);
   };
 
+  // ✅ Simplified filter - only search, no category filtering
   const filteredCourses = courses.filter((course) => {
-    const matchesSearch =
+    return (
       course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.description.toLowerCase().includes(searchQuery.toLowerCase());
-
-    if (selectedCategory === "all") return matchesSearch;
-    if (selectedCategory === "trending") return matchesSearch && course.isTrending;
-    if (selectedCategory === "popular") return matchesSearch && course.isPopular;
-    if (selectedCategory === "new") return matchesSearch;
-
-    return matchesSearch && course.category === selectedCategory;
+      course.description.toLowerCase().includes(searchQuery.toLowerCase())
+    );
   });
 
   return (
@@ -492,7 +464,6 @@ export default function CoursesPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="mb-8 sm:mb-10 md:mb-12"
               >
-                {/* Main Heading */}
                 <div className="relative mb-6 sm:mb-8">
                   <m.div
                     initial={{ opacity: 0 }}
@@ -533,44 +504,6 @@ export default function CoursesPage() {
                       className="w-full bg-gray-900/80 border border-red-500/30 rounded-lg pl-11 sm:pl-12 pr-4 py-3 sm:py-3.5 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none text-sm sm:text-base transition-colors"
                     />
                   </div>
-                </m.div>
-
-                {/* Category Filters */}
-                <m.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                  className="flex gap-2 sm:gap-3 overflow-x-auto pb-1 scrollbar-hide"
-                >
-                  {categories.map((category, index) => {
-                    const Icon = category.icon;
-                    const isSelected = selectedCategory === category.id;
-
-                    return (
-                      <m.button
-                        key={category.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.7 + index * 0.05 }}
-                        onClick={() => setSelectedCategory(category.id)}
-                        className={`
-                          flex items-center gap-2 px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 rounded-lg font-semibold text-xs sm:text-sm md:text-base whitespace-nowrap transition-all duration-200 flex-shrink-0
-                          ${
-                            isSelected
-                              ? "bg-red-600 text-white"
-                              : "bg-gray-900/80 text-gray-400 hover:bg-gray-800 hover:text-white border border-red-500/10 hover:border-red-500/30"
-                          }
-                        `}
-                      >
-                        <Icon
-                          className={`text-sm sm:text-base ${
-                            isSelected ? "text-white" : "text-red-500"
-                          }`}
-                        />
-                        {category.label}
-                      </m.button>
-                    );
-                  })}
                 </m.div>
               </m.div>
 
@@ -618,7 +551,6 @@ export default function CoursesPage() {
         )}
       </div>
 
-      {/* Hover cards work for both authenticated and non-authenticated users */}
       <div onMouseEnter={handleHoverCardEnter} onMouseLeave={handleUserLeave}>
         {hoveredUser && (
           <UserHoverCard
@@ -632,7 +564,7 @@ export default function CoursesPage() {
   );
 }
 
-// ✅ Course Card Component with removed glows
+// ✅ Course Card Component (removed trending/popular badges)
 function CourseCardComponent({
   course,
   index,
@@ -652,7 +584,6 @@ function CourseCardComponent({
   const [imageError, setImageError] = useState(false);
   const router = useRouter();
 
-  // ✅ Existing avatar logic
   const ownerAvatar = (course.owner as any).primaryAvatar || null;
   const ownerCustomImage = (course.owner as any).avatar || null;
 
@@ -675,19 +606,15 @@ function CourseCardComponent({
     course.owner.username ||
     "default";
 
-  // ✅ Handle button click based on enrollment status
   const handleButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (course.isEnrolled) {
-      // Redirect to courseinside with query parameter
       router.push(`/users/courseinside?courseId=${course.id}`);
     } else {
-      // Go to course details page
       onClick();
     }
   };
 
-  // ✅ Get button text and style based on enrollment
   const getButtonConfig = () => {
     if (course.isEnrolled) {
       return {
@@ -716,7 +643,6 @@ function CourseCardComponent({
       className="group cursor-pointer"
     >
       <div className="relative bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/20 rounded-xl overflow-hidden hover:border-red-500/40 transition-all duration-300 hover:-translate-y-1">
-        {/* ✅ Add Enrolled Badge */}
         {course.isEnrolled && (
           <div className="absolute top-3 left-3 z-10">
             <m.div
@@ -775,28 +701,6 @@ function CourseCardComponent({
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-          {/* Trending/Popular Badge */}
-          {(course.isTrending || course.isPopular) && (
-            <m.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="absolute top-3 sm:top-4 right-3 sm:right-4 bg-red-600 text-white px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm font-bold flex items-center gap-1 sm:gap-2"
-            >
-              {course.isTrending ? (
-                <>
-                  <FaFire className="text-xs sm:text-sm animate-pulse" />
-                  TRENDING
-                </>
-              ) : (
-                <>
-                  <FaTrophy className="text-xs sm:text-sm" />
-                  POPULAR
-                </>
-              )}
-            </m.div>
-          )}
-
           <div className="absolute bottom-3 sm:bottom-4 right-3 sm:right-4 bg-black/70 backdrop-blur-sm text-white px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm font-semibold flex items-center gap-1">
             <FaClock className="text-red-400" />
             {course.stats.duration}
@@ -804,7 +708,6 @@ function CourseCardComponent({
         </div>
 
         <div className="p-4 sm:p-5 md:p-6">
-          {/* Title and Description */}
           <h3 className="text-white text-lg sm:text-xl md:text-2xl font-bold mb-2 line-clamp-2 group-hover:text-red-500 transition-colors leading-tight">
             {course.title}
           </h3>
@@ -877,9 +780,8 @@ function CourseCardComponent({
             </div>
           </div>
 
-          {/* ✅ Price/Timer and Button */}
+          {/* Price/Timer and Button */}
           <div className="flex flex-col xs:flex-row items-stretch xs:items-center justify-between gap-3 xs:gap-2">
-            {/* Only show price if NOT enrolled */}
             {!course.isEnrolled && (
               <div className="flex flex-col gap-2">
                 {course.salePrice ? (
@@ -914,7 +816,6 @@ function CourseCardComponent({
               </div>
             )}
 
-            {/* ✅ Dynamic Button - NO GLOWS */}
             <button
               onClick={handleButtonClick}
               className={`

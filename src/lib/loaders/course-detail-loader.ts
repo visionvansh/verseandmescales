@@ -1,6 +1,6 @@
 // src/lib/loaders/course-detail-loader.ts
 import prisma from '@/lib/prisma';
-import { redis } from '@/lib/redis';
+import { getCachedData, courseCacheKeys, COURSE_CACHE_TIMES } from '@/lib/cache/course-cache';
 
 interface AtomicCourseDetailData {
   course: any;
@@ -13,242 +13,229 @@ interface AtomicCourseDetailData {
   timestamp: number;
 }
 
-const ATOMIC_COURSE_CACHE_KEY = 'atomic:course:detail';
-const ATOMIC_CACHE_TTL = 300; // 5 minutes
-
 /**
- * ✅ ATOMIC LOADER: Loads complete course detail in ONE optimized query
- * Returns everything needed to render the course page instantly
+ * ✅ IMPROVED: Load with smart caching
  */
 export async function loadCompleteCourseDetail(
   courseId: string,
   userId?: string
 ): Promise<AtomicCourseDetailData> {
   const startTime = Date.now();
-  console.log('⚡ Starting ATOMIC course detail load for:', courseId);
+  console.log('⚡ Loading course detail for:', courseId);
+
+  const cacheKey = userId
+    ? `${courseCacheKeys.courseDetail(courseId)}:${userId}`
+    : courseCacheKeys.courseDetail(courseId);
 
   try {
-    // Try cache first
-    const cacheKey = userId
-      ? `${ATOMIC_COURSE_CACHE_KEY}:${courseId}:${userId}`
-      : `${ATOMIC_COURSE_CACHE_KEY}:${courseId}`;
-
-    const cached = await redis.get(cacheKey);
-
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      const age = Date.now() - parsed.timestamp;
-
-      if (age < ATOMIC_CACHE_TTL * 1000) {
-        console.log(`✅ Returning cached atomic course detail (${age}ms old)`);
-        return parsed;
-      }
-    }
-
-    // ✅ SINGLE OPTIMIZED QUERY with all relations
-    const [course, currentUserAvatars, enrollmentRecord] = await Promise.all([
-      // Query 1: Get course with ALL related data
-      prisma.course.findFirst({
-        where: {
-          id: courseId,
-          status: 'PUBLISHED',
-          isPublished: true,
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              surname: true,
-              username: true,
-              img: true,
-              createdAt: true,
-              // ✅ Get owner's avatars
-              avatars: {
-                orderBy: { createdAt: 'desc' },
-                select: {
-                  id: true,
-                  avatarIndex: true,
-                  avatarSeed: true,
-                  avatarStyle: true,
-                  isPrimary: true,
-                  isCustomUpload: true,
-                  customImageUrl: true,
-                },
-              },
-              // ✅ Get owner's stats
-              userXP: {
-                select: {
-                  totalXP: true,
-                  contributorTitle: true,
-                },
-              },
-              _count: {
-                select: {
-                  followers: true,
-                  following: true,
-                  courses: true,
-                  posts: true,
-                },
-              },
-              profileSettings: {
-                select: {
-                  bio: true,
-                  country: true,
-                  location: true,
-                  website: true,
-                  isPublic: true,
-                },
-              },
-              UserGoals: {
-                select: {
-                  purpose: true,
-                },
-                take: 1,
-              },
-            },
-          },
-          // ✅ Get homepage data
-          homepage: {
-            include: {
-              customSections: {
-                orderBy: { position: 'asc' },
-              },
-              proofSection: {
-                include: {
-                  images: {
-                    orderBy: { position: 'asc' },
-                  },
-                },
-              },
-              testimonials: {
-                include: {
-                  testimonials: {
-                    orderBy: { position: 'asc' },
-                  },
-                },
-              },
-              faqSection: {
-                include: {
-                  faqs: {
-                    orderBy: { position: 'asc' },
-                  },
-                },
-              },
-              footer: true,
-              sectionBadges: true,
-              courseStats: true,
-            },
-          },
-          // ✅ Get modules with lessons
-          modules: {
-            orderBy: { position: 'asc' },
-            include: {
-              lessons: {
-                orderBy: { position: 'asc' },
-                select: {
-                  id: true,
-                  title: true,
-                  description: true,
-                  videoDuration: true,
-                  position: true,
-                },
-              },
-            },
-          },
-          // ✅ Get enrollments
-          enrollments: {
-            where: {
-              status: 'active',
-            },
-            select: {
-              id: true,
-              userId: true,
-              enrolledAt: true,
-            },
-          },
-          // ✅ Get payments
-          payments: {
-            where: {
-              status: 'succeeded',
-            },
-            select: {
-              id: true,
-              amount: true,
-              createdAt: true,
-            },
-          },
-        },
-      }),
-
-      // Query 2: Get current user's avatars if logged in
-      userId
-        ? prisma.avatar.findMany({
-            where: { userId },
-            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
-            select: {
-              id: true,
-              avatarIndex: true,
-              avatarSeed: true,
-              avatarStyle: true,
-              isPrimary: true,
-              isCustomUpload: true,
-              customImageUrl: true,
-            },
-          })
-        : Promise.resolve([]),
-
-      // Query 3: Check enrollment if logged in
-      userId && courseId
-        ? prisma.courseEnrollment.findFirst({
-            where: {
-              courseId: courseId,
-              userId: userId,
-              status: 'active',
-            },
-          })
-        : Promise.resolve(null),
-    ]);
-
-    const queryTime = Date.now() - startTime;
-    console.log(`✅ Database query completed in ${queryTime}ms`);
-
-    if (!course) {
-      throw new Error('Course not found or not published');
-    }
-
-    // ✅ Calculate enrollment status
-    const isOwner = course.userId === userId;
-    const enrolled = !!enrollmentRecord || isOwner;
-
-    // ✅ Process owner data
-    const ownerData = processOwnerData(course.user);
-
-    // ✅ Transform course data (keep existing transformation logic)
-    const transformedCourse = transformCourseData(course, ownerData);
-
-    const atomicData: AtomicCourseDetailData = {
-      course: transformedCourse,
-      owner: ownerData,
-      currentUserAvatars: currentUserAvatars || [],
-      enrollmentStatus: {
-        enrolled,
-        isOwner,
-      },
-      timestamp: Date.now(),
-    };
-
-    // ✅ Cache the complete atomic data
-    await redis.set(cacheKey, JSON.stringify(atomicData), 'EX', ATOMIC_CACHE_TTL);
+    const data = await getCachedData(
+      cacheKey,
+      () => fetchCourseDetailFromDB(courseId, userId),
+      COURSE_CACHE_TIMES.COURSE_DETAIL,
+      true // Enable stale-while-revalidate
+    );
 
     const totalTime = Date.now() - startTime;
-    console.log(`⚡ ATOMIC course detail load completed in ${totalTime}ms`);
+    const wasCached = data.timestamp < startTime;
+    console.log(`⚡ Course detail loaded in ${totalTime}ms (${wasCached ? 'cached' : 'fresh'})`);
 
-    return atomicData;
+    return data;
   } catch (error) {
-    console.error('❌ Atomic course detail loader failed:', error);
+    console.error('❌ Failed to load course detail:', error);
     throw error;
   }
+}
+
+/**
+ * ✅ Separate DB fetch logic
+ */
+async function fetchCourseDetailFromDB(
+  courseId: string,
+  userId?: string
+): Promise<AtomicCourseDetailData> {
+  const [course, currentUserAvatars, enrollmentRecord] = await Promise.all([
+    // Query 1: Get course with ALL related data
+    prisma.course.findFirst({
+      where: {
+        id: courseId,
+        status: 'PUBLISHED',
+        isPublished: true,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            surname: true,
+            username: true,
+            img: true,
+            createdAt: true,
+            // ✅ Get owner's avatars
+            avatars: {
+              orderBy: { createdAt: 'desc' },
+              select: {
+                id: true,
+                avatarIndex: true,
+                avatarSeed: true,
+                avatarStyle: true,
+                isPrimary: true,
+                isCustomUpload: true,
+                customImageUrl: true,
+              },
+            },
+            // ✅ Get owner's stats
+            userXP: {
+              select: {
+                totalXP: true,
+                contributorTitle: true,
+              },
+            },
+            _count: {
+              select: {
+                followers: true,
+                following: true,
+                courses: true,
+                posts: true,
+              },
+            },
+            profileSettings: {
+              select: {
+                bio: true,
+                country: true,
+                location: true,
+                website: true,
+                isPublic: true,
+              },
+            },
+            UserGoals: {
+              select: {
+                purpose: true,
+              },
+              take: 1,
+            },
+          },
+        },
+        // ✅ Get homepage data
+        homepage: {
+          include: {
+            customSections: {
+              orderBy: { position: 'asc' },
+            },
+            proofSection: {
+              include: {
+                images: {
+                  orderBy: { position: 'asc' },
+                },
+              },
+            },
+            testimonials: {
+              include: {
+                testimonials: {
+                  orderBy: { position: 'asc' },
+                },
+              },
+            },
+            faqSection: {
+              include: {
+                faqs: {
+                  orderBy: { position: 'asc' },
+                },
+              },
+            },
+            footer: true,
+            sectionBadges: true,
+            courseStats: true,
+          },
+        },
+        // ✅ Get modules with lessons
+        modules: {
+          orderBy: { position: 'asc' },
+          include: {
+            lessons: {
+              orderBy: { position: 'asc' },
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                videoDuration: true,
+                position: true,
+              },
+            },
+          },
+        },
+        // ✅ Get enrollments
+        enrollments: {
+          where: {
+            status: 'active',
+          },
+          select: {
+            id: true,
+            userId: true,
+            enrolledAt: true,
+          },
+        },
+        // ✅ Get payments
+        payments: {
+          where: {
+            status: 'succeeded',
+          },
+          select: {
+            id: true,
+            amount: true,
+            createdAt: true,
+          },
+        },
+      },
+    }),
+
+    // Query 2: Get current user's avatars if logged in
+    userId
+      ? prisma.avatar.findMany({
+          where: { userId },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+          select: {
+            id: true,
+            avatarIndex: true,
+            avatarSeed: true,
+            avatarStyle: true,
+            isPrimary: true,
+            isCustomUpload: true,
+            customImageUrl: true,
+          },
+        })
+      : Promise.resolve([]),
+
+    // Query 3: Check enrollment if logged in
+    userId && courseId
+      ? prisma.courseEnrollment.findFirst({
+          where: {
+            courseId: courseId,
+            userId: userId,
+            status: 'active',
+          },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  if (!course) {
+    throw new Error('Course not found or not published');
+  }
+
+  const isOwner = course.userId === userId;
+  const enrolled = !!enrollmentRecord || isOwner;
+  const ownerData = processOwnerData(course.user);
+  const transformedCourse = transformCourseData(course, ownerData);
+
+  return {
+    course: transformedCourse,
+    owner: ownerData,
+    currentUserAvatars: currentUserAvatars || [],
+    enrollmentStatus: {
+      enrolled,
+      isOwner,
+    },
+    timestamp: Date.now(),
+  };
 }
 
 // ✅ Process owner data with correct privacy logic

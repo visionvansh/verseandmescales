@@ -231,6 +231,15 @@ export const CACHE_TIMES = {
   SECURITY_EVENTS: 60 * 10, // 10 minutes
 };
 
+export const COURSE_CACHE_TIMES = {
+  ATOMIC_COURSES: 60 * 30, // 30 minutes
+  ATOMIC_COURSE_DETAIL: 60 * 30, // 30 minutes  
+  ATOMIC_CHECKOUT: 60 * 5, // 5 minutes (payment sensitive)
+  USER_AVATARS: 60 * 60, // 1 hour
+  ENROLLMENT_STATUS: 60 * 15, // 15 minutes
+  PUBLIC_COURSES_STALE: 60 * 120, // 2 hours (stale fallback)
+};
+
 // Cache keys helper functions for the entire application
 export const cacheKeys = {
   socialData: (token: string) => `social:data:${token}`,

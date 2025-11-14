@@ -304,6 +304,97 @@ function CheckoutForm({
   );
 }
 
+// ✅ NEW: Atomic checkout data hook
+function useAtomicCheckoutData(courseId: string) {
+  const [data, setData] = useState<{
+    courseData: any;
+    owner: any;
+    currentUserAvatars: any[];
+    clientSecret: string | null;
+    paymentIntentId: string | null;
+    loading: boolean;
+    error: string | null;
+  }>({
+    courseData: null,
+    owner: null,
+    currentUserAvatars: [],
+    clientSecret: null,
+    paymentIntentId: null,
+    loading: true,
+    error: null,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAtomic() {
+      try {
+        console.log('⚡ Loading atomic checkout data...');
+        const startTime = Date.now();
+
+        const response = await fetch(`/api/atomic/checkout/${courseId}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.details || errorData.error || 'Failed to load checkout');
+        }
+
+        const atomicData = await response.json();
+        const loadTime = Date.now() - startTime;
+
+        console.log(`⚡ Atomic checkout data loaded in ${loadTime}ms`);
+
+        if (isMounted) {
+          setData({
+            courseData: {
+              id: atomicData.course.id,
+              title: atomicData.course.title,
+              description: atomicData.course.description,
+              thumbnail: atomicData.course.thumbnail,
+              price: atomicData.course.price,
+              salePrice: atomicData.course.salePrice,
+              user: atomicData.owner,
+            },
+            owner: atomicData.owner,
+            currentUserAvatars: atomicData.currentUserAvatars || [],
+            clientSecret: atomicData.clientSecret,
+            paymentIntentId: atomicData.paymentIntentId,
+            loading: false,
+            error: null,
+          });
+
+          console.log('✅ Atomic checkout data set, page ready to render');
+        }
+      } catch (error) {
+        console.error('❌ Atomic checkout load error:', error);
+        if (isMounted) {
+          setData({
+            courseData: null,
+            owner: null,
+            currentUserAvatars: [],
+            clientSecret: null,
+            paymentIntentId: null,
+            loading: false,
+            error: error instanceof Error ? error.message : 'Failed to load checkout',
+          });
+        }
+      }
+    }
+
+    if (courseId) {
+      loadAtomic();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [courseId]);
+
+  return data;
+}
+
 export default function CheckoutPage() {
   const params = useParams();
   const router = useRouter();
@@ -311,15 +402,15 @@ export default function CheckoutPage() {
   
   const { user, logout, checkAuthStatus } = useAuth();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [courseData, setCourseData] = useState<any>(null);
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
-  
+  // ✅ Use atomic checkout loader
+  const { courseData, owner, currentUserAvatars, clientSecret, paymentIntentId, loading, error } =
+    useAtomicCheckoutData(courseId);
+
   const [authChecked, setAuthChecked] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [primaryAvatar, setPrimaryAvatar] = useState<UserAvatar | null>(null);
-  const [isLoadingAvatar, setIsLoadingAvatar] = useState(true);
+
+  // Set primary avatar from atomic data
+  const primaryAvatar = currentUserAvatars?.find((a) => a.isPrimary) || currentUserAvatars?.[0] || null;
 
   // ✅ FIRST: Check auth on mount
   useEffect(() => {
@@ -346,62 +437,12 @@ export default function CheckoutPage() {
     }
   }, [checkAuthStatus, authChecked]);
 
-  // ✅ SECOND: Fetch user avatars
-  const fetchUserAvatars = useCallback(async () => {
-    if (!user?.id) {
-      setIsLoadingAvatar(false);
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/user/avatars", {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.avatars && data.avatars.length > 0) {
-          const primary = data.avatars.find((a: UserAvatar) => a.isPrimary);
-          setPrimaryAvatar(primary || data.avatars[0]);
-          console.log("[Checkout] ✅ Avatar loaded");
-        }
-      }
-    } catch (error) {
-      console.error("[Checkout] ❌ Error fetching avatars:", error);
-    } finally {
-      setIsLoadingAvatar(false);
-    }
-  }, [user?.id]);
-
-  // ✅ THIRD: Load avatars when user changes
+  // ✅ Redirect to login if not authenticated
   useEffect(() => {
-    if (user?.id && authChecked) {
-      fetchUserAvatars();
-    } else {
-      setIsLoadingAvatar(false);
+    if (authChecked && !user) {
+      router.push(`/auth/login?redirect=${encodeURIComponent(`/users/courses/${courseId}/checkout`)}`);
     }
-  }, [user?.id, authChecked, fetchUserAvatars]);
-
-  // ✅ Avatar update listener
-  useEffect(() => {
-    const handleAvatarUpdate = () => {
-      console.log("[Checkout] 🔄 Avatar updated, refreshing...");
-      fetchUserAvatars();
-    };
-
-    window.addEventListener("avatar-updated", handleAvatarUpdate);
-    return () => window.removeEventListener("avatar-updated", handleAvatarUpdate);
-  }, [fetchUserAvatars]);
-
-  // ✅ FOURTH: Initialize checkout after auth is checked
-  useEffect(() => {
-    if (authChecked && courseId) {
-      console.log("[Checkout] 📦 Auth checked, initializing checkout");
-      initializeCheckout();
-    }
-  }, [authChecked, courseId]);
+  }, [authChecked, user, router, courseId]);
 
   // ✅ Close dropdowns on outside click
   useEffect(() => {
@@ -418,78 +459,6 @@ export default function CheckoutPage() {
     }
   }, [isProfileOpen]);
 
-  const initializeCheckout = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      console.log("[Checkout] 🔍 Fetching course:", courseId);
-
-      const courseResponse = await fetch(`/api/course/public/${courseId}`, {
-        credentials: "include",
-      });
-
-      if (!courseResponse.ok) {
-        throw new Error("Failed to load course details");
-      }
-
-      const course = await courseResponse.json();
-      console.log("[Checkout] ✅ Course data received");
-
-      const coursePrice = course.footerSalePrice || course.footerPrice;
-
-      if (!coursePrice || parseFloat(coursePrice) <= 0) {
-        throw new Error("This course does not have a valid price set");
-      }
-
-      const ownerData = {
-        id: course.owner.id,
-        name: course.owner.fullName || course.owner.name || course.owner.username,
-        username: course.owner.username,
-        img: course.owner.img || null,
-        avatar: course.owner.primaryAvatar || null,
-        avatars: course.owner.avatars || [],
-      };
-
-      setCourseData({
-        id: course.courseId,
-        title: course.courseTitle,
-        description: course.courseDescription,
-        thumbnail: course.videoThumbnail,
-        price: course.footerPrice,
-        salePrice: course.footerSalePrice,
-        user: ownerData,
-      });
-
-      console.log("[Checkout] 🔐 Creating payment intent");
-      const paymentResponse = await fetch("/api/checkout/create-payment-intent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ courseId }),
-      });
-
-      if (!paymentResponse.ok) {
-        const errorData = await paymentResponse.json();
-        throw new Error(errorData.error || "Failed to initialize payment");
-      }
-
-      const { clientSecret: secret } = await paymentResponse.json();
-      console.log("[Checkout] ✅ Payment intent created");
-
-      if (!secret) {
-        throw new Error("No payment client secret received");
-      }
-
-      setClientSecret(secret);
-    } catch (err: any) {
-      console.error("[Checkout] ❌ Error:", err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleLogout = async () => {
     try {
       await logout();
@@ -498,12 +467,13 @@ export default function CheckoutPage() {
     }
   };
 
-  // ✅ Show simple loading skeleton
-  if (loading || !authChecked) {
+  // ✅ Show loading while checking auth OR loading checkout data
+  if (!authChecked || loading) {
     return <CheckoutSkeleton />;
   }
 
-  if (error || !courseData) {
+  // ✅ Show error if checkout failed to load
+  if (error || !courseData || !clientSecret) {
     return (
       <div className="container mx-auto px-3 xs:px-4 sm:px-6 md:px-8 lg:px-12 py-6 sm:py-8 md:py-10 mt-20">
         <div className="max-w-2xl mx-auto">
@@ -530,17 +500,6 @@ export default function CheckoutPage() {
               </button>
             </div>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!clientSecret) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 mt-20">
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-400">Initializing payment...</p>
         </div>
       </div>
     );

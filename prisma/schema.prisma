@@ -872,18 +872,26 @@ model Course {
   price                 String?
   salePrice             String?
   saleEndsAt            DateTime? // When the sale offer expires
-  homepageType      String   @default("builder") // "builder" or "custom"
-  customHomepageFile String? // e.g., "homepage-v2.tsx"
+  homepageType          String   @default("builder") // "builder" or "custom"
+  customHomepageFile    String? // e.g., "homepage-v2.tsx"
+  
+  // ✅ ADD THESE FIELDS
+  category              String?
+  isPopular             Boolean  @default(false)
+  isTrending            Boolean  @default(false)
+  averageRating         Float    @default(0.0)
+  
   // Status Management
   status                CourseStatus @default(DRAFT)
-  payments          Payment[] @relation("CoursePayments")
+  payments              Payment[] @relation("CoursePayments")
   isPublished           Boolean  @default(false)
   publishedAt           DateTime?
   
   // Progress Tracking
   completionPercentage  Int      @default(0)
   lastEditedSection     String?
-  ratings           CourseRating[] @relation("CourseRatings")
+  ratings               CourseRating[] @relation("CourseRatings")
+  
   // Relations
   user                  Student  @relation("UserCourses", fields: [userId], references: [id], onDelete: Cascade)
   homepage              CourseHomepage?
@@ -902,6 +910,10 @@ model Course {
   @@index([status])
   @@index([slug])
   @@index([isPublished])
+  @@index([isPopular])      // ✅ NEW INDEX
+  @@index([isTrending])     // ✅ NEW INDEX
+  @@index([category])       // ✅ NEW INDEX
+  @@index([averageRating])  // ✅ NEW INDEX
 }
 
 // ✅ NEW: Track course enrollments
