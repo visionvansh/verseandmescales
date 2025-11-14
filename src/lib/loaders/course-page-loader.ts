@@ -46,7 +46,17 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
         status: 'PUBLISHED',
         isPublished: true,
       },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        description: true,
+        thumbnail: true,
+        price: true,
+        salePrice: true,
+        saleEndsAt: true,
+        category: true,
+        averageRating: true,
         user: {
           select: {
             id: true,
