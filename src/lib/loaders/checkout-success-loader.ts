@@ -120,6 +120,24 @@ export async function loadCheckoutSuccessData(
       },
     });
 
+    // ✅ FIX: Invalidate ALL related caches
+    const { invalidateCourseCache, invalidateUserCache, courseCacheKeys } = await import('@/lib/cache/course-cache');
+    const { redis } = await import('@/lib/redis');
+    
+    console.log('🧹 Invalidating caches after enrollment...');
+    
+    // Invalidate course caches
+    await invalidateCourseCache(courseId);
+    
+    // Invalidate user enrollment cache
+    await invalidateUserCache(userId);
+    
+    // Invalidate courses list (so /courses updates)
+    await redis.del(courseCacheKeys.publicCourses());
+    await redis.del(`${courseCacheKeys.publicCourses()}:${userId}`);
+    
+    console.log('✅ Caches invalidated successfully');
+
     const totalTime = Date.now() - startTime;
     console.log(`⚡ ATOMIC success load completed in ${totalTime}ms`);
 

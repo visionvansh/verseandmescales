@@ -419,6 +419,18 @@ export default function PublicCoursePage() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
 
+  // ✅ ADD: Debug logging
+  useEffect(() => {
+    if (courseData && owner && user) {
+      console.log('[Course Detail] Debug:', {
+        currentUserId: user.id,
+        ownerId: owner.id,
+        isOwner: enrollmentStatus?.isOwner,
+        enrolled: enrollmentStatus?.enrolled,
+      });
+    }
+  }, [courseData, owner, user, enrollmentStatus]);
+
   // ✅ Hover card states
   const [showOwnerHoverCard, setShowOwnerHoverCard] = useState(false);
   const [hoveredOwner, setHoveredOwner] = useState<ExtendedUser | null>(null);
@@ -685,10 +697,9 @@ export default function PublicCoursePage() {
             <div className="relative px-3 sm:px-4 md:px-6 py-2 sm:py-3">
               {/* Desktop Layout */}
               <div className="hidden md:grid md:grid-cols-[auto_1fr_auto] items-center gap-4">
-                {/* ✅ Left: Course Info with Owner Avatar - HOVERABLE & CLICKABLE */}
+                {/* Left: Course Info with Owner Avatar */}
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-3">
-                    {/* ✅ Course Owner Avatar with Hover & Click */}
                     <div
                       className="w-8 h-8 rounded-full border-2 border-red-500/50 overflow-hidden bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center flex-shrink-0 cursor-pointer hover:border-red-500 hover:ring-2 hover:ring-red-500/30 transition-all duration-200"
                       onMouseEnter={handleOwnerHover}
@@ -696,17 +707,16 @@ export default function PublicCoursePage() {
                       onClick={handleOwnerClick}
                     >
                       <ProfileAvatar
-                        customImage={owner.img}
+                        customImage={owner?.img}
                         avatar={ownerPrimaryAvatar}
-                        userId={owner.id}
+                        userId={owner?.id || 'default'}
                         size={32}
                       />
                     </div>
                     <div>
                       <h2 className="text-white font-bold text-sm leading-tight">
-                        {courseData.courseTitle}
+                        {courseData?.courseTitle}
                       </h2>
-                      {/* ✅ Owner Name - HOVERABLE & CLICKABLE */}
                       <p
                         className="text-gray-400 text-xs flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors"
                         onMouseEnter={handleOwnerHover}
@@ -714,7 +724,7 @@ export default function PublicCoursePage() {
                         onClick={handleOwnerClick}
                       >
                         <FaUser className="text-red-400 text-[10px]" />
-                        by {owner.fullName}
+                        by {owner?.fullName}
                       </p>
                     </div>
                   </div>
@@ -722,6 +732,7 @@ export default function PublicCoursePage() {
 
                 {/* Center: Status Badge */}
                 <div className="flex justify-center">
+                  {/* ✅ FIX: Add debug and check enrollmentStatus properly */}
                   {enrollmentStatus?.isOwner && (
                     <div className="inline-flex items-center gap-2 bg-blue-900/20 border border-blue-500/30 px-4 py-2 rounded-xl backdrop-blur-sm">
                       <FaCheckCircle className="text-blue-400" />
@@ -730,7 +741,7 @@ export default function PublicCoursePage() {
                       </span>
                     </div>
                   )}
-                  {enrollmentStatus?.enrolled && !enrollmentStatus.isOwner && (
+                  {enrollmentStatus?.enrolled && !enrollmentStatus?.isOwner && (
                     <div className="inline-flex items-center gap-2 bg-green-900/20 border border-green-500/30 px-4 py-2 rounded-xl backdrop-blur-sm">
                       <FaCheckCircle className="text-green-400" />
                       <span className="text-white text-sm font-bold">
@@ -742,24 +753,14 @@ export default function PublicCoursePage() {
 
                 {/* Right: Actions + Profile */}
                 <div className="flex items-center gap-2">
-                  {(() => {
-                    console.log(
-                      "[Navbar] Rendering with user:",
-                      user?.email,
-                      "enrolled:",
-                      enrollmentStatus?.enrolled
-                    );
-                    return null;
-                  })()}
-
-                  {/* Show appropriate button based on state */}
+                  {/* ✅ FIX: Proper conditional rendering */}
                   {enrollmentStatus?.isOwner ? (
                     // Owner buttons
                     <>
                       <motion.button
                         onClick={() =>
                           router.push(
-                            `/users/homepage-builder?courseId=${courseData.courseId}`
+                            `/users/homepage-builder?courseId=${courseData?.courseId}`
                           )
                         }
                         whileHover={{ scale: 1.05 }}
@@ -805,7 +806,7 @@ export default function PublicCoursePage() {
                       </span>
                     </motion.button>
                   ) : user ? (
-                    // ✅ Logged in but not enrolled - Show Enroll Now
+                    // Logged in but not enrolled - Show Enroll Now
                     <motion.button
                       onClick={handleEnroll}
                       disabled={enrolling}
@@ -832,7 +833,7 @@ export default function PublicCoursePage() {
                       )}
                     </motion.button>
                   ) : (
-                    // ✅ Not logged in - Show Sign Up
+                    // Not logged in - Show Sign Up
                     <motion.button
                       onClick={() =>
                         router.push(
@@ -992,7 +993,7 @@ export default function PublicCoursePage() {
                 </div>
               </div>
 
-              {/* Mobile Layout */}
+              {/* Mobile Layout - Similar fixes */}
               <div className="flex md:hidden items-center justify-between gap-2">
                 {/* ✅ Course Title + Owner Avatar - HOVERABLE & CLICKABLE */}
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1003,22 +1004,22 @@ export default function PublicCoursePage() {
                     onClick={handleOwnerClick}
                   >
                     <ProfileAvatar
-                      customImage={owner.img}
+                      customImage={owner?.img}
                       avatar={ownerPrimaryAvatar}
-                      userId={owner.id}
+                      userId={owner?.id || 'default'}
                       size={28}
                     />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h2 className="text-white font-bold text-xs leading-tight truncate">
-                      {courseData.courseTitle}
+                      {courseData?.courseTitle}
                     </h2>
                     {/* ✅ Owner Name - CLICKABLE on mobile */}
                     <p
                       className="text-gray-400 text-[10px] truncate cursor-pointer hover:text-white transition-colors"
                       onClick={handleOwnerClick}
                     >
-                      by {owner.fullName}
+                      by {owner?.fullName}
                     </p>
                   </div>
                 </div>
@@ -1181,7 +1182,7 @@ export default function PublicCoursePage() {
         </motion.button>
       )}
 
-      {user && enrollmentStatus?.enrolled && !enrollmentStatus.isOwner && (
+      {user && enrollmentStatus?.enrolled && !enrollmentStatus?.isOwner && (
         <motion.button
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}

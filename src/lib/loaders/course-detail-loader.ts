@@ -47,7 +47,7 @@ export async function loadCompleteCourseDetail(
 }
 
 /**
- * ✅ Separate DB fetch logic
+ * ✅ FIXED: Ensure enrollment status check is correct
  */
 async function fetchCourseDetailFromDB(
   courseId: string,
@@ -64,7 +64,7 @@ async function fetchCourseDetailFromDB(
       include: {
         user: {
           select: {
-            id: true,
+            id: true, // ✅ CRITICAL: Select user ID
             name: true,
             surname: true,
             username: true,
@@ -221,8 +221,18 @@ async function fetchCourseDetailFromDB(
     throw new Error('Course not found or not published');
   }
 
-  const isOwner = course.userId === userId;
-  const enrolled = !!enrollmentRecord || isOwner;
+  // ✅ FIX: CRITICAL - Proper owner check
+  const isOwner = Boolean(userId && course.userId === userId);
+  const enrolled = Boolean(enrollmentRecord) || isOwner;
+  
+  console.log('[Course Detail Loader] Enrollment Check:', {
+    courseUserId: course.userId,
+    currentUserId: userId,
+    isOwner,
+    hasEnrollmentRecord: Boolean(enrollmentRecord),
+    finalEnrolled: enrolled,
+  });
+
   const ownerData = processOwnerData(course.user);
   const transformedCourse = transformCourseData(course, ownerData);
 
@@ -238,7 +248,9 @@ async function fetchCourseDetailFromDB(
   };
 }
 
-// ✅ Process owner data with correct privacy logic
+/**
+ * ✅ Process owner data with correct privacy logic
+ */
 function processOwnerData(user: any) {
   if (!user) return null;
 
@@ -263,8 +275,9 @@ function processOwnerData(user: any) {
     isPrivate = !user.profileSettings?.isPublic;
   }
 
+  // ✅ FIX: Ensure ID is always returned
   return {
-    id: user.id,
+    id: user.id, // ✅ CRITICAL: Include user ID
     username: user.username,
     name: user.name || 'User',
     surname: user.surname || '',
@@ -302,11 +315,33 @@ function transformCourseData(course: any, ownerData: any) {
     (e: any) => new Date(e.enrolledAt) >= firstDayOfMonth
   ) || [];
 
-  const coursePrice = course.salePrice
-    ? parseFloat(course.salePrice)
-    : course.price
-    ? parseFloat(course.price)
-    : 0;
+  // ✅ FIX: Proper sale price handling
+  const basePriceNum = course.price ? parseFloat(course.price) : 0;
+  const salePriceNum = course.salePrice ? parseFloat(course.salePrice) : null;
+  
+  // Check if sale is valid and not expired
+  let effectiveSalePrice: string | null = null;
+  let effectiveSaleEndsAt: string | null = null;
+
+  if (salePriceNum !== null && salePriceNum < basePriceNum) {
+    // If there's NO end date, sale is always active
+    if (!course.saleEndsAt) {
+      effectiveSalePrice = course.salePrice;
+      effectiveSaleEndsAt = null;
+    } 
+    // If there IS an end date, check if it's still valid
+    else {
+      const saleEndDate = new Date(course.saleEndsAt);
+      if (saleEndDate > now) {
+        effectiveSalePrice = course.salePrice;
+        effectiveSaleEndsAt = course.saleEndsAt.toISOString();
+      }
+    }
+  }
+
+  const coursePrice = effectiveSalePrice
+    ? parseFloat(effectiveSalePrice)
+    : basePriceNum;
 
   const monthlyIncome = monthlyEnrollments.length * coursePrice;
   const totalRevenue = activeStudents * coursePrice;
@@ -321,9 +356,12 @@ function transformCourseData(course: any, ownerData: any) {
     owner: ownerData,
     homepageType: course.homepageType || 'builder',
     customHomepageFile: course.customHomepageFile || null,
+    
+    // ✅ FIX: Always include these fields
     price: course.price || '0',
-    salePrice: course.salePrice || null,
-    saleEndsAt: course.saleEndsAt ? course.saleEndsAt.toISOString() : null,
+    salePrice: effectiveSalePrice,
+    saleEndsAt: effectiveSaleEndsAt,
+    
     thumbnail: course.thumbnail,
 
     // Include homepage data if exists
@@ -469,8 +507,10 @@ function transformCourseData(course: any, ownerData: any) {
       })),
     }),
 
+    // ✅ FIX: Include footer pricing (these were missing!)
     footerPrice: course.price || '0',
-    footerSalePrice: course.salePrice || null,
+    footerSalePrice: effectiveSalePrice,
+    footerSaleEndsAt: effectiveSaleEndsAt,
     footerCurrency: 'USD',
 
     courseStats: {

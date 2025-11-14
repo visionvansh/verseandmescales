@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/utils/auth';
+import { invalidateCourseCache } from '@/lib/cache/course-cache';
+import { redis } from '@/lib/redis';
 
 // Type definitions
 type CourseEnrollment = {
@@ -17,6 +19,7 @@ type Course = {
 };
 
 type CourseRating = {
+  id: string;
   courseId: string;
   userId: string;
   rating: number;
@@ -35,6 +38,98 @@ type CourseRating = {
 type RatingRecord = {
   rating: number;
 };
+
+// ✅ Cache keys for ratings
+const ratingCacheKeys = {
+  courseRatings: (courseId: string) => `course:ratings:${courseId}`,
+  userRating: (courseId: string, userId: string) => `course:rating:${courseId}:${userId}`,
+  ratingStats: (courseId: string) => `course:rating:stats:${courseId}`,
+};
+
+// ✅ Helper: Calculate rating stats
+async function calculateRatingStats(courseId: string) {
+  const allRatings = await prisma.courseRating.findMany({
+    where: { courseId },
+    select: { rating: true },
+  }) as RatingRecord[];
+
+  const averageRating = allRatings.length > 0
+    ? allRatings.reduce((sum: number, r: RatingRecord) => sum + r.rating, 0) / allRatings.length
+    : 0;
+
+  const ratingBreakdown = {
+    5: allRatings.filter((r: RatingRecord) => r.rating === 5).length,
+    4: allRatings.filter((r: RatingRecord) => r.rating === 4).length,
+    3: allRatings.filter((r: RatingRecord) => r.rating === 3).length,
+    2: allRatings.filter((r: RatingRecord) => r.rating === 2).length,
+    1: allRatings.filter((r: RatingRecord) => r.rating === 1).length,
+  };
+
+  return {
+    averageRating: parseFloat(averageRating.toFixed(1)),
+    totalRatings: allRatings.length,
+    ratingBreakdown,
+  };
+}
+
+// ✅ Helper: Update course average rating
+async function updateCourseRating(courseId: string, averageRating: number) {
+  try {
+    // Update Course table
+    await prisma.course.update({
+      where: { id: courseId },
+      data: { averageRating },
+    });
+
+    // Update CourseStats if homepage exists
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { 
+        userId: true,
+        homepage: { select: { id: true } }
+      },
+    });
+
+    if (course?.homepage?.id) {
+      await prisma.courseStats.upsert({
+        where: { homepageId: course.homepage.id },
+        update: { courseRating: averageRating },
+        create: {
+          homepageId: course.homepage.id,
+          userId: course.userId,
+          courseRating: averageRating,
+        },
+      });
+    }
+
+    console.log(`✅ Updated course ${courseId} rating to ${averageRating}`);
+  } catch (error) {
+    console.error('⚠️ Failed to update course rating:', error);
+  }
+}
+
+// ✅ Helper: Invalidate all rating caches
+async function invalidateRatingCaches(courseId: string, userId?: string) {
+  try {
+    const keys = [
+      ratingCacheKeys.courseRatings(courseId),
+      ratingCacheKeys.ratingStats(courseId),
+    ];
+    
+    if (userId) {
+      keys.push(ratingCacheKeys.userRating(courseId, userId));
+    }
+    
+    await redis.del(...keys);
+    
+    // ✅ Invalidate course cache to update cards immediately
+    await invalidateCourseCache(courseId);
+    
+    console.log(`✅ Invalidated ${keys.length} rating cache keys`);
+  } catch (error) {
+    console.error('⚠️ Failed to invalidate rating caches:', error);
+  }
+}
 
 // ============================================
 // POST - Submit or Update Course Rating
@@ -85,14 +180,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user is the course owner and get homepage info
+    // Check if user is the course owner
     const course = await prisma.course.findUnique({
       where: { id: courseId },
       select: { 
         userId: true,
-        homepage: {
-          select: { id: true }
-        }
+        homepage: { select: { id: true } }
       },
     }) as Course | null;
 
@@ -142,41 +235,22 @@ export async function POST(request: NextRequest) {
       },
     }) as CourseRating;
 
-    // Calculate new average rating
-    const allRatings = await prisma.courseRating.findMany({
-      where: { courseId },
-      select: { rating: true },
-    }) as RatingRecord[];
+    // ✅ Calculate new stats
+    const stats = await calculateRatingStats(courseId);
 
-    const averageRating = allRatings.length > 0
-      ? allRatings.reduce((sum: number, r: RatingRecord) => sum + r.rating, 0) / allRatings.length
-      : 0;
+    // ✅ Update course rating in DB
+    await updateCourseRating(courseId, stats.averageRating);
 
-    // ✅ FIX: Only update CourseStats if homepage exists
-    if (course.homepage?.id) {
-      try {
-        await prisma.courseStats.upsert({
-          where: { homepageId: course.homepage.id },
-          update: {
-            courseRating: parseFloat(averageRating.toFixed(1)),
-          },
-          create: {
-            homepageId: course.homepage.id,
-            userId: course.userId,
-            courseRating: parseFloat(averageRating.toFixed(1)),
-          },
-        });
-      } catch (statsError) {
-        console.error('⚠️ Failed to update course stats:', statsError);
-        // Don't fail the whole request if stats update fails
-      }
-    }
+    // ✅ Invalidate all rating caches (this will update /courses cards immediately)
+    await invalidateRatingCaches(courseId, user.id);
+
+    console.log(`✅ Rating submitted for course ${courseId} by user ${user.id}`);
 
     return NextResponse.json({
       success: true,
       rating: courseRating,
-      averageRating: parseFloat(averageRating.toFixed(1)),
-      totalRatings: allRatings.length,
+      averageRating: stats.averageRating,
+      totalRatings: stats.totalRatings,
     });
   } catch (error) {
     console.error('❌ Error submitting rating:', error);
@@ -188,7 +262,7 @@ export async function POST(request: NextRequest) {
 }
 
 // ============================================
-// GET - Get User's Rating for a Course
+// GET - Get User's Rating for a Course (with caching)
 // ============================================
 export async function GET(request: NextRequest) {
   try {
@@ -211,39 +285,57 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user's existing rating
-    const userRating = await prisma.courseRating.findUnique({
-      where: {
-        courseId_userId: {
-          courseId,
-          userId: user.id,
+    // ✅ Try cache first
+    const statsCacheKey = ratingCacheKeys.ratingStats(courseId);
+    const userRatingCacheKey = ratingCacheKeys.userRating(courseId, user.id);
+
+    try {
+      const [cachedStats, cachedUserRating] = await Promise.all([
+        redis.get(statsCacheKey),
+        redis.get(userRatingCacheKey),
+      ]);
+
+      if (cachedStats && cachedUserRating !== null) {
+        console.log(`✅ Returning cached rating data for course ${courseId}`);
+        
+        const stats = JSON.parse(cachedStats);
+        const userRating = cachedUserRating === 'null' ? null : JSON.parse(cachedUserRating);
+
+        return NextResponse.json({
+          userRating,
+          ...stats,
+        });
+      }
+    } catch (cacheError) {
+      console.error('⚠️ Cache read error:', cacheError);
+    }
+
+    // ✅ Fetch from DB if not cached
+    const [userRating, stats] = await Promise.all([
+      prisma.courseRating.findUnique({
+        where: {
+          courseId_userId: {
+            courseId,
+            userId: user.id,
+          },
         },
-      },
-    }) as CourseRating | null;
+      }) as Promise<CourseRating | null>,
+      calculateRatingStats(courseId),
+    ]);
 
-    // Get course rating stats
-    const allRatings = await prisma.courseRating.findMany({
-      where: { courseId },
-      select: { rating: true },
-    }) as RatingRecord[];
-
-    const averageRating = allRatings.length > 0
-      ? allRatings.reduce((sum: number, r: RatingRecord) => sum + r.rating, 0) / allRatings.length
-      : 0;
-
-    const ratingBreakdown = {
-      5: allRatings.filter((r: RatingRecord) => r.rating === 5).length,
-      4: allRatings.filter((r: RatingRecord) => r.rating === 4).length,
-      3: allRatings.filter((r: RatingRecord) => r.rating === 3).length,
-      2: allRatings.filter((r: RatingRecord) => r.rating === 2).length,
-      1: allRatings.filter((r: RatingRecord) => r.rating === 1).length,
-    };
+    // ✅ Cache the results (5 minutes)
+    try {
+      await Promise.all([
+        redis.set(statsCacheKey, JSON.stringify(stats), 'EX', 300),
+        redis.set(userRatingCacheKey, JSON.stringify(userRating), 'EX', 300),
+      ]);
+    } catch (cacheError) {
+      console.error('⚠️ Cache write error:', cacheError);
+    }
 
     return NextResponse.json({
       userRating: userRating || null,
-      averageRating: parseFloat(averageRating.toFixed(1)),
-      totalRatings: allRatings.length,
-      ratingBreakdown,
+      ...stats,
     });
   } catch (error) {
     console.error('❌ Error fetching rating:', error);
@@ -288,51 +380,21 @@ export async function DELETE(request: NextRequest) {
       },
     });
 
-    // Recalculate average
-    const allRatings = await prisma.courseRating.findMany({
-      where: { courseId },
-      select: { rating: true },
-    }) as RatingRecord[];
+    // ✅ Recalculate stats
+    const stats = await calculateRatingStats(courseId);
 
-    const averageRating = allRatings.length > 0
-      ? allRatings.reduce((sum: number, r: RatingRecord) => sum + r.rating, 0) / allRatings.length
-      : 0;
+    // ✅ Update course rating
+    await updateCourseRating(courseId, stats.averageRating);
 
-    // Update CourseStats - only if homepage exists
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
-      select: { 
-        userId: true,
-        homepage: {
-          select: { id: true }
-        }
-      },
-    }) as Course | null;
+    // ✅ Invalidate caches (updates /courses cards immediately)
+    await invalidateRatingCaches(courseId, user.id);
 
-    // ✅ FIX: Only update CourseStats if homepage exists
-    if (course?.homepage?.id) {
-      try {
-        await prisma.courseStats.upsert({
-          where: { homepageId: course.homepage.id },
-          update: {
-            courseRating: parseFloat(averageRating.toFixed(1)),
-          },
-          create: {
-            homepageId: course.homepage.id,
-            userId: course.userId,
-            courseRating: parseFloat(averageRating.toFixed(1)),
-          },
-        });
-      } catch (statsError) {
-        console.error('⚠️ Failed to update course stats:', statsError);
-        // Don't fail the whole request if stats update fails
-      }
-    }
+    console.log(`✅ Rating deleted for course ${courseId} by user ${user.id}`);
 
     return NextResponse.json({
       success: true,
-      averageRating: parseFloat(averageRating.toFixed(1)),
-      totalRatings: allRatings.length,
+      averageRating: stats.averageRating,
+      totalRatings: stats.totalRatings,
     });
   } catch (error) {
     console.error('❌ Error deleting rating:', error);

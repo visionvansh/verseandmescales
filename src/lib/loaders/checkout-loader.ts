@@ -144,7 +144,7 @@ async function fetchCourseForCheckout(courseId: string) {
 }
 
 /**
- * ✅ Create payment intent (never cached)
+ * ✅ FIXED: Create payment intent with proper seller validation
  */
 async function createPaymentIntent(courseId: string, userId: string, course: any) {
   // Check enrollment
@@ -161,7 +161,40 @@ async function createPaymentIntent(courseId: string, userId: string, course: any
     throw new Error('Already enrolled in this course');
   }
 
-  if (course.userId === userId) {
+  // ✅ FIX: Ensure sellerId exists, fetch from DB if not in cache
+  let sellerId = course.userId;
+  
+  if (!sellerId) {
+    console.log('⚠️ Seller ID not found in cached course data, fetching from database');
+    const freshCourse = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { 
+        userId: true,
+        user: {
+          select: {
+            earnings: {
+              select: {
+                stripeAccountId: true
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    if (!freshCourse?.userId) {
+      throw new Error('Invalid course: seller not found');
+    }
+    
+    sellerId = freshCourse.userId;
+    
+    // ✅ Update course object with fresh data
+    course.userId = freshCourse.userId;
+    course.stripeAccountId = freshCourse.user.earnings?.stripeAccountId;
+  }
+
+  // ✅ VALIDATION: Cannot buy own course
+  if (sellerId === userId) {
     throw new Error('You cannot purchase your own course');
   }
 
@@ -218,7 +251,7 @@ async function createPaymentIntent(courseId: string, userId: string, course: any
     metadata: {
       courseId,
       buyerId: userId,
-      sellerId: course.userId,
+      sellerId: sellerId,  // ✅ Use validated sellerId
       platformFee: platformFee.toString(),
       sellerAmount: sellerAmount.toString(),
     },
@@ -234,20 +267,34 @@ async function createPaymentIntent(courseId: string, userId: string, course: any
 
   const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
 
-  // Create payment record
+  // ✅ FIX: Create payment record with validated seller ID
   await prisma.payment.create({
     data: {
       stripePaymentId: paymentIntent.id,
       amount: price,
       currency: 'USD',
       status: 'pending',
-      courseId,
-      buyerId: userId,
-      sellerId: course.userId,
+      course: {
+        connect: { id: courseId }
+      },
+      buyer: {
+        connect: { id: userId }
+      },
+      seller: {
+        connect: { id: sellerId }  // ✅ Use validated sellerId
+      },
       platformFee: platformFee / 100,
       sellerAmount: sellerAmount / 100,
       customerEmail: buyer.email,
     },
+  });
+
+  console.log('✅ Payment intent created successfully:', {
+    paymentIntentId: paymentIntent.id,
+    courseId,
+    buyerId: userId,
+    sellerId: sellerId,
+    amount: price,
   });
 
   return {
