@@ -2,28 +2,31 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { initializeCacheWarming } from "@/lib/cache/init";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Verseandme Scales",
   description: "Platform build for selling",
-  icons: {
-    icon: "/logomake2.JPG",
-  },
+  icons: { icon: "/logomake2.JPG" },
 };
 
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-dynamic';
 
-// ✅ Initialize cache warming once at module load (server-side only)
-if (typeof window === 'undefined') {
-  console.log('🔥 Root layout loaded on server, initializing cache warming...');
-  initializeCacheWarming().catch(err => {
-    console.error('❌ Cache warming initialization failed:', err);
+// ✅ Initialize cache warming ONCE at module level (not on every render)
+let cacheInitialized = false;
+
+if (typeof window === 'undefined' && !cacheInitialized) {
+  cacheInitialized = true;
+  console.log('🔥 Initializing cache warming (once)...');
+  
+  // ✅ Use dynamic import to prevent blocking
+  import('@/lib/cache/init').then(({ initializeCacheWarming }) => {
+    initializeCacheWarming().catch(err => {
+      console.error('❌ Cache init failed:', err);
+    });
   });
 }
 

@@ -27,28 +27,29 @@ class AutoCacheWarmer {
     errors: [],
   };
   
-  private readonly MIN_WARM_INTERVAL = 3 * 60 * 1000; // 3 minutes
-  private readonly BACKGROUND_REFRESH_INTERVAL = 4 * 60 * 1000; // 4 minutes
-  private readonly MAX_CONCURRENT_QUERIES = 3; // ✅ Limit concurrent DB queries
-  private readonly BATCH_DELAY = 100; // ✅ Delay between batches (ms)
+  // ✅ Increase intervals to prevent overlapping
+  private readonly MIN_WARM_INTERVAL = 5 * 60 * 1000; // 5 minutes
+  private readonly BACKGROUND_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes
+  private readonly MAX_CONCURRENT_QUERIES = 2; // ✅ Reduce concurrency
+  private readonly BATCH_DELAY = 200; // ✅ Increase delay
 
   constructor() {
-    // Start warming immediately on instantiation
-    this.initialize();
+    // ✅ DON'T warm immediately on instantiation
+    // Let the explicit call handle it
   }
 
   /**
-   * ✅ Initialize automatic cache warming
+   * ✅ Initialize - only start background warming, don't warm immediately
    */
-  private async initialize(): Promise<void> {
+  async initialize(): Promise<void> {
+    if (this.warmingInterval) {
+      console.log('⏭️ Background warming already active');
+      return;
+    }
+    
     console.log('🚀 Initializing automatic cache warming system...');
     
-    // Warm immediately on startup (don't wait)
-    this.warmAllCaches().catch(err => {
-      console.error('❌ Initial warming failed:', err);
-    });
-
-    // Start background refresh loop
+    // Start background refresh loop (don't warm immediately)
     this.startBackgroundWarming();
     
     console.log('✅ Cache warming system initialized');
@@ -60,25 +61,25 @@ class AutoCacheWarmer {
   async warmAllCaches(): Promise<CacheWarmingStats> {
     const now = Date.now();
     
-    // Prevent duplicate warming
+    // ✅ Strict duplicate prevention
     if (this.isWarming) {
       console.log('⏭️ Cache warming already in progress, skipping');
       return this.stats;
     }
 
-    // Rate limiting
+    // ✅ Rate limiting
     if (now - this.lastWarmTime < this.MIN_WARM_INTERVAL) {
-      console.log(`⏭️ Cache warmed ${Math.round((now - this.lastWarmTime) / 1000)}s ago, skipping`);
+      const waitTime = Math.round((this.MIN_WARM_INTERVAL - (now - this.lastWarmTime)) / 1000);
+      console.log(`⏭️ Cache warmed recently, wait ${waitTime}s before next warm`);
       return this.stats;
     }
 
-    // Distributed lock to prevent multiple instances from warming
+    // ✅ Distributed lock with shorter timeout
     const lockKey = 'cache:warming:lock';
     const lockValue = `${Date.now()}-${Math.random()}`;
     
     try {
-      // Try to acquire lock (expires in 3 minutes)
-      const lockAcquired = await redis.set(lockKey, lockValue, 'EX', 180, 'NX');
+      const lockAcquired = await redis.set(lockKey, lockValue, 'EX', 120, 'NX');
       
       if (!lockAcquired) {
         console.log('⏭️ Another instance is warming cache, skipping');
@@ -88,6 +89,7 @@ class AutoCacheWarmer {
       console.log('🔥 Starting comprehensive cache warming for all pages...');
       const startTime = Date.now();
       this.isWarming = true;
+      this.lastWarmTime = now; // ✅ Set BEFORE warming
 
       // Reset stats
       this.stats = {
@@ -99,12 +101,11 @@ class AutoCacheWarmer {
         errors: [],
       };
 
-      // ✅ Run sequentially to prevent connection exhaustion
+      // ✅ Run sequentially with delays
       await this.warmSequentially();
 
       const duration = Date.now() - startTime;
       this.stats.totalTime = duration;
-      this.lastWarmTime = Date.now();
       
       console.log(`✅ Cache warming completed in ${duration}ms`);
       console.log(`📊 Stats:`, {
@@ -115,20 +116,16 @@ class AutoCacheWarmer {
         errors: this.stats.errors.length,
       });
       
-      // Release lock
-      await redis.del(lockKey);
-      
       return this.stats;
     } catch (error) {
       console.error('❌ Cache warming failed:', error);
       this.stats.errors.push(error instanceof Error ? error.message : 'Unknown error');
       
-      // Always release lock on error
-      await redis.del(lockKey).catch(() => {});
-      
       return this.stats;
     } finally {
       this.isWarming = false;
+      // Release lock
+      await redis.del(lockKey).catch(() => {});
     }
   }
 
@@ -341,11 +338,13 @@ class AutoCacheWarmer {
   }
 
   /**
-   * ✅ Warm single user's data with retry logic
+   * ✅ Warm single user data with connection error handling
    */
   private async warmSingleUserData(userId: string, retries = 2): Promise<void> {
     try {
-      // Warm user avatars
+      // ✅ Add delay before each user query
+      await this.delay(50);
+      
       const avatars = await prisma.avatar.findMany({
         where: { userId },
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
@@ -363,15 +362,12 @@ class AutoCacheWarmer {
       const avatarKey = courseCacheKeys.userAvatars(userId);
       await this.setCacheData(avatarKey, avatars, COURSE_CACHE_TIMES.USER_AVATARS);
 
-      // Warm user enrollments
+      // ✅ Add delay between queries
+      await this.delay(50);
+
       const enrollments = await prisma.courseEnrollment.findMany({
-        where: {
-          userId,
-          status: 'active',
-        },
-        select: {
-          courseId: true,
-        },
+        where: { userId, status: 'active' },
+        select: { courseId: true },
       });
       
       const enrollmentKey = courseCacheKeys.bulkEnrollments(userId);
@@ -379,16 +375,15 @@ class AutoCacheWarmer {
       await this.setCacheData(enrollmentKey, enrollmentIds, COURSE_CACHE_TIMES.ENROLLMENT_STATUS);
 
       this.stats.userDataWarmed++;
-    } catch (error) {
-      if (retries > 0 && error instanceof Error && error.message.includes('connection')) {
-        // ✅ Retry on connection errors
-        console.log(`    ⚠️ Retrying user ${userId} (${retries} retries left)...`);
-        await this.delay(500); // Wait before retry
+    } catch (error: any) {
+      if (retries > 0 && error.message?.includes('connection')) {
+        console.log(`    ⚠️ Retrying user ${userId} (${retries} left)...`);
+        await this.delay(1000); // ✅ Longer wait before retry
         return this.warmSingleUserData(userId, retries - 1);
       }
       
       // Silent fail for individual users
-      console.error(`    ✗ Failed to warm user ${userId}:`, error);
+      console.error(`    ✗ Failed user ${userId}:`, error.message);
     }
   }
 
@@ -566,16 +561,23 @@ class AutoCacheWarmer {
   private startBackgroundWarming(): void {
     console.log(`🔄 Starting background refresh (every ${this.BACKGROUND_REFRESH_INTERVAL / 1000}s)`);
     
-    // Refresh every 4 minutes (before 5-10 minute cache expiry)
     this.warmingInterval = setInterval(() => {
-      if (!this.isWarming) {
-        console.log('🔄 Background refresh triggered');
-        this.warmAllCaches().catch(err => {
-          console.error('❌ Background refresh failed:', err);
-        });
-      } else {
+      // ✅ More strict check
+      if (this.isWarming) {
         console.log('⏭️ Skipping background refresh (warming in progress)');
+        return;
       }
+
+      const timeSinceLastWarm = Date.now() - this.lastWarmTime;
+      if (timeSinceLastWarm < this.MIN_WARM_INTERVAL) {
+        console.log('⏭️ Skipping background refresh (too soon)');
+        return;
+      }
+
+      console.log('🔄 Background refresh triggered');
+      this.warmAllCaches().catch(err => {
+        console.error('❌ Background refresh failed:', err);
+      });
     }, this.BACKGROUND_REFRESH_INTERVAL);
 
     // Cleanup on process exit
@@ -605,7 +607,7 @@ class AutoCacheWarmer {
   }
 }
 
-// ✅ Create and export singleton instance (starts automatically)
+// ✅ Create singleton but DON'T auto-start
 export const cacheWarmer = new AutoCacheWarmer();
 
 // ✅ Export warming function for manual triggers if needed
