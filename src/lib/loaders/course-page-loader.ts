@@ -55,6 +55,7 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
         price: true,
         salePrice: true,
         saleEndsAt: true,
+        category: true,  // ✅ Explicitly select category
         averageRating: true,
         user: {
           select: {
@@ -215,6 +216,7 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
       price: course.price || '0',
       salePrice: course.salePrice || null,
       saleEndsAt: course.saleEndsAt ? course.saleEndsAt.toISOString() : null,
+      category: course.category,  // ✅ Now properly typed
       owner: {
         id: course.user.id,
         name: course.user.name || course.user.username || 'Anonymous',
