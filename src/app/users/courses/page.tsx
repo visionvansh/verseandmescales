@@ -632,6 +632,12 @@ function CourseCardComponent({
 
   const buttonConfig = getButtonConfig();
 
+  // ✅ FIXED: Check if sale is valid and not expired
+  const now = new Date();
+  const saleEndsAt = course.saleEndsAt ? new Date(course.saleEndsAt) : null;
+  const isSaleActive = course.salePrice && saleEndsAt && saleEndsAt > now;
+  const showSalePrice = course.salePrice && (!course.saleEndsAt || isSaleActive);
+
   return (
     <m.div
       initial={{ opacity: 0, y: 20 }}
@@ -784,9 +790,10 @@ function CourseCardComponent({
           <div className="flex flex-col xs:flex-row items-stretch xs:items-center justify-between gap-3 xs:gap-2">
             {!course.isEnrolled && (
               <div className="flex flex-col gap-2">
-                {course.salePrice ? (
+                {showSalePrice ? (
                   <>
-                    {course.saleEndsAt && (
+                    {/* ✅ FIXED: Only show timer if sale has end date */}
+                    {course.saleEndsAt && isSaleActive && (
                       <CountdownTimer endsAt={course.saleEndsAt} />
                     )}
 
@@ -797,15 +804,18 @@ function CourseCardComponent({
                       <span className="text-red-500 font-bold text-lg sm:text-xl md:text-2xl">
                         ${course.salePrice}
                       </span>
-                      <span className="text-xs font-bold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/30">
-                        {Math.round(
-                          ((parseFloat(course.price) -
-                            parseFloat(course.salePrice)) /
-                            parseFloat(course.price)) *
-                            100
-                        )}
-                        % OFF
-                      </span>
+                      {/* ✅ FIXED: Proper discount calculation */}
+                      {course.price && course.salePrice && (
+                        <span className="text-xs font-bold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/30">
+                          {Math.round(
+                            ((parseFloat(course.price) -
+                              parseFloat(course.salePrice)) /
+                              parseFloat(course.price)) *
+                              100
+                          )}
+                          % OFF
+                        </span>
+                      )}
                     </div>
                   </>
                 ) : (

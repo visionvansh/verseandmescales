@@ -877,8 +877,7 @@ model Course {
   
   // ✅ ADD THESE FIELDS
   category              String?
-  isPopular             Boolean  @default(false)
-  isTrending            Boolean  @default(false)
+ 
   averageRating         Float    @default(0.0)
   
   // Status Management
@@ -910,8 +909,6 @@ model Course {
   @@index([status])
   @@index([slug])
   @@index([isPublished])
-  @@index([isPopular])      // ✅ NEW INDEX
-  @@index([isTrending])     // ✅ NEW INDEX
   @@index([category])       // ✅ NEW INDEX
   @@index([averageRating])  // ✅ NEW INDEX
 }

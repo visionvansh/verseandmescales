@@ -55,7 +55,7 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
         price: true,
         salePrice: true,
         saleEndsAt: true,
-        category: true,  // ✅ Explicitly select category
+        category: true,
         averageRating: true,
         user: {
           select: {
@@ -203,9 +203,24 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
     }
   });
 
+  const now = new Date();
+  
   const transformedCourses = courses.map((course) => {
     const totalDuration = calculateTotalDuration(course.modules || []);
     const activeStudents = course.enrollments?.length || 0;
+
+    // ✅ FIXED: Smart sale price logic
+    let effectiveSalePrice = course.salePrice;
+    let effectiveSaleEndsAt = course.saleEndsAt;
+
+    // If sale has expired, remove sale price
+    if (course.saleEndsAt && new Date(course.saleEndsAt) <= now) {
+      effectiveSalePrice = null;
+      effectiveSaleEndsAt = null;
+    }
+
+    // ✅ FIXED: Use averageRating from DB
+    const rating = course.averageRating || 0;
 
     return {
       id: course.id,
@@ -214,9 +229,9 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
       description: course.description,
       thumbnail: course.thumbnail,
       price: course.price || '0',
-      salePrice: course.salePrice || null,
-      saleEndsAt: course.saleEndsAt ? course.saleEndsAt.toISOString() : null,
-      category: course.category,  // ✅ Now properly typed
+      salePrice: effectiveSalePrice,
+      saleEndsAt: effectiveSaleEndsAt ? effectiveSaleEndsAt.toISOString() : null,
+      category: course.category,
       owner: {
         id: course.user.id,
         name: course.user.name || course.user.username || 'Anonymous',
@@ -226,7 +241,7 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
       },
       stats: {
         students: activeStudents,
-        rating: course.averageRating || 0,
+        rating: rating, // ✅ FIXED: Use actual rating from DB
         duration: totalDuration,
       },
       isEnrolled: enrollmentIds.has(course.id),

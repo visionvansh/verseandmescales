@@ -67,66 +67,36 @@ interface UserAvatar {
   customImageUrl: string | null;
 }
 
-// ✅ Atomic data hook - FIXED: Always call hooks in the same order
+interface NavbarData {
+  user: any | null;
+  userGoals: any | null;
+  primaryAvatar: any | null;
+  sessions: any[];
+  timestamp: number;
+}
+
+// ✅ Atomic data hook - UPDATED: Use atomic API pattern from Navbar.tsx
 function useAtomicNavbarData() {
   const { user, authChecked } = useAuth();
-  const [data, setData] = useState<{
-    navbarUser: any | null;
-    userGoals: any | null;
-    primaryAvatar: any | null;
-    sessions: any[];
-    loading: boolean;
-    error: string | null;
-  }>({
-    navbarUser: null,
-    userGoals: null,
-    primaryAvatar: null,
-    sessions: [],
-    loading: true,
-    error: null,
-  });
+  const [data, setData] = useState<NavbarData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const loadedRef = useRef(false);
-  const loadingRef = useRef(false);
-
-  // ✅ FIXED: Always call useEffect hooks in the same order
+  // ✅ Load navbar data atomically (updated to match Navbar.tsx pattern)
   useEffect(() => {
-    // Don't load until auth is checked
-    if (!authChecked) {
-      console.log('[Navbar] Waiting for auth check...');
-      return;
-    }
+    let isMounted = true;
 
-    // If no user, set loading to false immediately
-    if (!user) {
-      console.log('[Navbar] No user, skipping atomic load');
-      setData({
-        navbarUser: null,
-        userGoals: null,
-        primaryAvatar: null,
-        sessions: [],
-        loading: false,
-        error: null,
-      });
-      return;
-    }
+    async function loadNavbar() {
+      if (!user || !authChecked) {
+        setLoading(false);
+        return;
+      }
 
-    // Prevent duplicate loads
-    if (loadedRef.current || loadingRef.current) {
-      console.log('[Navbar] Already loaded or loading, skipping');
-      return;
-    }
-
-    loadingRef.current = true;
-
-    async function loadAtomic() {
       try {
         console.log('⚡ Loading atomic navbar data...');
         const startTime = Date.now();
 
         const response = await fetch('/api/atomic/navbar', {
           credentials: 'include',
-          cache: 'no-store',
         });
 
         if (!response.ok) {
@@ -136,45 +106,47 @@ function useAtomicNavbarData() {
         const atomicData = await response.json();
         const loadTime = Date.now() - startTime;
 
-        console.log(`⚡ Navbar atomic data loaded in ${loadTime}ms`);
+        console.log(`⚡ Navbar loaded in ${loadTime}ms (cache age: ${atomicData.cacheAge}ms)`);
 
-        setData({
-          navbarUser: atomicData.user,
-          userGoals: atomicData.userGoals,
-          primaryAvatar: atomicData.primaryAvatar,
-          sessions: atomicData.sessions || [],
-          loading: false,
-          error: null,
-        });
-
-        loadedRef.current = true;
-        console.log('✅ Navbar ready to render');
+        if (isMounted) {
+          setData(atomicData);
+          setLoading(false);
+        }
       } catch (error) {
-        console.error('❌ Navbar atomic load error:', error);
-        setData({
-          navbarUser: null,
-          userGoals: null,
-          primaryAvatar: null,
-          sessions: [],
-          loading: false,
-          error: 'Failed to load navbar',
-        });
-      } finally {
-        loadingRef.current = false;
+        console.error('❌ Navbar load error:', error);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
-    loadAtomic();
+    loadNavbar();
+
+    return () => {
+      isMounted = false;
+    };
   }, [user, authChecked]);
 
-  // Reset loaded ref when user changes
-  useEffect(() => {
-    if (user?.id) {
-      loadedRef.current = false;
-    }
-  }, [user?.id]);
+  // Return compatible shape for existing usage (map to previous structure)
+  if (!data) {
+    return {
+      navbarUser: null,
+      userGoals: null,
+      primaryAvatar: null,
+      sessions: [],
+      loading,
+      error: null,
+    };
+  }
 
-  return data;
+  return {
+    navbarUser: data.user,
+    userGoals: data.userGoals,
+    primaryAvatar: data.primaryAvatar,
+    sessions: data.sessions,
+    loading,
+    error: null,
+  };
 }
 
 // ✅ Locked Command Palette for Non-Logged-In Users

@@ -9,6 +9,7 @@ interface CacheWarmingStats {
   coursesListWarmed: boolean;
   courseDetailsWarmed: number;
   userDataWarmed: number;
+  navbarDataWarmed: number; // ✅ NEW
   totalTime: number;
   errors: string[];
 }
@@ -21,6 +22,7 @@ class AutoCacheWarmer {
     coursesListWarmed: false,
     courseDetailsWarmed: 0,
     userDataWarmed: 0,
+    navbarDataWarmed: 0, // ✅ NEW
     totalTime: 0,
     errors: [],
   };
@@ -53,7 +55,7 @@ class AutoCacheWarmer {
   }
 
   /**
-   * ✅ MAIN: Warm ALL caches for all 4 pages
+   * ✅ MAIN: Warm ALL caches for all pages
    */
   async warmAllCaches(): Promise<CacheWarmingStats> {
     const now = Date.now();
@@ -92,11 +94,12 @@ class AutoCacheWarmer {
         coursesListWarmed: false,
         courseDetailsWarmed: 0,
         userDataWarmed: 0,
+        navbarDataWarmed: 0, // ✅ NEW
         totalTime: 0,
         errors: [],
       };
 
-      // ✅ CHANGED: Run sequentially instead of parallel to prevent connection exhaustion
+      // ✅ Run sequentially to prevent connection exhaustion
       await this.warmSequentially();
 
       const duration = Date.now() - startTime;
@@ -108,6 +111,7 @@ class AutoCacheWarmer {
         coursesListWarmed: this.stats.coursesListWarmed,
         courseDetailsWarmed: this.stats.courseDetailsWarmed,
         userDataWarmed: this.stats.userDataWarmed,
+        navbarDataWarmed: this.stats.navbarDataWarmed, // ✅ NEW
         errors: this.stats.errors.length,
       });
       
@@ -129,7 +133,7 @@ class AutoCacheWarmer {
   }
 
   /**
-   * ✅ NEW: Run warming tasks sequentially to prevent connection pool exhaustion
+   * ✅ UPDATE: Run warming tasks sequentially (now with navbar warming)
    */
   private async warmSequentially(): Promise<void> {
     // Task 1: Courses list page (/courses)
@@ -146,6 +150,10 @@ class AutoCacheWarmer {
     
     // Task 4: Common checkout data
     await this.warmCheckoutData();
+    await this.delay(this.BATCH_DELAY);
+    
+    // ✅ Task 5: Navbar data
+    await this.warmNavbarData();
   }
 
   /**
@@ -164,6 +172,9 @@ class AutoCacheWarmer {
       
       // Task 4: Common checkout data
       this.warmCheckoutData(),
+      
+      // ✅ Task 5: Navbar data
+      this.warmNavbarData(),
     ];
 
     await Promise.allSettled(warmingTasks);
@@ -174,7 +185,7 @@ class AutoCacheWarmer {
    */
   private async warmCoursesListPage(): Promise<void> {
     try {
-      console.log('  📚 [1/4] Warming /courses page...');
+      console.log('  📚 [1/5] Warming /courses page...');
       const startTime = Date.now();
 
       // Warm for anonymous users
@@ -198,7 +209,7 @@ class AutoCacheWarmer {
    */
   private async warmCourseDetailPages(): Promise<void> {
     try {
-      console.log('  🏆 [2/4] Warming /courses/[id] pages...');
+      console.log('  🏆 [2/5] Warming /courses/[id] pages...');
       const startTime = Date.now();
 
       // Get top 15 most popular courses (by enrollments + recent activity)
@@ -231,7 +242,7 @@ class AutoCacheWarmer {
 
       console.log(`    ℹ️ Found ${topCourses.length} top courses to warm`);
 
-      // ✅ CHANGED: Process in smaller batches with delays
+      // ✅ Process in smaller batches with delays
       for (let i = 0; i < topCourses.length; i += this.MAX_CONCURRENT_QUERIES) {
         const batch = topCourses.slice(i, i + this.MAX_CONCURRENT_QUERIES);
         
@@ -271,7 +282,7 @@ class AutoCacheWarmer {
    */
   private async warmUserData(): Promise<void> {
     try {
-      console.log('  👥 [3/4] Warming user data (avatars & enrollments)...');
+      console.log('  👥 [3/5] Warming user data (avatars & enrollments)...');
       const startTime = Date.now();
 
       // Get users with recent activity (last 30 days)
@@ -301,12 +312,12 @@ class AutoCacheWarmer {
           id: true,
           username: true,
         },
-        take: 30, // ✅ REDUCED: From 50 to 30 to reduce load
+        take: 30,
       });
 
       console.log(`    ℹ️ Found ${activeUsers.length} active users`);
 
-      // ✅ CHANGED: Smaller batches with delays
+      // ✅ Smaller batches with delays
       const batchSize = this.MAX_CONCURRENT_QUERIES;
       for (let i = 0; i < activeUsers.length; i += batchSize) {
         const batch = activeUsers.slice(i, i + batchSize);
@@ -386,7 +397,7 @@ class AutoCacheWarmer {
    */
   private async warmCheckoutData(): Promise<void> {
     try {
-      console.log('  💳 [4/4] Warming checkout data...');
+      console.log('  💳 [4/5] Warming checkout data...');
       const startTime = Date.now();
 
       // Get courses that are frequently purchased
@@ -438,6 +449,69 @@ class AutoCacheWarmer {
   }
 
   /**
+   * ✅ NEW: Warm navbar data for active users
+   */
+  private async warmNavbarData(): Promise<void> {
+    try {
+      console.log('  📊 [5/5] Warming navbar data...');
+      const startTime = Date.now();
+
+      // Get users with recent activity (last 7 days)
+      const recentDate = new Date();
+      recentDate.setDate(recentDate.getDate() - 7);
+
+      const activeUsers = await prisma.student.findMany({
+        where: {
+          OR: [
+            {
+              lastLogin: {
+                gte: recentDate,
+              },
+            },
+            {
+              sessions: {
+                some: {
+                  lastUsed: {
+                    gte: recentDate,
+                  },
+                },
+              },
+            },
+          ],
+        },
+        select: {
+          id: true,
+          username: true,
+        },
+        take: 50,
+      });
+
+      console.log(`    ℹ️ Found ${activeUsers.length} active users for navbar warming`);
+
+      // ✅ Warm navbar data in batches
+      const { batchLoadNavbarData } = await import('@/lib/loaders/navbar-loader');
+      const userIds = activeUsers.map(u => u.id);
+      
+      for (let i = 0; i < userIds.length; i += this.MAX_CONCURRENT_QUERIES) {
+        const batch = userIds.slice(i, i + this.MAX_CONCURRENT_QUERIES);
+        await batchLoadNavbarData(batch);
+        
+        this.stats.navbarDataWarmed += batch.length;
+        
+        if (i + this.MAX_CONCURRENT_QUERIES < userIds.length) {
+          await this.delay(this.BATCH_DELAY);
+        }
+      }
+
+      const duration = Date.now() - startTime;
+      console.log(`    ✓ Navbar data warmed in ${duration}ms (${this.stats.navbarDataWarmed} users)`);
+    } catch (error) {
+      console.error('    ✗ Failed to warm navbar data:', error);
+      this.stats.errors.push(`navbar-data: ${error instanceof Error ? error.message : 'Unknown'}`);
+    }
+  }
+
+  /**
    * ✅ Set cache data with proper serialization
    */
   private async setCacheData(key: string, data: any, ttl: number): Promise<void> {
@@ -480,7 +554,7 @@ class AutoCacheWarmer {
   }
 
   /**
-   * ✅ NEW: Delay helper
+   * ✅ Delay helper
    */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));

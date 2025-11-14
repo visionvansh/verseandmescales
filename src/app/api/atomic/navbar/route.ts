@@ -16,32 +16,45 @@ export async function GET(request: NextRequest) {
     
     if (!user) {
       return NextResponse.json(
-        { user: null, userGoals: null, primaryAvatar: null, sessions: [] },
+        { 
+          user: null, 
+          userGoals: null, 
+          primaryAvatar: null, 
+          sessions: [],
+          timestamp: Date.now(),
+        },
         { 
           status: 200,
           headers: {
             'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+            'X-Cache-Status': 'MISS-NO-AUTH',
           },
         }
       );
     }
 
-    // ✅ Load ALL navbar data atomically
+    // ✅ Load ALL navbar data atomically with caching
     const atomicData = await loadCompleteNavbarData(user.id);
 
     const totalTime = Date.now() - startTime;
-    console.log(`⚡ Navbar atomic API completed in ${totalTime}ms`);
+    const cacheAge = Date.now() - atomicData.timestamp;
+    const cacheStatus = cacheAge < 100 ? 'MISS' : 'HIT';
+    
+    console.log(`⚡ Navbar atomic API completed in ${totalTime}ms (${cacheStatus}, age: ${cacheAge}ms)`);
 
     return NextResponse.json(
       {
         ...atomicData,
         loadTime: totalTime,
+        cacheAge,
       },
       {
         status: 200,
         headers: {
           'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
           'X-Load-Time': String(totalTime),
+          'X-Cache-Status': cacheStatus,
+          'X-Cache-Age': String(cacheAge),
         },
       }
     );
