@@ -314,8 +314,21 @@ const CoursePageSkeleton = () => {
   );
 };
 
+// app/users/courses/[id]/page.tsx
+
+function useAutoRefresh(refreshFn: () => void, interval = 30000) {
+  useEffect(() => {
+    const timer = setInterval(() => {
+      console.log('🔄 [AUTO-REFRESH] Refreshing data...');
+      refreshFn();
+    }, interval);
+
+    return () => clearInterval(timer);
+  }, [refreshFn, interval]);
+}
+
 // ✅ NEW: Atomic data hook (replaces all the separate useEffects)
-function useAtomicCourseData(id: string) {
+function useAtomicCourseData(id: string, refreshKey: number) {
   const [data, setData] = useState<{
     courseData: any;
     owner: any;
@@ -337,11 +350,12 @@ function useAtomicCourseData(id: string) {
 
     async function loadAtomic() {
       try {
-        console.log('⚡ Loading atomic course data...');
+        console.log(`⚡ Loading atomic course data (refresh: ${refreshKey})...`);
         const startTime = Date.now();
 
         const response = await fetch(`/api/course/atomic/${id}`, {
           credentials: 'include',
+          cache: 'no-store', // ✅ Force fresh data
         });
 
         if (!response.ok) {
@@ -397,7 +411,7 @@ function useAtomicCourseData(id: string) {
     return () => {
       isMounted = false;
     };
-  }, [id]);
+  }, [id, refreshKey]);
 
   return data;
 }
@@ -407,10 +421,16 @@ export default function PublicCoursePage() {
   const router = useRouter();
   const id = params.id as string;
   const { user, logout, checkAuthStatus } = useAuth();
+  const [refreshKey, setRefreshKey] = useState(0); // ✅ NEW
 
   // ✅ Use atomic data loader - replaces all separate fetches
   const { courseData, owner, currentUserAvatars, enrollmentStatus, loading, error } =
-    useAtomicCourseData(id);
+    useAtomicCourseData(id, refreshKey); // ✅ Pass refreshKey
+
+  // ✅ NEW: Auto-refresh every 30 seconds
+  useAutoRefresh(() => {
+    setRefreshKey(prev => prev + 1);
+  }, 30000);
 
   // Set primary avatar from atomic data
   const primaryAvatar = currentUserAvatars?.find((a) => a.isPrimary) || currentUserAvatars?.[0] || null;

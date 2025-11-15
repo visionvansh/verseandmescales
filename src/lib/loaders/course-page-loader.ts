@@ -2,35 +2,28 @@
 import prisma from '@/lib/prisma';
 import { getCachedData, courseCacheKeys, COURSE_CACHE_TIMES } from '@/lib/cache/course-cache';
 
-interface AtomicCourseData {
-  courses: any[];
-  users: Map<string, any>;
-  avatars: Map<string, any[]>;
-  enrollments: Map<string, Set<string>>;
-  timestamp: number;
-}
-
 export async function loadCompleteCoursesData(
   userId?: string
-): Promise<AtomicCourseData> {
+): Promise<any> {
   const startTime = Date.now();
-  console.log('⚡ Loading complete courses data...');
+  console.log('⚡ Loading courses data for user:', userId || 'anonymous');
 
-  const cacheKey = userId 
-    ? `${courseCacheKeys.publicCourses()}:${userId}`
-    : courseCacheKeys.publicCourses();
+  // ✅ FIX: Use user-specific cache key
+  const cacheKey = courseCacheKeys.publicCourses(userId);
 
   try {
+    // ✅ FIX: Disable stale-while-revalidate for user-specific data
+    const useStale = !userId; // Only use stale for anonymous users
+    
     const data = await getCachedData(
       cacheKey,
       () => fetchCoursesFromDB(userId),
       COURSE_CACHE_TIMES.PUBLIC_COURSES,
-      true
+      useStale // ✅ Changed
     );
 
     const totalTime = Date.now() - startTime;
-    const wasCached = data.timestamp < startTime;
-    console.log(`⚡ Courses loaded in ${totalTime}ms (${wasCached ? 'cached' : 'fresh'})`);
+    console.log(`⚡ Courses loaded in ${totalTime}ms (user: ${userId || 'anon'})`);
 
     return data;
   } catch (error) {
@@ -39,7 +32,9 @@ export async function loadCompleteCoursesData(
   }
 }
 
-async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
+async function fetchCoursesFromDB(userId?: string): Promise<any> {
+  console.log('📊 Fetching fresh courses from database...');
+  
   const [courses, enrollments] = await Promise.all([
     prisma.course.findMany({
       where: {
@@ -56,7 +51,7 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
         salePrice: true,
         saleEndsAt: true,
         category: true,
-        averageRating: true, // ✅ Include average rating
+        averageRating: true,
         userId: true,
         user: {
           select: {
@@ -109,6 +104,7 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
             },
           },
         },
+        // ✅ FIX: Get REAL-TIME enrollment count
         enrollments: {
           where: {
             status: 'active',
@@ -131,7 +127,6 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
             },
           },
         },
-        // ✅ Include rating count
         _count: {
           select: {
             ratings: true,
@@ -143,7 +138,7 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
       ],
     }),
 
-    // Get current user's enrollments
+    // ✅ Get current user's enrollments if logged in
     userId
       ? prisma.courseEnrollment.findMany({
           where: {
@@ -213,9 +208,11 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
   
   const transformedCourses = courses.map((course) => {
     const totalDuration = calculateTotalDuration(course.modules || []);
+    
+    // ✅ FIX: Use REAL enrollment count from query
     const activeStudents = course.enrollments?.length || 0;
 
-    // Sale price handling
+    // ✅ FIX: Proper sale price handling
     let effectiveSalePrice: string | null = null;
     let effectiveSaleEndsAt: string | null = null;
 
@@ -225,11 +222,13 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
       
       if (salePriceNum < basePriceNum) {
         if (!course.saleEndsAt) {
+          // No end date = sale is always active
           effectiveSalePrice = course.salePrice;
           effectiveSaleEndsAt = null;
         } else {
           const saleEndDate = new Date(course.saleEndsAt);
           if (saleEndDate > now) {
+            // Sale still active
             effectiveSalePrice = course.salePrice;
             effectiveSaleEndsAt = course.saleEndsAt.toISOString();
           }
@@ -237,11 +236,14 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
       }
     }
 
-    // ✅ Use the averageRating from the course (updated by the rating API)
+    // ✅ FIX: Use actual rating from database
     const rating = course.averageRating || 0;
 
+    // ✅ FIX: Proper ownership check
     const isOwner = userId ? course.userId === userId : false;
     const hasEnrollmentRecord = enrollmentIds.has(course.id);
+    
+    // ✅ CRITICAL: Owner should NOT see "enrolled"
     const isEnrolled = isOwner ? false : hasEnrollmentRecord;
 
     return {
@@ -262,12 +264,12 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
         primaryAvatar: course.user.avatars?.find((a) => a.isPrimary) || course.user.avatars?.[0] || null,
       },
       stats: {
-        students: activeStudents,
-        rating: rating, // ✅ This will now show the correct rating
+        students: activeStudents, // ✅ Real-time count
+        rating: rating, // ✅ Real-time rating
         duration: totalDuration,
       },
       isOwner: isOwner,
-      isEnrolled: isEnrolled,
+      isEnrolled: isEnrolled, // ✅ Correct enrollment status
     };
   });
 
@@ -275,6 +277,8 @@ async function fetchCoursesFromDB(userId?: string): Promise<AtomicCourseData> {
   if (userId) {
     enrollmentsMap.set(userId, enrollmentIds);
   }
+
+  console.log(`✅ Fetched ${transformedCourses.length} courses (${enrollments.length} enrollments for user)`);
 
   return {
     courses: transformedCourses,

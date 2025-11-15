@@ -12,7 +12,7 @@ interface AtomicCheckoutData {
 }
 
 /**
- * ✅ IMPROVED: Load with partial caching (payment data never cached)
+ * ✅ FIXED: Always fetch fresh course data for checkout (no cache)
  */
 export async function loadCompleteCheckoutData(
   courseId: string,
@@ -22,21 +22,8 @@ export async function loadCompleteCheckoutData(
   console.log('⚡ Loading checkout data for:', courseId);
 
   try {
-    // ✅ Get course data from cache if available
-    const courseDetailKey = courseCacheKeys.courseDetail(courseId);
-    let courseDetail;
-    
-    try {
-      courseDetail = await getCachedData(
-        courseDetailKey,
-        () => fetchCourseForCheckout(courseId),
-        COURSE_CACHE_TIMES.COURSE_DETAIL,
-        true
-      );
-    } catch {
-      // Fallback to direct fetch if cache fails
-      courseDetail = await fetchCourseForCheckout(courseId);
-    }
+    // ✅ FIX: Always fetch fresh course data for checkout (bypass cache)
+    const courseDetail = await fetchCourseForCheckout(courseId);
 
     // ✅ Fetch current user's avatars (fresh, as it's user-specific)
     const currentUserAvatars = await prisma.avatar.findMany({
@@ -72,9 +59,11 @@ export async function loadCompleteCheckoutData(
 }
 
 /**
- * ✅ Fetch course data for checkout (cacheable)
+ * ✅ FIXED: Always fetch fresh from DB (no cache for checkout)
  */
 async function fetchCourseForCheckout(courseId: string) {
+  console.log('[Checkout Loader] 🔍 Fetching fresh course data from database...');
+  
   const course = await prisma.course.findUnique({
     where: { 
       id: courseId,
@@ -117,7 +106,22 @@ async function fetchCourseForCheckout(courseId: string) {
     throw new Error('Course not found');
   }
 
+  // ✅ CRITICAL: Ensure userId is ALWAYS present
+  if (!course.userId) {
+    console.error('[Checkout Loader] ❌ CRITICAL: Course has no userId!', {
+      courseId: course.id,
+      courseTitle: course.title,
+    });
+    throw new Error('Invalid course: missing seller information');
+  }
+
   const ownerPrimaryAvatar = course.user.avatars?.find((a) => a.isPrimary) || course.user.avatars?.[0] || null;
+
+  console.log('[Checkout Loader] ✅ Course data fetched with seller:', {
+    courseId: course.id,
+    sellerId: course.userId,
+    sellerEmail: course.user.email,
+  });
 
   return {
     course: {
@@ -127,7 +131,7 @@ async function fetchCourseForCheckout(courseId: string) {
       thumbnail: course.thumbnail,
       price: course.price,
       salePrice: course.salePrice,
-      userId: course.userId,
+      userId: course.userId, // ✅ ALWAYS present
       stripeAccountId: course.user.earnings?.stripeAccountId,
     },
     owner: {
@@ -144,9 +148,17 @@ async function fetchCourseForCheckout(courseId: string) {
 }
 
 /**
- * ✅ FIXED: Create payment intent with proper seller validation
+ * ✅ FIXED: Simplified - seller ID is guaranteed from fresh fetch
  */
 async function createPaymentIntent(courseId: string, userId: string, course: any) {
+  // ✅ Seller ID is now guaranteed to exist from fresh fetch
+  const sellerId = course.userId;
+
+  if (!sellerId) {
+    console.error('[Checkout Loader] ❌ CRITICAL: No seller ID after fresh fetch!');
+    throw new Error('Invalid course: seller information missing');
+  }
+
   // Check enrollment
   const existingEnrollment = await prisma.courseEnrollment.findUnique({
     where: {
@@ -161,42 +173,16 @@ async function createPaymentIntent(courseId: string, userId: string, course: any
     throw new Error('Already enrolled in this course');
   }
 
-  // ✅ FIX: Ensure sellerId exists, fetch from DB if not in cache
-  let sellerId = course.userId;
-  
-  if (!sellerId) {
-    console.log('⚠️ Seller ID not found in cached course data, fetching from database');
-    const freshCourse = await prisma.course.findUnique({
-      where: { id: courseId },
-      select: { 
-        userId: true,
-        user: {
-          select: {
-            earnings: {
-              select: {
-                stripeAccountId: true
-              }
-            }
-          }
-        }
-      }
-    });
-    
-    if (!freshCourse?.userId) {
-      throw new Error('Invalid course: seller not found');
-    }
-    
-    sellerId = freshCourse.userId;
-    
-    // ✅ Update course object with fresh data
-    course.userId = freshCourse.userId;
-    course.stripeAccountId = freshCourse.user.earnings?.stripeAccountId;
-  }
-
   // ✅ VALIDATION: Cannot buy own course
   if (sellerId === userId) {
     throw new Error('You cannot purchase your own course');
   }
+
+  console.log('[Checkout Loader] ✅ Creating payment intent:', {
+    courseId,
+    buyerId: userId,
+    sellerId,
+  });
 
   // Get buyer
   const buyer = await prisma.student.findUnique({
@@ -251,7 +237,7 @@ async function createPaymentIntent(courseId: string, userId: string, course: any
     metadata: {
       courseId,
       buyerId: userId,
-      sellerId: sellerId,  // ✅ Use validated sellerId
+      sellerId: sellerId,
       platformFee: platformFee.toString(),
       sellerAmount: sellerAmount.toString(),
     },
@@ -267,7 +253,7 @@ async function createPaymentIntent(courseId: string, userId: string, course: any
 
   const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
 
-  // ✅ FIX: Create payment record with validated seller ID
+  // ✅ Create payment record
   await prisma.payment.create({
     data: {
       stripePaymentId: paymentIntent.id,
@@ -281,7 +267,7 @@ async function createPaymentIntent(courseId: string, userId: string, course: any
         connect: { id: userId }
       },
       seller: {
-        connect: { id: sellerId }  // ✅ Use validated sellerId
+        connect: { id: sellerId }
       },
       platformFee: platformFee / 100,
       sellerAmount: sellerAmount / 100,

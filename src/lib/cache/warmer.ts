@@ -28,8 +28,8 @@ class AutoCacheWarmer {
     errors: [],
   };
   
-  private readonly MIN_WARM_INTERVAL = 10 * 60 * 1000; // 10 minutes
-  private readonly BACKGROUND_REFRESH_INTERVAL = 15 * 60 * 1000; // 15 minutes
+  private readonly MIN_WARM_INTERVAL = 30 * 1000; // 10 minutes
+  private readonly BACKGROUND_REFRESH_INTERVAL = 30 * 1000; // 15 minutes
   private readonly MAX_CONCURRENT_QUERIES = 1; // ✅ ONE at a time
   private readonly BATCH_DELAY = 500; // ✅ Longer delays
   private readonly DB_CONNECTION_TIMEOUT = 5000; // 5 seconds
@@ -215,7 +215,8 @@ class AutoCacheWarmer {
       console.log('  📚 [1/5] Warming /courses page...');
       const startTime = Date.now();
 
-      const cacheKey = courseCacheKeys.publicCourses();
+      // ✅ Warm anonymous cache only
+      const cacheKey = courseCacheKeys.publicCourses(); // No userId
       const data = await loadCompleteCoursesData();
       
       await this.setCacheData(cacheKey, data, COURSE_CACHE_TIMES.PUBLIC_COURSES);
@@ -263,7 +264,8 @@ class AutoCacheWarmer {
       // ✅ Process ONE at a time
       for (const course of topCourses) {
         try {
-          const cacheKey = courseCacheKeys.courseDetail(course.id);
+          // ✅ Warm anonymous cache only
+          const cacheKey = courseCacheKeys.courseDetail(course.id); // No userId
           const data = await loadCompleteCourseDetail(course.id);
           
           await this.setCacheData(cacheKey, data, COURSE_CACHE_TIMES.COURSE_DETAIL);

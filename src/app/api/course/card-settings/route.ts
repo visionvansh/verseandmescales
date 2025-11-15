@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
+import { invalidateAllCourseCaches } from '@/lib/cache/invalidator';
 
 /**
  * GET /api/course/card-settings?courseId=xxx
@@ -92,7 +93,6 @@ export async function PATCH(request: NextRequest) {
     if (thumbnail !== undefined) updateData.thumbnail = thumbnail || null;
     if (price !== undefined) updateData.price = price;
     
-    // ✅ Handle sale price and expiry together
     if (salePrice !== undefined) {
       updateData.salePrice = salePrice || null;
       updateData.saleEndsAt = salePrice ? (saleEndsAt || null) : null;
@@ -108,9 +108,27 @@ export async function PATCH(request: NextRequest) {
         thumbnail: true,
         price: true,
         salePrice: true,
-        saleEndsAt: true, // ✅ Return sale end time
+        saleEndsAt: true,
       },
     });
+
+    // ✅ NEW: Invalidate ALL caches after update
+    await invalidateAllCourseCaches(courseId);
+    
+    // ✅ NEW: Broadcast update to all clients
+    await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/cache/broadcast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        type: 'course_update', 
+        courseId,
+        data: {
+          price: updatedCourse.price,
+          salePrice: updatedCourse.salePrice,
+          saleEndsAt: updatedCourse.saleEndsAt,
+        }
+      }),
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

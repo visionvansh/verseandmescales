@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       {
         status: 200,
         headers: {
-          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+          'Cache-Control': 'no-store, must-revalidate', // ✅ CHANGED: Force fresh
           'X-Load-Time': String(totalTime),
         },
       }

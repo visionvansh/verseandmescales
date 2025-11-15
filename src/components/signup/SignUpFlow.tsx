@@ -899,26 +899,65 @@ const handleDashboardRedirect = useCallback(async () => {
     successData,
   });
 
+  // ✅ CRITICAL FIX: Force auth refresh and WAIT for completion
+  console.log('[SignupFlow] 🔄 Forcing auth state refresh...');
+  
+  // ✅ NEW: Poll for auth state instead of single check
+  let authConfirmed = false;
+  let attempts = 0;
+  const maxAttempts = 10; // 5 seconds max
+  
+  while (!authConfirmed && attempts < maxAttempts) {
+    try {
+      const response = await fetch('/api/auth/me', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        if (userData.user) {
+          console.log('[SignupFlow] ✅ Auth confirmed');
+          authConfirmed = true;
+          
+          // Update AuthContext if available
+          if (typeof window !== 'undefined' && (window as any).refreshAuthState) {
+            await (window as any).refreshAuthState();
+          }
+          break;
+        }
+      }
+    } catch (error) {
+      console.error('[SignupFlow] Auth check error:', error);
+    }
+    
+    // Wait 500ms before next attempt
+    await new Promise(resolve => setTimeout(resolve, 500));
+    attempts++;
+    console.log(`[SignupFlow] Auth check attempt ${attempts}/${maxAttempts}`);
+  }
+  
+  if (!authConfirmed) {
+    console.error('[SignupFlow] ❌ Auth not confirmed after signup');
+    // Fallback: redirect anyway, checkout will handle it
+  }
+
   // ✅ Clean up session storage
   sessionStorage.removeItem("post_signup_redirect");
   sessionStorage.removeItem("signup_success_data");
   sessionStorage.removeItem("signup_course_metadata");
   sessionStorage.setItem("signup_completed", "true");
   
-  // ✅ ADD: Set flag to force auth check when returning to course page
+  // ✅ Set flag for checkout page
   if (fromCourse) {
     sessionStorage.setItem('force_auth_check_on_return', 'true');
-  }
-  
-  // ✅ ADD: Force auth context to update immediately
-  if (typeof window !== 'undefined' && (window as any).refreshAuthState) {
-    console.log('[SignupFlow] 🔄 Triggering auth state refresh');
-    await (window as any).refreshAuthState();
+    sessionStorage.setItem('auth_confirmed', 'true'); // ✅ NEW: Signal auth is ready
   }
 
-  // Small delay to ensure state propagation
-  await new Promise(resolve => setTimeout(resolve, 200));
+  // Small additional delay to ensure state propagation
+  await new Promise(resolve => setTimeout(resolve, 300));
 
+  // ✅ Redirect
   if (fromCourse && courseId) {
     console.log("[EnhancedSignupFlow] Redirecting to checkout:", courseId);
     window.location.href = `/users/courses/${courseId}/checkout`;

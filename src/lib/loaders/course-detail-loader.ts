@@ -2,42 +2,29 @@
 import prisma from '@/lib/prisma';
 import { getCachedData, courseCacheKeys, COURSE_CACHE_TIMES } from '@/lib/cache/course-cache';
 
-interface AtomicCourseDetailData {
-  course: any;
-  owner: any;
-  currentUserAvatars: any[];
-  enrollmentStatus: {
-    enrolled: boolean;
-    isOwner: boolean;
-  };
-  timestamp: number;
-}
-
-/**
- * ✅ IMPROVED: Load with smart caching
- */
 export async function loadCompleteCourseDetail(
   courseId: string,
   userId?: string
-): Promise<AtomicCourseDetailData> {
+): Promise<any> {
   const startTime = Date.now();
-  console.log('⚡ Loading course detail for:', courseId);
+  console.log('⚡ Loading course detail:', courseId, 'for user:', userId || 'anonymous');
 
-  const cacheKey = userId
-    ? `${courseCacheKeys.courseDetail(courseId)}:${userId}`
-    : courseCacheKeys.courseDetail(courseId);
+  // ✅ FIX: Use user-specific cache key
+  const cacheKey = courseCacheKeys.courseDetail(courseId, userId);
 
   try {
+    // ✅ FIX: Disable stale-while-revalidate for user-specific data
+    const useStale = !userId;
+    
     const data = await getCachedData(
       cacheKey,
       () => fetchCourseDetailFromDB(courseId, userId),
       COURSE_CACHE_TIMES.COURSE_DETAIL,
-      true // Enable stale-while-revalidate
+      useStale
     );
 
     const totalTime = Date.now() - startTime;
-    const wasCached = data.timestamp < startTime;
-    console.log(`⚡ Course detail loaded in ${totalTime}ms (${wasCached ? 'cached' : 'fresh'})`);
+    console.log(`⚡ Course detail loaded in ${totalTime}ms`);
 
     return data;
   } catch (error) {
@@ -46,15 +33,10 @@ export async function loadCompleteCourseDetail(
   }
 }
 
-/**
- * ✅ FIXED: Ensure enrollment status check is correct
- */
-async function fetchCourseDetailFromDB(
-  courseId: string,
-  userId?: string
-): Promise<AtomicCourseDetailData> {
+async function fetchCourseDetailFromDB(courseId: string, userId?: string): Promise<any> {
+  console.log('📊 Fetching fresh course detail from database...');
+  
   const [course, currentUserAvatars, enrollmentRecord] = await Promise.all([
-    // Query 1: Get course with ALL related data
     prisma.course.findFirst({
       where: {
         id: courseId,
@@ -64,13 +46,12 @@ async function fetchCourseDetailFromDB(
       include: {
         user: {
           select: {
-            id: true, // ✅ CRITICAL: Select user ID
+            id: true,
             name: true,
             surname: true,
             username: true,
             img: true,
             createdAt: true,
-            // ✅ Get owner's avatars
             avatars: {
               orderBy: { createdAt: 'desc' },
               select: {
@@ -83,7 +64,6 @@ async function fetchCourseDetailFromDB(
                 customImageUrl: true,
               },
             },
-            // ✅ Get owner's stats
             userXP: {
               select: {
                 totalXP: true,
@@ -115,7 +95,6 @@ async function fetchCourseDetailFromDB(
             },
           },
         },
-        // ✅ Get homepage data
         homepage: {
           include: {
             customSections: {
@@ -147,7 +126,6 @@ async function fetchCourseDetailFromDB(
             courseStats: true,
           },
         },
-        // ✅ Get modules with lessons
         modules: {
           orderBy: { position: 'asc' },
           include: {
@@ -163,7 +141,7 @@ async function fetchCourseDetailFromDB(
             },
           },
         },
-        // ✅ Get enrollments
+        // ✅ FIX: Get REAL enrollment data
         enrollments: {
           where: {
             status: 'active',
@@ -174,7 +152,6 @@ async function fetchCourseDetailFromDB(
             enrolledAt: true,
           },
         },
-        // ✅ Get payments
         payments: {
           where: {
             status: 'succeeded',
@@ -188,7 +165,6 @@ async function fetchCourseDetailFromDB(
       },
     }),
 
-    // Query 2: Get current user's avatars if logged in
     userId
       ? prisma.avatar.findMany({
           where: { userId },
@@ -205,7 +181,6 @@ async function fetchCourseDetailFromDB(
         })
       : Promise.resolve([]),
 
-    // Query 3: Check enrollment if logged in
     userId && courseId
       ? prisma.courseEnrollment.findFirst({
           where: {
@@ -221,16 +196,15 @@ async function fetchCourseDetailFromDB(
     throw new Error('Course not found or not published');
   }
 
-  // ✅ FIX: CRITICAL - Proper owner check
+  // ✅ FIX: CRITICAL - Proper ownership check
   const isOwner = Boolean(userId && course.userId === userId);
-  const enrolled = Boolean(enrollmentRecord) || isOwner;
+  const enrolled = Boolean(enrollmentRecord);
   
-  console.log('[Course Detail Loader] Enrollment Check:', {
+  console.log('[Course Detail] Enrollment Check:', {
     courseUserId: course.userId,
     currentUserId: userId,
     isOwner,
-    hasEnrollmentRecord: Boolean(enrollmentRecord),
-    finalEnrolled: enrolled,
+    hasEnrollmentRecord: enrolled,
   });
 
   const ownerData = processOwnerData(course.user);
@@ -248,16 +222,12 @@ async function fetchCourseDetailFromDB(
   };
 }
 
-/**
- * ✅ Process owner data with correct privacy logic
- */
 function processOwnerData(user: any) {
   if (!user) return null;
 
   const primaryAvatar =
     user.avatars?.find((a: any) => a.isPrimary) || user.avatars?.[0] || null;
 
-  // Determine user type
   const userGoal = user.UserGoals?.[0];
   let userType: 'tutor' | 'learner' | 'both' = 'learner';
 
@@ -267,7 +237,6 @@ function processOwnerData(user: any) {
     else if (userGoal.purpose === 'learn') userType = 'learner';
   }
 
-  // Apply privacy logic
   let isPrivate = false;
   if (userType === 'tutor' || userType === 'both') {
     isPrivate = false;
@@ -275,9 +244,8 @@ function processOwnerData(user: any) {
     isPrivate = !user.profileSettings?.isPublic;
   }
 
-  // ✅ FIX: Ensure ID is always returned
   return {
-    id: user.id, // ✅ CRITICAL: Include user ID
+    id: user.id,
     username: user.username,
     name: user.name || 'User',
     surname: user.surname || '',
@@ -302,11 +270,10 @@ function processOwnerData(user: any) {
   };
 }
 
-// ✅ Transform course data (keep your existing transformation logic)
 function transformCourseData(course: any, ownerData: any) {
   const homepage = course.homepage;
 
-  // Calculate real-time stats
+  // ✅ FIX: Calculate REAL-TIME stats
   const activeStudents = course.enrollments?.length || 0;
   const now = new Date();
   const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -315,22 +282,18 @@ function transformCourseData(course: any, ownerData: any) {
     (e: any) => new Date(e.enrolledAt) >= firstDayOfMonth
   ) || [];
 
-  // ✅ FIX: Proper sale price handling
+  // ✅ FIX: Proper sale handling
   const basePriceNum = course.price ? parseFloat(course.price) : 0;
   const salePriceNum = course.salePrice ? parseFloat(course.salePrice) : null;
   
-  // Check if sale is valid and not expired
   let effectiveSalePrice: string | null = null;
   let effectiveSaleEndsAt: string | null = null;
 
   if (salePriceNum !== null && salePriceNum < basePriceNum) {
-    // If there's NO end date, sale is always active
     if (!course.saleEndsAt) {
       effectiveSalePrice = course.salePrice;
       effectiveSaleEndsAt = null;
-    } 
-    // If there IS an end date, check if it's still valid
-    else {
+    } else {
       const saleEndDate = new Date(course.saleEndsAt);
       if (saleEndDate > now) {
         effectiveSalePrice = course.salePrice;
@@ -357,14 +320,12 @@ function transformCourseData(course: any, ownerData: any) {
     homepageType: course.homepageType || 'builder',
     customHomepageFile: course.customHomepageFile || null,
     
-    // ✅ FIX: Always include these fields
     price: course.price || '0',
     salePrice: effectiveSalePrice,
     saleEndsAt: effectiveSaleEndsAt,
     
     thumbnail: course.thumbnail,
 
-    // Include homepage data if exists
     ...(homepage && {
       backgroundType: homepage.backgroundType || 'black',
       backgroundColor: homepage.backgroundColor || '#000000',
@@ -507,14 +468,13 @@ function transformCourseData(course: any, ownerData: any) {
       })),
     }),
 
-    // ✅ FIX: Include footer pricing (these were missing!)
     footerPrice: course.price || '0',
     footerSalePrice: effectiveSalePrice,
     footerSaleEndsAt: effectiveSaleEndsAt,
     footerCurrency: 'USD',
 
     courseStats: {
-      activeStudents,
+      activeStudents, // ✅ Real-time
       courseRating,
       monthlyIncome: `$${Math.round(monthlyIncome)}`,
       avgGrowth: avgSales.toString(),

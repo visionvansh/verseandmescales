@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma from "@/lib/prisma";
+import { invalidateAllCourseCaches } from '@/lib/cache/invalidator';
 
 // Type for Prisma course query result
 interface CourseCardSettings {
@@ -104,6 +105,16 @@ export async function PATCH(req: NextRequest) {
         updatedAt: new Date(),
       },
     });
+
+    // ✅ NEW: Invalidate caches
+    await invalidateAllCourseCaches(courseId);
+    
+    // ✅ NEW: Broadcast update
+    await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/cache/broadcast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'course_update', courseId }),
+    }).catch(() => {});
 
     return NextResponse.json({ course }, { status: 200 });
   } catch (error) {

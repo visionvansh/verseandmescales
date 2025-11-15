@@ -282,8 +282,21 @@ const categories = [
   { id: "all", label: "All Courses", icon: FaBook },
 ];
 
-// ✅ Atomic data hook
-function useAtomicCoursesData() {
+// app/users/courses/page.tsx - Add this hook
+
+function useAutoRefresh(refreshFn: () => void, interval = 30000) {
+  useEffect(() => {
+    const timer = setInterval(() => {
+      console.log('🔄 [AUTO-REFRESH] Refreshing data...');
+      refreshFn();
+    }, interval);
+
+    return () => clearInterval(timer);
+  }, [refreshFn, interval]);
+}
+
+// Update the atomic hook to accept refreshKey
+function useAtomicCoursesData(refreshKey: number) {
   const [data, setData] = useState<{
     courses: CourseCard[];
     users: Map<string, ExtendedUser>;
@@ -301,11 +314,12 @@ function useAtomicCoursesData() {
 
     async function loadAtomic() {
       try {
-        console.log('⚡ Loading atomic data...');
+        console.log(`⚡ Loading atomic data (refresh: ${refreshKey})...`);
         const startTime = Date.now();
 
         const response = await fetch('/api/course/atomic', {
           credentials: 'include',
+          cache: 'no-store', // ✅ Force fresh data
         });
 
         if (!response.ok) {
@@ -316,7 +330,6 @@ function useAtomicCoursesData() {
         const loadTime = Date.now() - startTime;
 
         console.log(`⚡ Atomic data loaded in ${loadTime}ms`);
-        console.log(`📊 Courses: ${atomicData.courses.length}, Users: ${Object.keys(atomicData.users).length}`);
 
         if (isMounted) {
           const usersMap = new Map<string, ExtendedUser>(
@@ -343,8 +356,6 @@ function useAtomicCoursesData() {
             loading: false,
             error: null,
           });
-
-          console.log('✅ Atomic data set, page ready to render');
         }
       } catch (error) {
         console.error('❌ Atomic load error:', error);
@@ -364,7 +375,7 @@ function useAtomicCoursesData() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [refreshKey]); // ✅ Re-run when refreshKey changes
 
   return data;
 }
@@ -374,8 +385,14 @@ export default function CoursesPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [refreshKey, setRefreshKey] = useState(0); // ✅ NEW
 
-  const { courses, users, loading, error } = useAtomicCoursesData();
+  const { courses, users, loading, error } = useAtomicCoursesData(refreshKey); // ✅ Pass key
+
+  // ✅ NEW: Auto-refresh every 30 seconds
+  useAutoRefresh(() => {
+    setRefreshKey(prev => prev + 1);
+  }, 30000);
 
   const shouldShowSkeleton = loading || !authChecked;
 

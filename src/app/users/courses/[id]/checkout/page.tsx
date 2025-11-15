@@ -1,3 +1,4 @@
+// src/app/users/courses/[id]/checkout/page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -399,45 +400,103 @@ export default function CheckoutPage() {
   const router = useRouter();
   const courseId = params.id as string;
   
-  // ✅ FIX: Use authChecked from AuthContext
-  const { user, logout, checkAuthStatus, authChecked: contextAuthChecked } = useAuth();
+  const { user, logout, checkAuthStatus } = useAuth();
 
   // ✅ Use atomic checkout loader
   const { courseData, owner, currentUserAvatars, clientSecret, paymentIntentId, loading, error } =
     useAtomicCheckoutData(courseId);
 
+  const [authChecked, setAuthChecked] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   // Set primary avatar from atomic data
   const primaryAvatar = currentUserAvatars?.find((a) => a.isPrimary) || currentUserAvatars?.[0] || null;
 
-  // ✅ REMOVED: Local authChecked state
-  // const [authChecked, setAuthChecked] = useState(false);
-
-  // ✅ UPDATED: Force auth check on mount (simplified)
+  // ✅ UPDATED: Handle return from signup with proper timing
   useEffect(() => {
     const handleReturnFromSignup = async () => {
       const shouldForceCheck = sessionStorage.getItem('force_auth_check_on_return');
+      const authConfirmed = sessionStorage.getItem('auth_confirmed');
+      
+      if (authConfirmed === 'true') {
+        console.log('[Checkout] ✅ Auth already confirmed, no need to check');
+        sessionStorage.removeItem('auth_confirmed');
+        setAuthChecked(true);
+        return;
+      }
       
       if (shouldForceCheck) {
         console.log('[Checkout] 🔄 Forcing auth check after signup');
         sessionStorage.removeItem('force_auth_check_on_return');
         
+        // Wait a bit for session to propagate
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // Force immediate auth check
         await checkAuthStatus(true);
+        setAuthChecked(true);
+      } else {
+        // Standard auth check if not from signup
+        await checkAuthStatus();
+        setAuthChecked(true);
       }
     };
 
     handleReturnFromSignup();
   }, [checkAuthStatus]);
 
-  // ✅ UPDATED: Redirect to login only after auth check completes
+  // ✅ UPDATED: Only redirect to login if auth is truly missing
   useEffect(() => {
-    if (contextAuthChecked && !user) {
-      console.log('[Checkout] ❌ Not authenticated, redirecting to login');
-      router.push(`/auth/login?redirect=${encodeURIComponent(`/users/courses/${courseId}/checkout`)}`);
-    }
-  }, [contextAuthChecked, user, router, courseId]);
+    const handleAuthCheck = async () => {
+      // ✅ Check if we just came from signup
+      const authConfirmed = sessionStorage.getItem('auth_confirmed');
+      const forceCheck = sessionStorage.getItem('force_auth_check_on_return');
+      
+      if (authConfirmed === 'true') {
+        console.log('[Checkout] ✅ Auth confirmed from signup, skipping redirect');
+        sessionStorage.removeItem('auth_confirmed');
+        sessionStorage.removeItem('force_auth_check_on_return');
+        return; // Don't redirect
+      }
+      
+      if (forceCheck === 'true') {
+        console.log('[Checkout] 🔄 Force checking auth from signup');
+        sessionStorage.removeItem('force_auth_check_on_return');
+        
+        // Give auth more time to propagate
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await checkAuthStatus(true);
+        return;
+      }
+      
+      // ✅ Only redirect if definitely not authenticated
+      if (authChecked && !user) {
+        // Double-check one more time
+        try {
+          const response = await fetch('/api/auth/me', {
+            credentials: 'include',
+            cache: 'no-store',
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.user) {
+              console.log('[Checkout] ✅ Found user on double-check');
+              await checkAuthStatus(true);
+              return; // Don't redirect
+            }
+          }
+        } catch (error) {
+          console.error('[Checkout] Double-check error:', error);
+        }
+        
+        console.log('[Checkout] ❌ Not authenticated after all checks, redirecting to login');
+        router.push(`/auth/login?redirect=${encodeURIComponent(`/users/courses/${courseId}/checkout`)}`);
+      }
+    };
+
+    handleAuthCheck();
+  }, [authChecked, user, router, courseId, checkAuthStatus]);
 
   // ✅ Close dropdowns on outside click
   useEffect(() => {
@@ -462,8 +521,8 @@ export default function CheckoutPage() {
     }
   };
 
-  // ✅ UPDATED: Show loading while checking auth OR loading checkout data
-  if (!contextAuthChecked || loading) {
+  // ✅ Show loading while checking auth OR loading checkout data
+  if (!authChecked || loading) {
     return <CheckoutSkeleton />;
   }
 
