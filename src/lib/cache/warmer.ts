@@ -28,8 +28,8 @@ class AutoCacheWarmer {
     errors: [],
   };
   
-  private readonly MIN_WARM_INTERVAL = 30 * 1000; // 10 minutes
-  private readonly BACKGROUND_REFRESH_INTERVAL = 30 * 1000; // 15 minutes
+private readonly MIN_WARM_INTERVAL = 30 * 1000;// 10 minutes
+private readonly BACKGROUND_REFRESH_INTERVAL = 15 * 1000; // 15 minutes
   private readonly MAX_CONCURRENT_QUERIES = 1; // ✅ ONE at a time
   private readonly BATCH_DELAY = 500; // ✅ Longer delays
   private readonly DB_CONNECTION_TIMEOUT = 5000; // 5 seconds
@@ -210,82 +210,89 @@ class AutoCacheWarmer {
   /**
    * ✅ Warm courses list page
    */
-  private async warmCoursesListPage(): Promise<void> {
-    try {
-      console.log('  📚 [1/5] Warming /courses page...');
-      const startTime = Date.now();
+private async warmCoursesListPage(): Promise<void> {
+  try {
+    console.log('  📚 [1/5] Warming /courses page...');
+    const startTime = Date.now();
 
-      // ✅ Warm anonymous cache only
-      const cacheKey = courseCacheKeys.publicCourses(); // No userId
-      const data = await loadCompleteCoursesData();
-      
-      await this.setCacheData(cacheKey, data, COURSE_CACHE_TIMES.PUBLIC_COURSES);
-      
-      const duration = Date.now() - startTime;
-      this.stats.coursesListWarmed = true;
-      
-      console.log(`    ✓ /courses warmed in ${duration}ms`);
-    } catch (error: any) {
-      console.error('    ✗ Failed to warm /courses:', error.message);
-      throw error;
-    }
+    // ✅ FIX: Warm anonymous cache with shorter TTL (PRIORITY)
+    const anonymousCacheKey = courseCacheKeys.publicCoursesAnonymous();
+    const data = await loadCompleteCoursesData(); // No userId = anonymous
+    
+    await this.setCacheData(
+      anonymousCacheKey, 
+      data, 
+      COURSE_CACHE_TIMES.PUBLIC_COURSES_ANONYMOUS // ✅ Use shorter TTL
+    );
+    
+    const duration = Date.now() - startTime;
+    this.stats.coursesListWarmed = true;
+    
+    console.log(`    ✓ Anonymous /courses warmed in ${duration}ms (TTL: ${COURSE_CACHE_TIMES.PUBLIC_COURSES_ANONYMOUS}s)`);
+  } catch (error: any) {
+    console.error('    ✗ Failed to warm /courses:', error.message);
+    throw error;
   }
+}
 
   /**
    * ✅ Warm course detail pages with retry logic
    */
-  private async warmCourseDetailPages(): Promise<void> {
-    try {
-      console.log('  🏆 [2/5] Warming /courses/[id] pages...');
-      const startTime = Date.now();
+private async warmCourseDetailPages(): Promise<void> {
+  try {
+    console.log('  🏆 [2/5] Warming /courses/[id] pages...');
+    const startTime = Date.now();
 
-      const topCourses = await this.safeQuery(
-        () => prisma.course.findMany({
-          where: {
-            status: 'PUBLISHED',
-            isPublished: true,
-          },
-          select: {
-            id: true,
-            title: true,
-            _count: { select: { enrollments: true } },
-          },
-          orderBy: [
-            { enrollments: { _count: 'desc' } },
-            { updatedAt: 'desc' },
-          ],
-          take: 10, // ✅ Reduced from 15
-        }),
-        []
-      );
+    const topCourses = await this.safeQuery(
+      () => prisma.course.findMany({
+        where: {
+          status: 'PUBLISHED',
+          isPublished: true,
+        },
+        select: {
+          id: true,
+          title: true,
+          _count: { select: { enrollments: true } },
+        },
+        orderBy: [
+          { enrollments: { _count: 'desc' } },
+          { updatedAt: 'desc' },
+        ],
+        take: 10,
+      }),
+      []
+    );
 
-      console.log(`    ℹ️ Found ${topCourses.length} courses`);
+    console.log(`    ℹ️ Found ${topCourses.length} courses`);
 
-      // ✅ Process ONE at a time
-      for (const course of topCourses) {
-        try {
-          // ✅ Warm anonymous cache only
-          const cacheKey = courseCacheKeys.courseDetail(course.id); // No userId
-          const data = await loadCompleteCourseDetail(course.id);
-          
-          await this.setCacheData(cacheKey, data, COURSE_CACHE_TIMES.COURSE_DETAIL);
-          
-          this.stats.courseDetailsWarmed++;
-          console.log(`    ✓ Warmed: ${course.title.substring(0, 40)}...`);
-          
-          await this.delay(this.BATCH_DELAY);
-        } catch (error: any) {
-          console.error(`    ✗ Failed: ${course.title}`, error.message);
-        }
+    for (const course of topCourses) {
+      try {
+        // ✅ FIX: Warm anonymous cache with shorter TTL
+        const anonymousCacheKey = courseCacheKeys.courseDetailAnonymous(course.id);
+        const data = await loadCompleteCourseDetail(course.id); // No userId = anonymous
+        
+        await this.setCacheData(
+          anonymousCacheKey, 
+          data, 
+          COURSE_CACHE_TIMES.COURSE_DETAIL_ANONYMOUS // ✅ Use shorter TTL
+        );
+        
+        this.stats.courseDetailsWarmed++;
+        console.log(`    ✓ Warmed (anonymous): ${course.title.substring(0, 40)}...`);
+        
+        await this.delay(this.BATCH_DELAY);
+      } catch (error: any) {
+        console.error(`    ✗ Failed: ${course.title}`, error.message);
       }
-
-      const duration = Date.now() - startTime;
-      console.log(`    ✓ Course details warmed in ${duration}ms`);
-    } catch (error: any) {
-      console.error('    ✗ Failed to warm course details:', error.message);
-      throw error;
     }
+
+    const duration = Date.now() - startTime;
+    console.log(`    ✓ Course details warmed in ${duration}ms`);
+  } catch (error: any) {
+    console.error('    ✗ Failed to warm course details:', error.message);
+    throw error;
   }
+}
 
   /**
    * ✅ Warm user data

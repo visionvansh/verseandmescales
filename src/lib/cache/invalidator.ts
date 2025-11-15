@@ -7,16 +7,21 @@ export async function invalidateAllCourseCaches(courseId?: string) {
     console.log('🧹 [INVALIDATOR] Starting full invalidation...');
     
     const patterns = [
+      // ✅ CRITICAL: Add anonymous cache patterns
+      'courses:public:list:anonymous',
+      'courses:detail:*:anonymous',
       'courses:public:list*',
       'courses:detail:*',
       'course:stats:*',
       'enrollments:bulk:*',
     ];
 
-    // If specific course, add targeted keys
     if (courseId) {
-      patterns.push(`courses:detail:${courseId}*`);
-      patterns.push(`course:stats:${courseId}`);
+      patterns.push(
+        `courses:detail:${courseId}*`,
+        `course:stats:${courseId}`,
+        courseCacheKeys.courseDetailAnonymous(courseId)
+      );
     }
 
     let deletedCount = 0;
@@ -27,13 +32,14 @@ export async function invalidateAllCourseCaches(courseId?: string) {
         if (keys.length > 0) {
           await redis.del(...keys);
           deletedCount += keys.length;
+          console.log(`  ✅ Deleted ${keys.length} keys for pattern: ${pattern}`);
         }
       } catch (err) {
         console.error(`Failed to delete pattern ${pattern}:`, err);
       }
     }
     
-    console.log(`✅ [INVALIDATOR] Deleted ${deletedCount} cache keys`);
+    console.log(`✅ [INVALIDATOR] Total deleted: ${deletedCount} cache keys`);
     return deletedCount;
   } catch (error) {
     console.error('❌ [INVALIDATOR] Failed:', error);
@@ -44,7 +50,6 @@ export async function invalidateAllCourseCaches(courseId?: string) {
 export async function invalidateCourseCacheWithBroadcast(courseId: string) {
   await invalidateAllCourseCaches(courseId);
   
-  // Trigger WebSocket broadcast
   await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/cache/broadcast`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

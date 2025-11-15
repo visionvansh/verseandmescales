@@ -1,8 +1,8 @@
-//Volumes/vision/codes/course/my-app/src/app/api/course/card-settings/route.ts
+// src/app/api/course/card-settings/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import prisma from '@/lib/prisma';
-import { invalidateAllCourseCaches } from '@/lib/cache/invalidator';
+import { invalidateAllCourseCaches } from '@/lib/cache/invalidator'; // ✅ Remove invalidateCourseCaches
 
 /**
  * GET /api/course/card-settings?courseId=xxx
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
         thumbnail: true,
         price: true,
         salePrice: true,
-        saleEndsAt: true, // ✅ Include sale end time
+        saleEndsAt: true,
       },
     });
 
@@ -101,34 +101,11 @@ export async function PATCH(request: NextRequest) {
     const updatedCourse = await prisma.course.update({
       where: { id: courseId },
       data: updateData,
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        thumbnail: true,
-        price: true,
-        salePrice: true,
-        saleEndsAt: true,
-      },
     });
 
-    // ✅ NEW: Invalidate ALL caches after update
+    // ✅ CRITICAL: Invalidate ALL caches (including anonymous) - ONE CALL IS ENOUGH
+    console.log('🧹 Invalidating all caches after card settings update...');
     await invalidateAllCourseCaches(courseId);
-    
-    // ✅ NEW: Broadcast update to all clients
-    await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/cache/broadcast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        type: 'course_update', 
-        courseId,
-        data: {
-          price: updatedCourse.price,
-          salePrice: updatedCourse.salePrice,
-          saleEndsAt: updatedCourse.saleEndsAt,
-        }
-      }),
-    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

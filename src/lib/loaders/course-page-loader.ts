@@ -6,24 +6,27 @@ export async function loadCompleteCoursesData(
   userId?: string
 ): Promise<any> {
   const startTime = Date.now();
-  console.log('⚡ Loading courses data for user:', userId || 'anonymous');
+  console.log('⚡ Loading courses data for:', userId ? `user ${userId}` : 'anonymous');
 
-  // ✅ FIX: Use user-specific cache key
   const cacheKey = courseCacheKeys.publicCourses(userId);
 
   try {
-    // ✅ FIX: Disable stale-while-revalidate for user-specific data
-    const useStale = !userId; // Only use stale for anonymous users
+    const useStale = Boolean(userId);
+    
+    // ✅ FIX: Use shorter TTL for anonymous users
+    const cacheTTL = userId 
+      ? COURSE_CACHE_TIMES.PUBLIC_COURSES 
+      : COURSE_CACHE_TIMES.PUBLIC_COURSES_ANONYMOUS;
     
     const data = await getCachedData(
       cacheKey,
       () => fetchCoursesFromDB(userId),
-      COURSE_CACHE_TIMES.PUBLIC_COURSES,
-      useStale // ✅ Changed
+      cacheTTL, // ✅ Dynamic TTL based on auth status
+      useStale
     );
 
     const totalTime = Date.now() - startTime;
-    console.log(`⚡ Courses loaded in ${totalTime}ms (user: ${userId || 'anon'})`);
+    console.log(`⚡ Courses loaded in ${totalTime}ms (${userId ? 'user' : 'anonymous'})`);
 
     return data;
   } catch (error) {
@@ -32,6 +35,7 @@ export async function loadCompleteCoursesData(
   }
 }
 
+// Keep fetchCoursesFromDB as is - it already has correct sale price logic
 async function fetchCoursesFromDB(userId?: string): Promise<any> {
   console.log('📊 Fetching fresh courses from database...');
   

@@ -2,23 +2,37 @@
 import { redis, CACHE_TIMES } from '@/lib/redis';
 
 export const COURSE_CACHE_TIMES = {
-  PUBLIC_COURSES: 30, // ✅ REDUCED: 30 seconds (was 5 minutes)
-  COURSE_DETAIL: 45, // ✅ REDUCED: 45 seconds (was 10 minutes)
-  USER_AVATARS: 60 * 30, // Keep as is
-  ENROLLMENT_STATUS: 20, // ✅ REDUCED: 20 seconds (was 2 minutes)
-  COURSE_STATS: 25, // ✅ REDUCED: 25 seconds (was 3 minutes)
-  USER_PROFILE: 60 * 20, // Keep as is
+  PUBLIC_COURSES: 30, // Authenticated users
+  PUBLIC_COURSES_ANONYMOUS: 30, // ✅ CHANGED: 30s (was 10s)
+  COURSE_DETAIL: 45, // Authenticated users  
+  COURSE_DETAIL_ANONYMOUS: 30, // ✅ CHANGED: 30s (was 15s)
+  USER_AVATARS: 60 * 30,
+  ENROLLMENT_STATUS: 20,
+  COURSE_STATS: 25,
+  USER_PROFILE: 60 * 20,
 };
 
-// ✅ FIX: Add userId to cache keys where needed
+// ✅ FIX: Separate public and user-specific cache keys
 export const courseCacheKeys = {
-  // ✅ CHANGED: Now includes userId for personalized data
-  publicCourses: (userId?: string) => 
-    userId ? `courses:public:list:user:${userId}` : 'courses:public:list',
+  // ✅ NEW: Public cache (same for everyone, no userId)
+  publicCoursesAnonymous: () => 'courses:public:list:anonymous',
   
-  // ✅ CHANGED: Now includes userId for enrollment status
+  // ✅ CHANGED: User-specific cache (for enrollment status)
+  publicCoursesUser: (userId: string) => `courses:public:list:user:${userId}`,
+  
+  // ✅ NEW: Helper to get correct key
+  publicCourses: (userId?: string) => 
+    userId 
+      ? courseCacheKeys.publicCoursesUser(userId) 
+      : courseCacheKeys.publicCoursesAnonymous(),
+  
+  // Same for course detail
+  courseDetailAnonymous: (id: string) => `courses:detail:${id}:anonymous`,
+  courseDetailUser: (id: string, userId: string) => `courses:detail:${id}:user:${userId}`,
   courseDetail: (id: string, userId?: string) => 
-    userId ? `courses:detail:${id}:user:${userId}` : `courses:detail:${id}`,
+    userId 
+      ? courseCacheKeys.courseDetailUser(id, userId) 
+      : courseCacheKeys.courseDetailAnonymous(id),
   
   userAvatars: (userId: string) => `user:avatars:${userId}`,
   enrollmentStatus: (userId: string, courseId: string) => 
@@ -28,12 +42,12 @@ export const courseCacheKeys = {
   bulkEnrollments: (userId: string) => `enrollments:bulk:${userId}`,
 };
 
-// ✅ FIX: Disable stale-while-revalidate for user-specific data
+// ✅ FIX: Disable stale for anonymous users completely
 export async function getCachedData<T>(
   key: string,
   fetchFn: () => Promise<T>,
   ttl: number,
-  useStale: boolean = false // ✅ CHANGED: Default to false
+  useStale: boolean = false
 ): Promise<T> {
   try {
     const cached = await redis.get(key);
@@ -46,32 +60,32 @@ export async function getCachedData<T>(
           const age = Date.now() - parsed._timestamp;
           const revivedData = reviveCachedData(parsed.data);
           
-          // ✅ FIX: Only return if truly fresh (within 50% of TTL)
-          if (age < ttl * 500) {
-            console.log(`✅ Cache HIT: ${key} (${age}ms old)`);
+          // ✅ FIX: Use 90% of TTL for anonymous, 80% for authenticated
+          const freshnessThreshold = useStale 
+            ? (ttl * 800)  // 80% for authenticated (can use slightly stale)
+            : (ttl * 900); // 90% for anonymous (keep very fresh)
+          
+          if (age < freshnessThreshold) {
+            console.log(`✅ Cache HIT: ${key} (${age}ms old, threshold: ${freshnessThreshold}ms, ${useStale ? 'user' : 'anonymous'})`);
             return revivedData;
           }
           
-          // ✅ FIX: If stale, ONLY use if explicitly enabled AND within 2x TTL
-          if (useStale && age < ttl * 2000) {
-            console.log(`⚠️ Cache STALE: ${key}, refreshing...`);
-            
-            // Refresh in background but return stale
+          // ✅ For authenticated users with stale-while-revalidate
+          if (useStale && age < ttl * 1000) { // Within actual TTL
+            console.log(`⚠️ Cache STALE: ${key} (${age}ms old), refreshing in background...`);
             refreshCache(key, fetchFn, ttl).catch(err => 
               console.error(`Background refresh failed for ${key}:`, err)
             );
-            
-            return revivedData;
+            return revivedData; // Return stale data while refreshing
           }
           
-          console.log(`❌ Cache EXPIRED: ${key} (${age}ms old)`);
+          console.log(`❌ Cache EXPIRED: ${key} (${age}ms old, threshold: ${freshnessThreshold}ms, ${useStale ? 'user' : 'anonymous'}), fetching fresh...`);
         }
       } catch (parseError) {
         console.error(`Failed to parse cache for ${key}:`, parseError);
       }
     }
     
-    // Fetch fresh
     console.log(`🔄 Cache MISS: ${key}, fetching fresh...`);
     return await refreshCache(key, fetchFn, ttl);
   } catch (error) {
@@ -80,32 +94,40 @@ export async function getCachedData<T>(
   }
 }
 
-// ✅ NEW: Invalidate ALL related caches (comprehensive)
+// ✅ FIX: Comprehensive cache invalidation
 export async function invalidateCourseCaches(courseId: string, userId?: string) {
   try {
     console.log(`🧹 Invalidating caches for course ${courseId}...`);
     
     const keys: string[] = [
-      // Global course data
-      courseCacheKeys.publicCourses(),
-      courseCacheKeys.courseDetail(courseId),
+      // ✅ CRITICAL: Invalidate anonymous cache first
+      courseCacheKeys.publicCoursesAnonymous(),
+      courseCacheKeys.courseDetailAnonymous(courseId),
       courseCacheKeys.courseStats(courseId),
     ];
     
-    // ✅ If user provided, invalidate user-specific caches
+    // If user provided, also invalidate user-specific caches
     if (userId) {
       keys.push(
-        courseCacheKeys.publicCourses(userId),
-        courseCacheKeys.courseDetail(courseId, userId),
+        courseCacheKeys.publicCoursesUser(userId),
+        courseCacheKeys.courseDetailUser(courseId, userId),
         courseCacheKeys.enrollmentStatus(userId, courseId),
         courseCacheKeys.bulkEnrollments(userId)
       );
+    } else {
+      // ✅ NEW: If no userId, invalidate ALL user-specific caches for this course
+      const pattern = `courses:detail:${courseId}:user:*`;
+      const userKeys = await redis.keys(pattern);
+      keys.push(...userKeys);
+      
+      // Also invalidate all user list caches
+      const userListKeys = await redis.keys('courses:public:list:user:*');
+      keys.push(...userListKeys);
     }
     
-    // ✅ Delete all keys
     if (keys.length > 0) {
       await redis.del(...keys);
-      console.log(`✅ Invalidated ${keys.length} cache keys`);
+      console.log(`✅ Invalidated ${keys.length} cache keys (including anonymous)`);
     }
     
     return true;
