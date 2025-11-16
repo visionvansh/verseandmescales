@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext'; // ✅ Add this import
 import { FaCheckCircle, FaGraduationCap, FaMoneyBillWave, FaUserGraduate, 
          FaChalkboardTeacher, FaChartLine, FaSignInAlt, FaLightbulb, 
          FaLock, FaRegClock, FaPhoneAlt, FaEnvelope, FaRocket, FaTrophy,
@@ -22,6 +23,9 @@ export default function HomePage() {
     coursePrice: 49,
   });
   const router = useRouter();
+  
+  // ✅ Get auth state
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   // Simulate initial loading
   useEffect(() => {
@@ -294,7 +298,8 @@ export default function HomePage() {
   ];
 
   // Skeletal Loading State
-  if (isLoading) {
+  if (isLoading || authLoading) {
+    // ... keep existing loading state code
     return (
       <div className="relative min-h-screen overflow-hidden bg-black">
         {/* Background Effects */}
@@ -453,15 +458,28 @@ export default function HomePage() {
             </nav>
 
             <div className="flex items-center space-x-4">
-              <motion.button 
-                className="hidden md:block bg-transparent border border-red-500 text-red-500 px-4 py-2 rounded-lg hover:bg-red-500/10 transition-all"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => router.push('/auth/signin')}
-              >
-                Log In
-              </motion.button>
+              {/* ✅ Show "Get in" OR "Log In" based on auth status */}
+              {isAuthenticated ? (
+                <motion.button 
+                  className="hidden md:block bg-transparent border border-red-500 text-red-500 px-4 py-2 rounded-lg hover:bg-red-500/10 transition-all"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => router.push('/users')}
+                >
+                  Get in
+                </motion.button>
+              ) : (
+                <motion.button 
+                  className="hidden md:block bg-transparent border border-red-500 text-red-500 px-4 py-2 rounded-lg hover:bg-red-500/10 transition-all"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => router.push('/auth/signin')}
+                >
+                  Log In
+                </motion.button>
+              )}
               
+              {/* ✅ "Sign Up Free" always shows in the same position */}
               <motion.button 
                 className="bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-2 rounded-lg hover:from-red-500 hover:to-red-600 transition-all"
                 whileHover={{ scale: 1.05 }}

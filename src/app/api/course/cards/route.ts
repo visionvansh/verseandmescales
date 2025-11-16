@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const user = await getAuthUser(request);
     const userId = user?.id;
 
-    // ✅ Fetch ONLY card fields - NO CACHING
+    // ✅ Fetch courses
     const courses = await prisma.course.findMany({
       where: {
         status: 'PUBLISHED',
@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
       },
       select: {
         id: true,
+        userId: true, // ✅ Include owner ID
         title: true,
         description: true,
         price: true,
@@ -31,9 +32,24 @@ export async function GET(request: NextRequest) {
       orderBy: [{ updatedAt: 'desc' }],
     });
 
+    // ✅ If user is authenticated, fetch their enrollments in bulk
+    let userEnrollments = new Set<string>();
+    if (userId) {
+      const enrollments = await prisma.courseEnrollment.findMany({
+        where: {
+          userId: userId,
+          status: 'active',
+        },
+        select: {
+          courseId: true,
+        },
+      });
+      userEnrollments = new Set(enrollments.map(e => e.courseId));
+    }
+
     const now = new Date();
     
-    // ✅ Process card data with real-time sale status
+    // ✅ Process card data with enrollment status
     const cardData = courses.map(course => {
       const saleEndsAt = course.saleEndsAt ? new Date(course.saleEndsAt) : null;
       const isSaleActive = course.salePrice && saleEndsAt && saleEndsAt > now;
@@ -41,9 +57,12 @@ export async function GET(request: NextRequest) {
       const basePriceNum = course.price ? parseFloat(course.price) : 0;
       const salePriceNum = course.salePrice ? parseFloat(course.salePrice) : 0;
       
-      // Only show sale if price is actually lower
       const showSale = course.salePrice && salePriceNum < basePriceNum;
       
+      // ✅ Calculate enrollment status on frontend's behalf
+      const isOwner = userId ? course.userId === userId : false;
+      const enrolled = userId ? userEnrollments.has(course.id) : false;
+
       return {
         id: course.id,
         title: course.title,
@@ -51,11 +70,16 @@ export async function GET(request: NextRequest) {
         price: course.price || '0',
         salePrice: showSale && (!course.saleEndsAt || isSaleActive) ? course.salePrice : null,
         saleEndsAt: showSale && isSaleActive && course.saleEndsAt ? course.saleEndsAt.toISOString() : null,
+        // ✅ NEW: Include enrollment status
+        enrollmentStatus: userId ? {
+          enrolled,
+          isOwner,
+        } : null,
       };
     });
 
     const totalTime = Date.now() - startTime;
-    console.log(`✅ [CARDS API] Fetched ${cardData.length} course cards in ${totalTime}ms`);
+    console.log(`✅ [CARDS API] Fetched ${cardData.length} cards with enrollment data in ${totalTime}ms`);
 
     return NextResponse.json(
       {
@@ -66,7 +90,7 @@ export async function GET(request: NextRequest) {
       {
         status: 200,
         headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate', // ✅ NO CACHING
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
           'Pragma': 'no-cache',
           'Expires': '0',
           'X-Load-Time': String(totalTime),

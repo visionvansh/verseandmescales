@@ -384,20 +384,87 @@ function useCourseCardData(courseId: string, refreshKey: number) {
   return { cardData, loading };
 }
 
-// ✅ UPDATE: Modified atomic hook - NO longer includes card data
+// ✅ NEW: Fetch enrollment status from cards API
+function useEnrollmentStatus(courseId: string, user: any, refreshKey: number) {
+  const [enrollmentStatus, setEnrollmentStatus] = useState<{
+    enrolled: boolean;
+    isOwner: boolean;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadEnrollment() {
+      if (!user) {
+        // Not logged in
+        if (isMounted) {
+          setEnrollmentStatus(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        console.log(`🔐 [Enrollment Check] Fetching for course ${courseId}...`);
+        const startTime = Date.now();
+
+        const response = await fetch('/api/course/cards', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch enrollment status');
+        }
+
+        const data = await response.json();
+        const loadTime = Date.now() - startTime;
+
+        console.log(`✅ [Enrollment Check] Loaded in ${loadTime}ms`);
+
+        if (isMounted) {
+          const card = data.cards.find((c: any) => c.id === courseId);
+          
+          if (card && card.enrollmentStatus) {
+            setEnrollmentStatus(card.enrollmentStatus);
+            console.log('✅ [Enrollment Status]:', card.enrollmentStatus);
+          } else {
+            setEnrollmentStatus({ enrolled: false, isOwner: false });
+          }
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('❌ [Enrollment Check] Error:', error);
+        if (isMounted) {
+          setEnrollmentStatus({ enrolled: false, isOwner: false });
+          setLoading(false);
+        }
+      }
+    }
+
+    loadEnrollment();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [courseId, user, refreshKey]);
+
+  return { enrollmentStatus, loading };
+}
+
+// ✅ UPDATE: Modified atomic hook - NO enrollment status
 function useAtomicCourseData(id: string, refreshKey: number) {
   const [data, setData] = useState<{
     courseData: any;
     owner: any;
     currentUserAvatars: any[];
-    enrollmentStatus: { enrolled: boolean; isOwner: boolean } | null;
     loading: boolean;
     error: string | null;
   }>({
     courseData: null,
     owner: null,
     currentUserAvatars: [],
-    enrollmentStatus: null,
     loading: true,
     error: null,
   });
@@ -439,7 +506,6 @@ function useAtomicCourseData(id: string, refreshKey: number) {
             courseData: atomicData.course,
             owner: atomicData.owner,
             currentUserAvatars: atomicData.currentUserAvatars || [],
-            enrollmentStatus: atomicData.enrollmentStatus,
             loading: false,
             error: null,
           });
@@ -453,7 +519,6 @@ function useAtomicCourseData(id: string, refreshKey: number) {
             courseData: null,
             owner: null,
             currentUserAvatars: [],
-            enrollmentStatus: null,
             loading: false,
             error:
               error instanceof Error ? error.message : 'Failed to load course',
@@ -499,9 +564,15 @@ export default function PublicCoursePage() {
   const [ownerHoverTimeout, setOwnerHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
   // ✅ ALL CUSTOM HOOKS
-  const { courseData, owner, currentUserAvatars, enrollmentStatus, loading: atomicLoading, error } =
+  // ✅ Fetch course data (cached, no enrollment)
+  const { courseData, owner, currentUserAvatars, loading: atomicLoading, error } =
     useAtomicCourseData(id, refreshKey);
+  
+  // ✅ Fetch card data with pricing
   const { cardData, loading: cardLoading } = useCourseCardData(id, refreshKey);
+  
+  // ✅ Fetch enrollment status separately (NO CACHE)
+  const { enrollmentStatus, loading: enrollmentLoading } = useEnrollmentStatus(id, user, refreshKey);
 
   // ✅ ALL EFFECTS
   useAutoRefresh(() => {
@@ -595,9 +666,10 @@ export default function PublicCoursePage() {
     [owner]
   );
 
+  // ✅ UPDATE: Loading check
   const shouldShowSkeleton = useMemo(() => 
-    atomicLoading || cardLoading,
-    [atomicLoading, cardLoading]
+    atomicLoading || cardLoading || (user && enrollmentLoading),
+    [atomicLoading, cardLoading, user, enrollmentLoading]
   );
 
   // ✅ ALL EVENT HANDLERS (regular functions, not hooks)

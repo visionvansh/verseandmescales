@@ -1590,11 +1590,11 @@ useEffect(() => {
     const isCourses = isPublicCoursesRoute(currentPath);
 
     if (isPublic && !isCourses) {
-      // Regular public routes - no auth check needed
-      console.log("[Auth] Public route, setting states immediately");
+      // ✅ FIXED: Check auth but don't block rendering
+      console.log("[Auth] Public route, checking auth in background");
+      setIsLoading(false); // Don't block rendering
+      await checkAuthStatus(false); // Check auth silently
       setAuthChecked(true);
-      setIsLoading(false);
-      setUser(null);
     } else if (isCourses) {
       // ✅ Courses route - check auth but don't block
       console.log("[Auth] Public courses route, checking auth in background");

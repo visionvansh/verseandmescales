@@ -7,27 +7,22 @@ export async function loadCompleteCourseDetail(
   userId?: string
 ): Promise<any> {
   const startTime = Date.now();
-  console.log('⚡ Loading course detail:', courseId, 'for:', userId ? `user ${userId}` : 'anonymous');
+  console.log('⚡ Loading course detail:', courseId);
 
-  const cacheKey = courseCacheKeys.courseDetail(courseId, userId);
+  // ✅ CHANGE: Use same cache key for everyone (no user-specific data)
+  const cacheKey = courseCacheKeys.courseDetailAnonymous(courseId);
 
   try {
-    const useStale = Boolean(userId);
-    
-    // ✅ FIX: Use shorter TTL for anonymous users
-    const cacheTTL = userId 
-      ? COURSE_CACHE_TIMES.COURSE_DETAIL 
-      : COURSE_CACHE_TIMES.COURSE_DETAIL_ANONYMOUS;
-    
+    // ✅ Everyone gets the same cached data
     const data = await getCachedData(
       cacheKey,
-      () => fetchCourseDetailFromDB(courseId, userId),
-      cacheTTL, // ✅ Dynamic TTL based on auth status
-      useStale
+      () => fetchCourseDetailFromDB(courseId),
+      COURSE_CACHE_TIMES.COURSE_DETAIL_ANONYMOUS,
+      false // No stale data
     );
 
     const totalTime = Date.now() - startTime;
-    console.log(`⚡ Course detail loaded in ${totalTime}ms (${userId ? 'user' : 'anonymous'})`);
+    console.log(`⚡ Course detail loaded in ${totalTime}ms`);
 
     return data;
   } catch (error) {
@@ -36,196 +31,152 @@ export async function loadCompleteCourseDetail(
   }
 }
 
-// Keep fetchCourseDetailFromDB as is - it already has correct sale price logic
-async function fetchCourseDetailFromDB(courseId: string, userId?: string): Promise<any> {
+// ✅ REMOVED: userId parameter and enrollment logic
+async function fetchCourseDetailFromDB(courseId: string): Promise<any> {
   console.log('📊 Fetching fresh course detail from database...');
   
-  const [course, currentUserAvatars, enrollmentRecord] = await Promise.all([
-    prisma.course.findFirst({
-      where: {
-        id: courseId,
-        status: 'PUBLISHED',
-        isPublished: true,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            surname: true,
-            username: true,
-            img: true,
-            createdAt: true,
-            avatars: {
-              orderBy: { createdAt: 'desc' },
-              select: {
-                id: true,
-                avatarIndex: true,
-                avatarSeed: true,
-                avatarStyle: true,
-                isPrimary: true,
-                isCustomUpload: true,
-                customImageUrl: true,
-              },
-            },
-            userXP: {
-              select: {
-                totalXP: true,
-                contributorTitle: true,
-              },
-            },
-            _count: {
-              select: {
-                followers: true,
-                following: true,
-                courses: true,
-                posts: true,
-              },
-            },
-            profileSettings: {
-              select: {
-                bio: true,
-                country: true,
-                location: true,
-                website: true,
-                isPublic: true,
-              },
-            },
-            UserGoals: {
-              select: {
-                purpose: true,
-              },
-              take: 1,
+  const course = await prisma.course.findFirst({
+    where: {
+      id: courseId,
+      status: 'PUBLISHED',
+      isPublished: true,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          surname: true,
+          username: true,
+          img: true,
+          createdAt: true,
+          avatars: {
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              avatarIndex: true,
+              avatarSeed: true,
+              avatarStyle: true,
+              isPrimary: true,
+              isCustomUpload: true,
+              customImageUrl: true,
             },
           },
-        },
-        homepage: {
-          include: {
-            customSections: {
-              orderBy: { position: 'asc' },
-            },
-            proofSection: {
-              include: {
-                images: {
-                  orderBy: { position: 'asc' },
-                },
-              },
-            },
-            testimonials: {
-              include: {
-                testimonials: {
-                  orderBy: { position: 'asc' },
-                },
-              },
-            },
-            faqSection: {
-              include: {
-                faqs: {
-                  orderBy: { position: 'asc' },
-                },
-              },
-            },
-            footer: true,
-            sectionBadges: true,
-            courseStats: true,
-          },
-        },
-        modules: {
-          orderBy: { position: 'asc' },
-          include: {
-            lessons: {
-              orderBy: { position: 'asc' },
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                videoDuration: true,
-                position: true,
-              },
+          userXP: {
+            select: {
+              totalXP: true,
+              contributorTitle: true,
             },
           },
-        },
-        // ✅ FIX: Get REAL enrollment data
-        enrollments: {
-          where: {
-            status: 'active',
+          _count: {
+            select: {
+              followers: true,
+              following: true,
+              courses: true,
+              posts: true,
+            },
           },
-          select: {
-            id: true,
-            userId: true,
-            enrolledAt: true,
+          profileSettings: {
+            select: {
+              bio: true,
+              country: true,
+              location: true,
+              website: true,
+              isPublic: true,
+            },
           },
-        },
-        payments: {
-          where: {
-            status: 'succeeded',
-          },
-          select: {
-            id: true,
-            amount: true,
-            createdAt: true,
+          UserGoals: {
+            select: {
+              purpose: true,
+            },
+            take: 1,
           },
         },
       },
-    }),
-
-    userId
-      ? prisma.avatar.findMany({
-          where: { userId },
-          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
-          select: {
-            id: true,
-            avatarIndex: true,
-            avatarSeed: true,
-            avatarStyle: true,
-            isPrimary: true,
-            isCustomUpload: true,
-            customImageUrl: true,
+      homepage: {
+        include: {
+          customSections: {
+            orderBy: { position: 'asc' },
           },
-        })
-      : Promise.resolve([]),
-
-    userId && courseId
-      ? prisma.courseEnrollment.findFirst({
-          where: {
-            courseId: courseId,
-            userId: userId,
-            status: 'active',
+          proofSection: {
+            include: {
+              images: {
+                orderBy: { position: 'asc' },
+              },
+            },
           },
-        })
-      : Promise.resolve(null),
-  ]);
+          testimonials: {
+            include: {
+              testimonials: {
+                orderBy: { position: 'asc' },
+              },
+            },
+          },
+          faqSection: {
+            include: {
+              faqs: {
+                orderBy: { position: 'asc' },
+              },
+            },
+          },
+          footer: true,
+          sectionBadges: true,
+          courseStats: true,
+        },
+      },
+      modules: {
+        orderBy: { position: 'asc' },
+        include: {
+          lessons: {
+            orderBy: { position: 'asc' },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              videoDuration: true,
+              position: true,
+            },
+          },
+        },
+      },
+      enrollments: {
+        where: {
+          status: 'active',
+        },
+        select: {
+          id: true,
+          enrolledAt: true,
+        },
+      },
+      payments: {
+        where: {
+          status: 'succeeded',
+        },
+        select: {
+          id: true,
+          amount: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
 
   if (!course) {
     throw new Error('Course not found or not published');
   }
 
-  // ✅ FIX: CRITICAL - Proper ownership check
-  const isOwner = Boolean(userId && course.userId === userId);
-  const enrolled = Boolean(enrollmentRecord);
-  
-  console.log('[Course Detail] Enrollment Check:', {
-    courseUserId: course.userId,
-    currentUserId: userId,
-    isOwner,
-    hasEnrollmentRecord: enrolled,
-  });
-
   const ownerData = processOwnerData(course.user);
   const transformedCourse = transformCourseData(course, ownerData);
 
+  // ✅ REMOVED: enrollmentStatus from response
   return {
     course: transformedCourse,
     owner: ownerData,
-    currentUserAvatars: currentUserAvatars || [],
-    enrollmentStatus: {
-      enrolled,
-      isOwner,
-    },
     timestamp: Date.now(),
   };
 }
 
+// Keep existing helper functions unchanged
 function processOwnerData(user: any) {
   if (!user) return null;
 
@@ -277,7 +228,6 @@ function processOwnerData(user: any) {
 function transformCourseData(course: any, ownerData: any) {
   const homepage = course.homepage;
 
-  // ✅ FIX: Calculate REAL-TIME stats
   const activeStudents = course.enrollments?.length || 0;
   const now = new Date();
   const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -286,7 +236,6 @@ function transformCourseData(course: any, ownerData: any) {
     (e: any) => new Date(e.enrolledAt) >= firstDayOfMonth
   ) || [];
 
-  // ✅ FIX: Proper sale handling
   const basePriceNum = course.price ? parseFloat(course.price) : 0;
   const salePriceNum = course.salePrice ? parseFloat(course.salePrice) : null;
   
@@ -478,7 +427,7 @@ function transformCourseData(course: any, ownerData: any) {
     footerCurrency: 'USD',
 
     courseStats: {
-      activeStudents, // ✅ Real-time
+      activeStudents,
       courseRating,
       monthlyIncome: `$${Math.round(monthlyIncome)}`,
       avgGrowth: avgSales.toString(),

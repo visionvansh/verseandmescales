@@ -132,7 +132,7 @@ export default function UserHoverCard({ user, isVisible, position }: UserHoverCa
                         )}
                       </div>
                       
-                      {user.badges[0] && (
+                      {user.badges?.[0] && (
                         <div className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-gradient-to-br ${user.badges[0].color} border-2 border-black flex items-center justify-center text-sm shadow-lg`}>
                           {user.badges[0].icon}
                         </div>
@@ -190,7 +190,7 @@ export default function UserHoverCard({ user, isVisible, position }: UserHoverCa
                   </div>
 
                   {/* Badges Preview */}
-                  {user.badges.length > 0 && (
+                  {user.badges && user.badges.length > 0 && (
                     <div className="flex items-center gap-2 mb-4">
                       <span className="text-xs text-gray-500 font-bold">Badges:</span>
                       <div className="flex gap-1">

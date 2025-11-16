@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import { loadCompleteCourseDetail } from '@/lib/loaders/course-detail-loader';
+import  prisma  from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -15,12 +16,26 @@ export async function GET(
     console.log('⚡ Atomic course detail API called for:', id);
     const startTime = Date.now();
 
-    // Get user if authenticated
-    const user = await getAuthUser(request);
-    const userId = user?.id;
+    // ✅ REMOVED: User authentication - everyone gets same data
+    const atomicData = await loadCompleteCourseDetail(id);
 
-    // ✅ Load ALL data atomically
-    const atomicData = await loadCompleteCourseDetail(id, userId);
+    // ✅ Fetch current user avatars separately (not cached)
+    const user = await getAuthUser(request);
+    const currentUserAvatars = user?.id 
+      ? await prisma.avatar.findMany({
+          where: { userId: user.id },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+          select: {
+            id: true,
+            avatarIndex: true,
+            avatarSeed: true,
+            avatarStyle: true,
+            isPrimary: true,
+            isCustomUpload: true,
+            customImageUrl: true,
+          },
+        })
+      : [];
 
     const totalTime = Date.now() - startTime;
     console.log(`⚡ Atomic course detail API completed in ${totalTime}ms`);
@@ -28,12 +43,13 @@ export async function GET(
     return NextResponse.json(
       {
         ...atomicData,
+        currentUserAvatars, // ✅ Still include avatars
         loadTime: totalTime,
       },
       {
         status: 200,
         headers: {
-          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600', // ✅ Can cache now!
           'X-Load-Time': String(totalTime),
         },
       }

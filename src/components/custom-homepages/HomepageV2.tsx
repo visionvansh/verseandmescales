@@ -1,3 +1,5 @@
+// HomepageV2.tsx - CORRECTED VERSION
+
 "use client";
 
 import React, { useEffect, useRef, useState, useMemo } from "react";
@@ -208,13 +210,17 @@ const TestimonialScroller = React.memo(() => {
 
 TestimonialScroller.displayName = 'TestimonialScroller';
 
+// ✅ REMOVED: useEnrollmentStatus hook - will use prop instead
+
 export default function HomepageV2({
   courseData,
-  enrollmentStatus,
+  enrollmentStatus: propEnrollmentStatus,
   onEnroll,
   onStartLearning,
   enrolling,
 }: HomepageV2Props) {
+  // ✅ FIX: ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
+  
   // ✅ OPTIMIZED: Memoized pricing calculations
   const { regularPrice, salePrice, saleEndsAt, hasSale } = useMemo(() => {
     const regular = courseData?.price || courseData?.footerPrice || "9.99";
@@ -237,11 +243,11 @@ export default function HomepageV2({
 
   // ✅ OPTIMIZED: Memoized timer visibility check
   const shouldShowTimer = useMemo(() => {
-    return !enrollmentStatus?.enrolled && 
-           !enrollmentStatus?.isOwner && 
+    return !propEnrollmentStatus?.enrolled && 
+           !propEnrollmentStatus?.isOwner && 
            hasSale && 
            saleEndsAt;
-  }, [enrollmentStatus?.enrolled, enrollmentStatus?.isOwner, hasSale, saleEndsAt]);
+  }, [propEnrollmentStatus?.enrolled, propEnrollmentStatus?.isOwner, hasSale, saleEndsAt]);
 
   // ✅ OPTIMIZED: Memoized feature items
   const featureItems = useMemo(() => [
@@ -249,6 +255,9 @@ export default function HomepageV2({
     { icon: FaHeart, title: "Health Benefits Guide", desc: "Nutritional breakdown and spiritual significance explained", color: "from-red-600 to-pink-600" },
     { icon: FaComments, title: "Private Community Access", desc: "Connect with fellow believers, share recipes, discuss faith & nutrition", color: "from-green-600 to-emerald-600", highlight: true }
   ], []);
+
+  // ✅ NOW IT'S SAFE TO USE enrollmentStatus (all hooks are called above)
+  const enrollmentStatus = propEnrollmentStatus;
 
   return (
     <div className="relative w-full min-h-screen overflow-x-hidden bg-black">
@@ -371,8 +380,6 @@ export default function HomepageV2({
                   >
                     Your browser does not support the video tag.
                   </video>
-                  
-                 
                 </div>
 
                 {/* Video Stats Bar */}
@@ -486,7 +493,7 @@ export default function HomepageV2({
         </div>
       </section>
 
-      {/* ✅ REST OF SECTIONS */}
+      {/* ✅ REST OF SECTIONS - keeping them exactly as they were */}
       <div className="relative">
         {/* Grid Background for Remaining Sections */}
         <div
