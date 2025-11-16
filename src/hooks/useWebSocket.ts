@@ -157,14 +157,14 @@ export function useWebSocket(options: UseWebSocketOptions) {
   }, []);
 
   // ✅ Connect function with production support
-  const connect = useCallback(() => {
+const connect = useCallback(() => {
   if (!enabled || !roomId) {
-    console.log("⏸️ WS: Not connecting - disabled or no roomId", { enabled, roomId });
+    console.log("⏸️ WS: Not connecting", { enabled, roomId });
     return;
   }
 
   if (isCleaningUpRef.current) {
-    console.log("⏸️ WS: Cleanup in progress, skipping connect");
+    console.log("⏸️ WS: Cleanup in progress");
     return;
   }
 
@@ -175,24 +175,43 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
   cleanup();
 
-  const wsUrl = getWebSocketUrl();
-  console.log("🔌 WS: Connecting to", wsUrl);
-  console.log("🍪 WS: Cookies available:", document.cookie ? 'YES' : 'NO');
+  // ✅ GET AUTH TOKEN FROM COOKIES
+  const getAuthToken = () => {
+    if (typeof document === 'undefined') return null;
+    const cookies = document.cookie.split(';');
+    const authCookie = cookies.find(c => c.trim().startsWith('auth-token='));
+    if (!authCookie) return null;
+    return authCookie.split('=')[1];
+  };
+
+  const token = getAuthToken();
+  
+  if (!token) {
+    console.error("❌ WS: No auth token found");
+    setError("Not authenticated - please log in");
+    setConnectionState('error');
+    return;
+  }
+
+  // ✅ ADD TOKEN TO WEBSOCKET URL
+  const baseUrl = getWebSocketUrl();
+  const wsUrl = `${baseUrl}?token=${encodeURIComponent(token)}`;
+  
+  console.log("🔌 WS: Connecting with auth token");
+  console.log("🔗 WS: URL:", baseUrl);
+  console.log("🎫 WS: Has token:", !!token);
   
   setConnectionState('connecting');
 
   try {
-    // ✅ IMPORTANT: WebSocket doesn't send cookies by default in cross-origin
-    // We need to handle auth differently
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     const connectionTimeout = setTimeout(() => {
       if (ws.readyState !== WebSocket.OPEN) {
-        console.log("⏱️ WS: Connection timeout after 10s");
-        console.log("🔍 WS: ReadyState:", ws.readyState);
+        console.log("⏱️ WS: Connection timeout");
         ws.close();
-        setError("Connection timeout - server may be sleeping");
+        setError("Connection timeout");
         setConnectionState('error');
       }
     }, 10000);
@@ -200,8 +219,6 @@ export function useWebSocket(options: UseWebSocketOptions) {
     ws.onopen = () => {
       clearTimeout(connectionTimeout);
       console.log("✅ WS: Connected successfully");
-      console.log("🔗 WS: URL:", wsUrl);
-      console.log("🌐 WS: ReadyState:", ws.readyState);
       setIsConnected(true);
       setError(null);
       setConnectionState('connected');
@@ -212,9 +229,8 @@ export function useWebSocket(options: UseWebSocketOptions) {
         if (ws.readyState === WebSocket.OPEN) {
           try {
             ws.send(JSON.stringify({ event: "ping" }));
-            console.log("💓 WS: Heartbeat sent");
           } catch (err) {
-            console.error("❌ WS: Failed to send ping:", err);
+            console.error("Failed to send ping:", err);
           }
         }
       }, WEBSOCKET_CONFIG.heartbeat.interval);
@@ -222,11 +238,9 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
     ws.onerror = (err) => {
       clearTimeout(connectionTimeout);
-      console.error("❌ WS: Error event", err);
-      console.error("❌ WS: Error type:", err.type);
-      console.error("❌ WS: Target:", err.target);
+      console.error("❌ WS: Error", err);
       setConnectionState('error');
-      setError("Connection error - check console");
+      setError("Connection error");
       handlersRef.current.onError?.(err);
     };
 
@@ -242,13 +256,20 @@ export function useWebSocket(options: UseWebSocketOptions) {
         heartbeatIntervalRef.current = null;
       }
 
-      // Don't reconnect if cleanup was intentional
+      // Don't reconnect if intentional close or auth failure
       if (isCleaningUpRef.current || event.code === 1000) {
-        console.log("✋ WS: Clean disconnect, not reconnecting");
+        console.log("✋ WS: Clean disconnect");
         return;
       }
 
-      // Reconnect logic with exponential backoff
+      // ✅ Don't reconnect if authentication failed
+      if (event.code === 1008 || event.reason?.includes('auth')) {
+        console.error("❌ WS: Authentication failed, not reconnecting");
+        setError("Authentication failed - please refresh");
+        return;
+      }
+
+      // Reconnect logic
       if (reconnectAttemptsRef.current < WEBSOCKET_CONFIG.reconnect.maxAttempts && enabled) {
         reconnectAttemptsRef.current++;
         const delay = Math.min(
@@ -293,10 +314,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
             // Process queued messages
             if (messageQueueRef.current.length > 0) {
-              console.log(
-                `📤 WS: Processing ${messageQueueRef.current.length} queued items`
-              );
-
+              console.log(`📤 WS: Processing ${messageQueueRef.current.length} queued items`);
               messageQueueRef.current.forEach((item) => {
                 try {
                   if (item.event) {
@@ -308,28 +326,24 @@ export function useWebSocket(options: UseWebSocketOptions) {
                   console.error("Failed to send queued message:", err);
                 }
               });
-
               messageQueueRef.current = [];
             }
             break;
 
+          // ... rest of your message handlers
           case "message:new":
-            console.log("📨 WS: New message received");
             handlersRef.current.onMessage?.(data);
             break;
 
           case "message:edited":
-            console.log("✏️ WS: Message edited");
             handlersRef.current.onMessageEdited?.(data);
             break;
 
           case "message:deleted":
-            console.log("🗑️ WS: Message deleted");
             handlersRef.current.onMessageDeleted?.(data);
             break;
 
           case "reaction:toggle":
-            console.log("👍 WS: Reaction toggled");
             handlersRef.current.onReaction?.(data);
             break;
 
@@ -338,35 +352,27 @@ export function useWebSocket(options: UseWebSocketOptions) {
             break;
 
           case "user:online":
-            console.log("🟢 WS: User online", data.userId);
             handlersRef.current.onUserOnline?.(data);
             break;
 
           case "user:offline":
-            console.log("⚫ WS: User offline", data.userId);
             handlersRef.current.onUserOffline?.(data);
             break;
 
           case "question:new":
-            console.log("📝 WS: New question");
             handlersRef.current.onQuestionNew?.(data);
             break;
 
           case "question:upvote":
-            console.log("👍 WS: Question upvoted");
             handlersRef.current.onQuestionUpvote?.(data);
             break;
 
           case "question:view":
-            console.log("👁️ WS: Question viewed");
             handlersRef.current.onQuestionView?.(data);
             break;
 
           case "question:answer":
-            console.log("💬 WS: Question answered");
             handlersRef.current.onQuestionAnswer?.(data);
-            
-            // Dispatch global event
             if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('question:answer', {
                 detail: data
@@ -375,10 +381,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
             break;
 
           case "answer:thanked":
-            console.log("🙏 WS: Answer thanked");
             handlersRef.current.onAnswerThanked?.(data);
-            
-            // Dispatch global event
             if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('answer:thanked', {
                 detail: data
@@ -387,17 +390,14 @@ export function useWebSocket(options: UseWebSocketOptions) {
             break;
 
           case "answer:upvote":
-            console.log("👍 WS: Answer upvoted");
             handlersRef.current.onAnswerUpvote?.(data);
             break;
 
           case "goals:updated":
-            console.log("📊 WS: Goals updated");
             handlersRef.current.onGoalsUpdated?.(data);
             break;
 
           case "preferences:updated":
-            console.log("⚙️ WS: Preferences updated");
             handlersRef.current.onPreferencesUpdated?.(data);
             break;
 
@@ -408,16 +408,11 @@ export function useWebSocket(options: UseWebSocketOptions) {
             break;
 
           case "pong":
-            // Heartbeat response - connection is alive
-            break;
-
-          case "server:shutdown":
-            console.log("🛑 WS: Server shutting down");
-            setError("Server restarting...");
+            // Heartbeat response
             break;
 
           default:
-            console.log("⚠️ WS: Unknown event:", eventType, data);
+            console.log("⚠️ WS: Unknown event:", eventType);
         }
       } catch (err) {
         console.error("Failed to parse WebSocket message:", err);
