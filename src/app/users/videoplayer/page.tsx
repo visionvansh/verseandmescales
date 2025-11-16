@@ -1,4 +1,3 @@
-//Volumes/vision/codes/course/my-app/src/app/users/videoplayer/page.tsx
 "use client";
 
 import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
@@ -29,6 +28,9 @@ import {
   FaComments,
   FaExclamationTriangle,
 } from 'react-icons/fa';
+
+// ✅ Import the new modal
+import { VideoPlayerQuestionModal } from '@/components/courseinside/VideoPlayerQuestionModal';
 
 // Types
 interface Resource {
@@ -223,7 +225,7 @@ const VideoPlayerPage = () => {
   const [duration, setDuration] = useState("0:00");
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(0);
   const [videoCurrentSeconds, setVideoCurrentSeconds] = useState(0);
-  const [activeTab, setActiveTab] = useState<"overview" | "resources" | "transcript" | "notes">("overview");
+  const [activeTab, setActiveTab] = useState< "resources" | "transcript" | "notes">("resources");
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [newNote, setNewNote] = useState("");
@@ -232,6 +234,11 @@ const VideoPlayerPage = () => {
   const [isSavingProgress, setIsSavingProgress] = useState(false);
   const [isMarkedComplete, setIsMarkedComplete] = useState(false);
   const [isRestoringPosition, setIsRestoringPosition] = useState(false); // ✅ NEW
+
+  // ✅ ADD THESE NEW STATES
+  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
+  const [roomId, setRoomId] = useState<string>("");
+
   const progressSaveInterval = useRef<NodeJS.Timeout | undefined>(undefined);
 
   useEffect(() => {
@@ -279,6 +286,31 @@ const VideoPlayerPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ ADD THIS: Fetch room ID when lesson loads
+  useEffect(() => {
+    if (lessonData?.course?.id) {
+      fetchRoomId(lessonData.course.id);
+    }
+  }, [lessonData?.course?.id]);
+
+  const fetchRoomId = async (courseId: string) => {
+    try {
+      const response = await fetch(`/api/chat/room?courseId=${courseId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setRoomId(data.roomId);
+      }
+    } catch (error) {
+      console.error('Failed to fetch room ID:', error);
+    }
+  };
+
+  // ✅ ADD THIS: Handle question creation
+  const handleQuestionCreated = (question: any) => {
+    console.log('Question created:', question);
+    // Optionally show success message or refresh questions
   };
 
   // Format time helper function
@@ -613,7 +645,7 @@ const VideoPlayerPage = () => {
     setNotes(prev => prev.filter(note => note.id !== noteId));
   }, []);
 
-  const handleTabChange = useCallback((tab: "overview" | "resources" | "transcript" | "notes") => {
+  const handleTabChange = useCallback((tab:  "resources" | "transcript" | "notes") => {
     setActiveTab(tab);
   }, []);
 
@@ -764,10 +796,7 @@ const VideoPlayerPage = () => {
                   <TabNavigation activeTab={activeTab} onTabChange={handleTabChange} />
 
                   <AnimatePresence mode="wait">
-                    {activeTab === "overview" && (
-                      <OverviewTab key="overview" lessonData={lessonData} router={router} />
-                    )}
-
+                
                     {activeTab === "resources" && (
                       <ResourcesTab key="resources" resources={lessonData.resources} />
                     )}
@@ -805,12 +834,31 @@ const VideoPlayerPage = () => {
                   isMarkedComplete={isMarkedComplete}
                   isSavingProgress={isSavingProgress}
                   router={router}
+                  onAskQuestion={() => setIsQuestionModalOpen(true)} // ✅ ADD THIS
                 />
               </div>
             </div>
           </div>
         </section>
       </div>
+
+      {/* ✅ ADD THIS: Question Modal */}
+      {lessonData && roomId && (
+        <VideoPlayerQuestionModal
+          isOpen={isQuestionModalOpen}
+          onClose={() => setIsQuestionModalOpen(false)}
+          lessonData={{
+            id: lessonData.id,
+            title: lessonData.title,
+            videoUrl: lessonData.videoUrl,
+            module: lessonData.module,
+            course: lessonData.course,
+          }}
+          roomId={roomId}
+          currentVideoTime={videoCurrentSeconds}
+          onQuestionCreated={handleQuestionCreated}
+        />
+      )}
 
       {/* Animations */}
       <style jsx global>{`
@@ -872,6 +920,59 @@ const VideoPlayerPage = () => {
     </div>
   );
 };
+
+// ============================================
+// UPDATE SIDEBAR COMPONENT
+// ============================================
+
+const Sidebar = memo(({
+  lessonData,
+  currentTime,
+  duration,
+  progress,
+  playbackSpeed,
+  watchTime,
+  videoCurrentSeconds,
+  videoDurationSeconds,
+  handleMarkComplete,
+  isMarkedComplete,
+  isSavingProgress,
+  router,
+  onAskQuestion, // ✅ ADD THIS PROP
+}: any) => {
+  const watchedMinutes = Math.floor(watchTime / 60);
+  const watchedSeconds = Math.floor(watchTime % 60);
+  const totalMinutes = Math.floor(videoDurationSeconds / 60);
+  const totalSeconds = Math.floor(videoDurationSeconds % 60);
+
+  return (
+    <div className="space-y-6">
+      {/* Navigation */}
+
+
+
+
+      {/* ✅ UPDATE Help Section with Ask Question button */}
+      <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-xl sm:rounded-2xl p-4 sm:p-5 backdrop-blur-xl animate-fadeIn" style={{ animationDelay: '200ms' }}>
+        <div className="text-center">
+          <FaQuestionCircle className="text-4xl text-red-500 mx-auto mb-3" />
+          <h3 className="text-lg font-black text-white mb-2">Need Help?</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            Have questions about this lesson? Ask the mentor directly!
+          </p>
+          <button 
+            onClick={onAskQuestion}
+            className="w-full py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg text-white font-semibold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+          >
+            <FaQuestionCircle />
+            Ask a Question
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+Sidebar.displayName = 'Sidebar';
 
 // ============================================
 // MEMOIZED COMPONENTS
@@ -1024,7 +1125,6 @@ const TabNavigation = memo(({
   onTabChange: (tab: any) => void;
 }) => {
   const tabs = [
-    { id: "overview", label: "Overview", icon: FaListUl },
     { id: "resources", label: "Resources", icon: FaDownload },
     { id: "notes", label: "Notes", icon: FaComments },
   ];
@@ -1053,71 +1153,7 @@ const TabNavigation = memo(({
 });
 TabNavigation.displayName = 'TabNavigation';
 
-const OverviewTab = memo(({ 
-  lessonData, 
-  router 
-}: { 
-  lessonData: Lesson;
-  router: any;
-}) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -20 }}
-    transition={{ duration: 0.2 }}
-    className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-xl sm:rounded-2xl p-5 sm:p-6 backdrop-blur-xl"
-  >
-    <h3 className="text-xl sm:text-2xl font-black text-white mb-4 flex items-center gap-2">
-      <FaLightbulb className="text-red-500" />
-      Key Takeaways
-    </h3>
-    <div className="space-y-3">
-      {lessonData.keyTakeaways.map((takeaway, idx) => (
-        <div
-          key={idx}
-          className="flex items-start gap-3 p-3 bg-gray-900/50 border border-red-500/20 rounded-lg animate-slideIn"
-          style={{ animationDelay: `${idx * 50}ms` }}
-        >
-          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-red-600 to-red-700 flex items-center justify-center text-white text-xs font-bold mt-0.5">
-            {idx + 1}
-          </div>
-          <p className="flex-1 text-sm sm:text-base text-gray-300">
-            {takeaway}
-          </p>
-        </div>
-      ))}
-    </div>
 
-    {lessonData.relatedLessons.length > 0 && (
-      <div className="mt-8">
-        <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-          <FaFire className="text-red-500" />
-          Related Lessons
-        </h4>
-        <div className="space-y-3">
-          {lessonData.relatedLessons.map((related) => (
-            <button
-              key={related.id}
-              onClick={() => router.push(`/users/videoplayer?lessonId=${related.id}`)}
-              className="w-full flex items-center justify-between p-4 bg-gray-900/50 border border-red-500/20 rounded-lg hover:bg-red-900/30 hover:border-red-500/40 transition-all group hover:translate-x-1"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-red-600 to-red-700 flex items-center justify-center">
-                  <FaPlay className="text-white text-sm ml-0.5" />
-                </div>
-                <span className="text-sm font-semibold text-white group-hover:text-red-400 transition-colors">
-                  {related.title}
-                </span>
-              </div>
-              <FaChevronRight className="text-gray-600 group-hover:text-red-400 transition-colors" />
-            </button>
-          ))}
-        </div>
-      </div>
-    )}
-  </motion.div>
-));
-OverviewTab.displayName = 'OverviewTab';
 
 const ResourcesTab = memo(({ resources }: { resources: Resource[] }) => (
   <motion.div
@@ -1268,126 +1304,5 @@ const NotesTab = memo(({
   </motion.div>
 ));
 NotesTab.displayName = 'NotesTab';
-
-const Sidebar = memo(({
-  lessonData,
-  currentTime,
-  duration,
-  progress,
-  playbackSpeed,
-  watchTime,
-  videoCurrentSeconds,
-  videoDurationSeconds,
-  handleMarkComplete,
-  isMarkedComplete,
-  isSavingProgress,
-  router,
-}: any) => {
-  const watchedMinutes = Math.floor(watchTime / 60);
-  const watchedSeconds = Math.floor(watchTime % 60);
-  const totalMinutes = Math.floor(videoDurationSeconds / 60);
-  const totalSeconds = Math.floor(videoDurationSeconds % 60);
-
-  return (
-    <div className="space-y-6">
-      {/* Navigation */}
-      <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-xl sm:rounded-2xl p-4 sm:p-5 backdrop-blur-xl sticky top-6 animate-fadeIn">
-        <h3 className="text-lg font-black text-white mb-4">LESSON NAVIGATION</h3>
-        
-        <div className="flex gap-2 mb-4">
-          <button 
-            onClick={() => router.back()}
-            className="flex-1 py-2.5 px-4 bg-gray-900/50 border border-red-500/30 rounded-lg text-white hover:bg-red-900/30 transition-all text-sm font-semibold flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <FaChevronLeft className="text-xs" />
-            Previous
-          </button>
-          <button 
-            onClick={() => {
-              if (lessonData?.relatedLessons?.[0]) {
-                router.push(`/users/videoplayer?lessonId=${lessonData.relatedLessons[0].id}`);
-              }
-            }}
-            disabled={!lessonData?.relatedLessons?.[0]}
-            className="flex-1 py-2.5 px-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed rounded-lg text-white transition-all text-sm font-semibold flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
-          >
-            Next
-            <FaChevronRight className="text-xs" />
-          </button>
-        </div>
-
-        <div className="p-4 bg-gradient-to-r from-red-900/20 to-red-800/20 border border-red-500/30 rounded-lg">
-          <div className="flex items-center gap-3 mb-3">
-            <FaStar className="text-red-400 text-xl" />
-            <div>
-              <p className="text-sm font-bold text-white">Complete this lesson</p>
-              <p className="text-xs text-gray-400">Mark as done when finished</p>
-            </div>
-          </div>
-          <button 
-            onClick={handleMarkComplete}
-            disabled={isMarkedComplete || isSavingProgress}
-            className={`w-full py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-              isMarkedComplete 
-                ? 'bg-green-600 text-white cursor-default'
-                : 'bg-green-600 hover:bg-green-700 text-white hover:scale-[1.02] active:scale-[0.98]'
-            }`}
-          >
-            <FaCheckCircle />
-            {isSavingProgress ? 'Saving...' : isMarkedComplete ? 'Completed ✓' : 'Mark as Complete'}
-          </button>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-xl sm:rounded-2xl p-4 sm:p-5 backdrop-blur-xl animate-fadeIn" style={{ animationDelay: '100ms' }}>
-        <h3 className="text-lg font-black text-white mb-4">YOUR PROGRESS</h3>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-400">Watch Time</span>
-            <span className="text-sm font-bold text-white">
-              {watchedMinutes}:{watchedSeconds.toString().padStart(2, '0')} / {totalMinutes}:{totalSeconds.toString().padStart(2, '0')}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-400">Current / Total</span>
-            <span className="text-sm font-bold text-white">{currentTime} / {duration}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-400">Progress</span>
-            <span className="text-sm font-bold text-red-400">{Math.round(progress)}%</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-400">Speed</span>
-            <span className="text-sm font-bold text-white">{playbackSpeed}x</span>
-          </div>
-          <div className="pt-2">
-            <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-red-600 to-red-500 transition-all duration-300"
-                style={{ width: `${Math.round(progress)}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Help */}
-      <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-xl sm:rounded-2xl p-4 sm:p-5 backdrop-blur-xl animate-fadeIn" style={{ animationDelay: '200ms' }}>
-        <div className="text-center">
-          <FaQuestionCircle className="text-4xl text-red-500 mx-auto mb-3" />
-          <h3 className="text-lg font-black text-white mb-2">Need Help?</h3>
-          <p className="text-sm text-gray-400 mb-4">
-            Have questions about this lesson? Our support team is here to help!
-          </p>
-          <button className="w-full py-2.5 bg-gray-900/50 border border-red-500/30 hover:bg-red-900/30 rounded-lg text-white font-semibold text-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
-            Ask a Question
-          </button>
-        </div>
-      </div>
-    </div>
-    );
-});
-Sidebar.displayName = 'Sidebar';
 
 export default VideoPlayerPage;

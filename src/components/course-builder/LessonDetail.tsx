@@ -45,6 +45,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
   const [dragOver, setDragOver] = useState(false);
   const [expandResources, setExpandResources] = useState(false);
   const [openResourceMenu, setOpenResourceMenu] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Format file size
@@ -73,13 +74,38 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
   };
 
   const handleVideoUpload = async (file: File) => {
+    // Validate file type
     if (!file.type.startsWith("video/")) {
+      setUploadError("Please upload a video file");
       alert("Please upload a video file");
+      return;
+    }
+
+    // Check file size (2GB limit)
+    const maxSize = 2 * 1024 * 1024 * 1024; // 2GB in bytes
+    if (file.size > maxSize) {
+      setUploadError("File size exceeds 2GB limit");
+      alert("File size exceeds 2GB limit");
+      return;
+    }
+
+    // Validate environment variables
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+    if (!cloudName || !uploadPreset) {
+      console.error("Missing Cloudinary credentials:", {
+        cloudName: cloudName ? "✓" : "✗",
+        uploadPreset: uploadPreset ? "✓" : "✗"
+      });
+      setUploadError("Cloudinary configuration missing. Please check environment variables.");
+      alert("Cloudinary configuration error. Check console for details.");
       return;
     }
 
     setIsUploadingVideo(true);
     setUploadProgress(0);
+    setUploadError("");
 
     try {
       // Extract video metadata first
@@ -93,16 +119,22 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
             size: file.size
           });
         };
+        video.onerror = () => {
+          resolve({
+            duration: 0,
+            size: file.size
+          });
+        };
         video.src = URL.createObjectURL(file);
       });
 
       const metadata = await metadataPromise;
 
-      // Upload to Cloudinary
+      // Upload to Cloudinary using XMLHttpRequest for progress tracking
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "your_upload_preset"); // Set your upload preset
-      formData.append("resource_type", "video");
+      formData.append("upload_preset", uploadPreset);
+      formData.append("folder", "course-videos"); // Optional: organize uploads
 
       const xhr = new XMLHttpRequest();
 
@@ -118,26 +150,43 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
       const uploadPromise = new Promise<string>((resolve, reject) => {
         xhr.addEventListener("load", () => {
           if (xhr.status === 200) {
-            const response = JSON.parse(xhr.responseText);
-            resolve(response.secure_url);
+            try {
+              const response = JSON.parse(xhr.responseText);
+              console.log("✅ Upload successful:", response);
+              resolve(response.secure_url);
+            } catch (e) {
+              console.error("❌ Failed to parse response:", xhr.responseText);
+              reject(new Error("Invalid response from server"));
+            }
           } else {
-            reject(new Error("Upload failed"));
+            console.error("❌ Upload failed with status:", xhr.status);
+            console.error("Response:", xhr.responseText);
+            
+            try {
+              const errorResponse = JSON.parse(xhr.responseText);
+              const errorMessage = errorResponse.error?.message || "Upload failed";
+              reject(new Error(errorMessage));
+            } catch (e) {
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
           }
         });
 
         xhr.addEventListener("error", () => {
-          reject(new Error("Network error"));
+          console.error("❌ Network error during upload");
+          reject(new Error("Network error. Check your internet connection."));
         });
 
         xhr.addEventListener("abort", () => {
+          console.error("❌ Upload cancelled");
           reject(new Error("Upload cancelled"));
         });
       });
 
-      xhr.open(
-        "POST",
-        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/video/upload`
-      );
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
+      console.log("📤 Uploading to:", uploadUrl);
+      
+      xhr.open("POST", uploadUrl);
       xhr.send(formData);
 
       const cloudinaryUrl = await uploadPromise;
@@ -151,13 +200,18 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
 
       setIsUploadingVideo(false);
       setUploadProgress(0);
+      setUploadError("");
       
       // Clean up blob URL
       URL.revokeObjectURL(video.src);
       
+      console.log("✅ Video upload complete");
+      
     } catch (error) {
-      console.error("Error uploading video:", error);
-      alert("Failed to upload video. Please try again.");
+      console.error("❌ Error uploading video:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload video";
+      setUploadError(errorMessage);
+      alert(`Upload Failed: ${errorMessage}`);
       setIsUploadingVideo(false);
       setUploadProgress(0);
     }
@@ -251,6 +305,17 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
           <FaPlay className="text-red-500 text-xs" />
           Video Content
         </h4>
+
+        {/* Error Display */}
+        {uploadError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-3 bg-red-600/10 border border-red-500/30 rounded-lg"
+          >
+            <p className="text-xs text-red-400">❌ {uploadError}</p>
+          </motion.div>
+        )}
 
         {lesson.videoUrl ? (
           <motion.div

@@ -108,10 +108,9 @@ const SettingsLayout = ({
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const settingSections = [
-    { id: 'basic', title: 'Basic Info', icon: FaUser, description: 'Personal information' },
-    { id: 'privacy', title: 'Privacy', icon: FaLock, description: 'Privacy controls' },
-    { id: 'connected', title: 'Connected', icon: FaLink, description: 'Social accounts' },
-    { id: 'activity', title: 'Activity', icon: FaBolt, description: 'Presence & status' }
+    { id: 'basic', title: 'Basic Info', icon: FaUser, },
+    { id: 'privacy', title: 'Privacy', icon: FaLock, },
+    
   ];
 
   // NEW: Create a wrapper function that handles navigation from child components
@@ -278,9 +277,7 @@ const SettingsLayout = ({
                               <div className={`font-semibold text-sm sm:text-base truncate ${isActive ? 'text-red-400' : 'text-white'}`}>
                                 {section.title}
                               </div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {section.description}
-                              </div>
+                          
                             </div>
                           </div>
                           
@@ -415,9 +412,7 @@ const SettingsLayout = ({
                                   <div className={`font-semibold text-sm sm:text-base truncate ${isActive ? 'text-red-400' : 'text-white'}`}>
                                     {section.title}
                                   </div>
-                                  <div className="text-[10px] sm:text-xs text-gray-500 truncate">
-                                    {section.description}
-                                  </div>
+                             
                                 </div>
                               </div>
                               <FaChevronLeft className={`text-base flex-shrink-0 ${isActive ? 'text-red-500' : 'text-gray-500'}`} style={{ transform: 'rotate(180deg)' }} />

@@ -1,5 +1,6 @@
 // hooks/useWebSocket.ts
 import { useEffect, useRef, useState, useCallback } from "react";
+import { getWebSocketUrl, WEBSOCKET_CONFIG } from "@/lib/websocket-config";
 
 export interface UseWebSocketOptions {
   roomId: string;
@@ -12,15 +13,12 @@ export interface UseWebSocketOptions {
   onUserOnline?: (data: any) => void;
   onUserOffline?: (data: any) => void;
   onError?: (error: any) => void;
-
-  // ✅ Question events
   onQuestionNew?: (data: any) => void;
   onQuestionUpvote?: (data: any) => void;
   onQuestionView?: (data: any) => void;
   onQuestionAnswer?: (data: any) => void;
   onAnswerThanked?: (data: any) => void;
-
-  // ✅ NEW: Preferences events
+  onAnswerUpvote?: (data: any) => void;
   onGoalsUpdated?: (data: any) => void;
   onPreferencesUpdated?: (data: any) => void;
 }
@@ -37,13 +35,12 @@ export function useWebSocket(options: UseWebSocketOptions) {
     onUserOnline,
     onUserOffline,
     onError,
-    // ✅ Question handlers
     onQuestionNew,
     onQuestionUpvote,
     onQuestionView,
     onQuestionAnswer,
     onAnswerThanked,
-    // ✅ NEW: Goals & Preferences handlers
+    onAnswerUpvote,
     onGoalsUpdated,
     onPreferencesUpdated,
   } = options;
@@ -52,16 +49,15 @@ export function useWebSocket(options: UseWebSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRoomJoined, setIsRoomJoined] = useState(false);
+  const [connectionState, setConnectionState] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
 
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const messageQueueRef = useRef<Array<any>>([]);
+  const isCleaningUpRef = useRef(false);
 
-  const maxReconnectAttempts = 5;
-  const maxQueueSize = 10;
-
-  // ✅ Stable event handlers using refs
+  // Stable event handlers using refs
   const handlersRef = useRef({
     onMessage,
     onMessageEdited,
@@ -76,6 +72,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
     onQuestionView,
     onQuestionAnswer,
     onAnswerThanked,
+    onAnswerUpvote,
     onGoalsUpdated,
     onPreferencesUpdated,
   });
@@ -96,6 +93,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
       onQuestionView,
       onQuestionAnswer,
       onAnswerThanked,
+      onAnswerUpvote,
       onGoalsUpdated,
       onPreferencesUpdated,
     };
@@ -113,36 +111,60 @@ export function useWebSocket(options: UseWebSocketOptions) {
     onQuestionView,
     onQuestionAnswer,
     onAnswerThanked,
+    onAnswerUpvote,
     onGoalsUpdated,
     onPreferencesUpdated,
   ]);
 
   // ✅ Cleanup function
   const cleanup = useCallback(() => {
+    isCleaningUpRef.current = true;
+
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
+
     if (heartbeatIntervalRef.current) {
       clearInterval(heartbeatIntervalRef.current);
       heartbeatIntervalRef.current = null;
     }
+
     if (wsRef.current) {
       try {
-        wsRef.current.close();
+        // Remove event listeners to prevent memory leaks
+        wsRef.current.onopen = null;
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onmessage = null;
+        
+        if (wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.close(1000, 'Component unmounting');
+        }
       } catch (e) {
         console.log("Error closing WebSocket:", e);
       }
       wsRef.current = null;
     }
+
     setIsConnected(false);
     setIsRoomJoined(false);
+    setConnectionState('disconnected');
+    
+    setTimeout(() => {
+      isCleaningUpRef.current = false;
+    }, 100);
   }, []);
 
-  // ✅ Connect function (stable)
+  // ✅ Connect function with production support
   const connect = useCallback(() => {
     if (!enabled || !roomId) {
       console.log("⏸️ WS: Not connecting - disabled or no roomId");
+      return;
+    }
+
+    if (isCleaningUpRef.current) {
+      console.log("⏸️ WS: Cleanup in progress, skipping connect");
       return;
     }
 
@@ -153,57 +175,90 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
     cleanup();
 
-    const wsUrl = `ws://localhost:3001`;
+    const wsUrl = getWebSocketUrl();
     console.log("🔌 WS: Connecting to", wsUrl);
+    setConnectionState('connecting');
 
     try {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
+      // Connection timeout
+      const connectionTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          console.log("⏱️ WS: Connection timeout");
+          ws.close();
+          setError("Connection timeout");
+          setConnectionState('error');
+        }
+      }, 10000); // 10 second timeout
+
       ws.onopen = () => {
-        console.log("✅ WS: Connected");
+        clearTimeout(connectionTimeout);
+        console.log("✅ WS: Connected successfully");
         setIsConnected(true);
         setError(null);
+        setConnectionState('connected');
         reconnectAttemptsRef.current = 0;
 
-        // Start heartbeat
+        // Start heartbeat to keep connection alive
         heartbeatIntervalRef.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ event: "ping" }));
+            try {
+              ws.send(JSON.stringify({ event: "ping" }));
+            } catch (err) {
+              console.error("Failed to send ping:", err);
+            }
           }
-        }, 30000);
+        }, WEBSOCKET_CONFIG.heartbeat.interval);
       };
 
       ws.onerror = (err) => {
+        clearTimeout(connectionTimeout);
         console.error("❌ WS: Error", err);
+        setConnectionState('error');
+        setError("Connection error");
         handlersRef.current.onError?.(err);
       };
 
-      ws.onclose = () => {
-        console.log("🔌 WS: Closed");
+      ws.onclose = (event) => {
+        clearTimeout(connectionTimeout);
+        console.log("🔌 WS: Closed", event.code, event.reason);
         setIsConnected(false);
         setIsRoomJoined(false);
+        setConnectionState('disconnected');
 
         if (heartbeatIntervalRef.current) {
           clearInterval(heartbeatIntervalRef.current);
           heartbeatIntervalRef.current = null;
         }
 
-        // Reconnect logic
-        if (reconnectAttemptsRef.current < maxReconnectAttempts && enabled) {
+        // Don't reconnect if cleanup was intentional
+        if (isCleaningUpRef.current || event.code === 1000) {
+          console.log("✋ WS: Clean disconnect, not reconnecting");
+          return;
+        }
+
+        // Reconnect logic with exponential backoff
+        if (reconnectAttemptsRef.current < WEBSOCKET_CONFIG.reconnect.maxAttempts && enabled) {
           reconnectAttemptsRef.current++;
           const delay = Math.min(
-            1000 * Math.pow(2, reconnectAttemptsRef.current),
-            10000
+            WEBSOCKET_CONFIG.reconnect.baseDelay * Math.pow(2, reconnectAttemptsRef.current),
+            WEBSOCKET_CONFIG.reconnect.maxDelay
           );
 
-          setError(`Reconnecting in ${Math.ceil(delay / 1000)}s...`);
+          const retryMessage = `Reconnecting in ${Math.ceil(delay / 1000)}s... (${reconnectAttemptsRef.current}/${WEBSOCKET_CONFIG.reconnect.maxAttempts})`;
+          console.log("🔄 WS:", retryMessage);
+          setError(retryMessage);
 
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
+            if (!isCleaningUpRef.current) {
+              connect();
+            }
           }, delay);
-        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-          setError("Connection failed. Please refresh.");
+        } else if (reconnectAttemptsRef.current >= WEBSOCKET_CONFIG.reconnect.maxAttempts) {
+          setError("Connection failed. Please refresh the page.");
+          setConnectionState('error');
         }
       };
 
@@ -213,7 +268,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
           switch (eventType) {
             case "authenticated":
-              console.log("✅ WS: Authenticated");
+              console.log("✅ WS: Authenticated, joining room:", roomId);
               ws.send(
                 JSON.stringify({
                   event: "join_room",
@@ -223,34 +278,25 @@ export function useWebSocket(options: UseWebSocketOptions) {
               break;
 
             case "room_joined":
-              console.log("✅ WS: Room joined");
+              console.log("✅ WS: Room joined successfully");
               setIsRoomJoined(true);
               setError(null);
 
-              // ✅ Process ALL queued messages (including custom events)
+              // Process queued messages
               if (messageQueueRef.current.length > 0) {
                 console.log(
                   `📤 WS: Processing ${messageQueueRef.current.length} queued items`
                 );
 
                 messageQueueRef.current.forEach((item) => {
-                  // ✅ Handle both message format and event format
-                  if (item.event) {
-                    // Custom event format
-                    ws.send(
-                      JSON.stringify({
-                        event: item.event,
-                        data: item.data,
-                      })
-                    );
-                  } else {
-                    // Standard message format
-                    ws.send(
-                      JSON.stringify({
-                        event: "send_message",
-                        data: item,
-                      })
-                    );
+                  try {
+                    if (item.event) {
+                      ws.send(JSON.stringify({ event: item.event, data: item.data }));
+                    } else {
+                      ws.send(JSON.stringify({ event: "send_message", data: item }));
+                    }
+                  } catch (err) {
+                    console.error("Failed to send queued message:", err);
                   }
                 });
 
@@ -259,7 +305,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
               break;
 
             case "message:new":
-              console.log("📨 WS: New message");
+              console.log("📨 WS: New message received");
               handlersRef.current.onMessage?.(data);
               break;
 
@@ -292,7 +338,6 @@ export function useWebSocket(options: UseWebSocketOptions) {
               handlersRef.current.onUserOffline?.(data);
               break;
 
-            // ✅ Question event handlers
             case "question:new":
               console.log("📝 WS: New question");
               handlersRef.current.onQuestionNew?.(data);
@@ -312,7 +357,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
               console.log("💬 WS: Question answered");
               handlersRef.current.onQuestionAnswer?.(data);
               
-              // ✅ ALSO dispatch as global event for modal
+              // Dispatch global event
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('question:answer', {
                   detail: data
@@ -324,7 +369,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
               console.log("🙏 WS: Answer thanked");
               handlersRef.current.onAnswerThanked?.(data);
               
-              // ✅ ALSO dispatch as global event for modal
+              // Dispatch global event
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('answer:thanked', {
                   detail: data
@@ -332,7 +377,11 @@ export function useWebSocket(options: UseWebSocketOptions) {
               }
               break;
 
-            // ✅ NEW: Goals & Preferences event handlers
+            case "answer:upvote":
+              console.log("👍 WS: Answer upvoted");
+              handlersRef.current.onAnswerUpvote?.(data);
+              break;
+
             case "goals:updated":
               console.log("📊 WS: Goals updated");
               handlersRef.current.onGoalsUpdated?.(data);
@@ -350,24 +399,30 @@ export function useWebSocket(options: UseWebSocketOptions) {
               break;
 
             case "pong":
-              // Heartbeat response
+              // Heartbeat response - connection is alive
+              break;
+
+            case "server:shutdown":
+              console.log("🛑 WS: Server shutting down");
+              setError("Server restarting...");
               break;
 
             default:
-              console.log("⚠️ WS: Unknown event:", eventType);
+              console.log("⚠️ WS: Unknown event:", eventType, data);
           }
         } catch (err) {
-          console.error("Failed to parse message:", err);
+          console.error("Failed to parse WebSocket message:", err);
         }
       };
     } catch (err) {
       console.error("❌ WS: Failed to create connection", err);
-      setError("Connection failed");
+      setError("Failed to connect");
+      setConnectionState('error');
       handlersRef.current.onError?.(err);
     }
   }, [enabled, roomId, cleanup]);
 
-  // ✅ Single connection effect
+  // Single connection effect
   useEffect(() => {
     if (enabled && roomId) {
       connect();
@@ -376,7 +431,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
     return cleanup;
   }, [enabled, roomId, connect, cleanup]);
 
-  // ✅ WebSocket methods
+  // ✅ WebSocket methods with better error handling
   const sendMessage = useCallback(
     async (data: {
       content: string;
@@ -384,37 +439,38 @@ export function useWebSocket(options: UseWebSocketOptions) {
       messageType?: string;
     }) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        throw new Error("Not connected");
+        throw new Error("Not connected to server");
       }
 
       if (!isRoomJoined) {
-        if (messageQueueRef.current.length < maxQueueSize) {
-          console.log("⏳ WS: Queuing message");
+        if (messageQueueRef.current.length < WEBSOCKET_CONFIG.queue.maxSize) {
+          console.log("⏳ WS: Queuing message (room not joined yet)");
           messageQueueRef.current.push(data);
-          setError("Sending...");
+          setError("Connecting...");
           return;
         }
-        throw new Error("Connection not ready");
+        throw new Error("Message queue full. Please try again.");
       }
 
-      wsRef.current.send(
-        JSON.stringify({
-          event: "send_message",
-          data,
-        })
-      );
-      setError(null);
+      try {
+        wsRef.current.send(
+          JSON.stringify({
+            event: "send_message",
+            data,
+          })
+        );
+        setError(null);
+      } catch (err) {
+        console.error("Failed to send message:", err);
+        throw new Error("Failed to send message");
+      }
     },
     [isRoomJoined]
   );
 
   const editMessage = useCallback(
     async (messageId: string, content: string) => {
-      if (
-        !wsRef.current ||
-        wsRef.current.readyState !== WebSocket.OPEN ||
-        !isRoomJoined
-      ) {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !isRoomJoined) {
         throw new Error("Not connected");
       }
 
@@ -430,11 +486,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
   const deleteMessage = useCallback(
     async (messageId: string) => {
-      if (
-        !wsRef.current ||
-        wsRef.current.readyState !== WebSocket.OPEN ||
-        !isRoomJoined
-      ) {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !isRoomJoined) {
         throw new Error("Not connected");
       }
 
@@ -450,11 +502,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
   const toggleReaction = useCallback(
     async (messageId: string, emoji: string) => {
-      if (
-        !wsRef.current ||
-        wsRef.current.readyState !== WebSocket.OPEN ||
-        !isRoomJoined
-      ) {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !isRoomJoined) {
         throw new Error("Not connected");
       }
 
@@ -490,7 +538,6 @@ export function useWebSocket(options: UseWebSocketOptions) {
     }
   }, [isRoomJoined]);
 
-  // ✅ Question-related WebSocket methods
   const createQuestion = useCallback(
     async (data: {
       lessonId: string;
@@ -501,11 +548,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
       videoTimestamp?: string;
       visibility: string;
     }) => {
-      if (
-        !wsRef.current ||
-        wsRef.current.readyState !== WebSocket.OPEN ||
-        !isRoomJoined
-      ) {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !isRoomJoined) {
         throw new Error("Not connected");
       }
 
@@ -521,11 +564,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
   const toggleQuestionUpvote = useCallback(
     async (questionId: string) => {
-      if (
-        !wsRef.current ||
-        wsRef.current.readyState !== WebSocket.OPEN ||
-        !isRoomJoined
-      ) {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !isRoomJoined) {
         throw new Error("Not connected");
       }
 
@@ -541,12 +580,8 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
   const trackQuestionView = useCallback(
     async (questionId: string) => {
-      if (
-        !wsRef.current ||
-        wsRef.current.readyState !== WebSocket.OPEN ||
-        !isRoomJoined
-      ) {
-        throw new Error("Not connected");
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !isRoomJoined) {
+        return; // Silently fail for view tracking
       }
 
       wsRef.current.send(
@@ -561,11 +596,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
   const answerQuestion = useCallback(
     async (questionId: string, content: string) => {
-      if (
-        !wsRef.current ||
-        wsRef.current.readyState !== WebSocket.OPEN ||
-        !isRoomJoined
-      ) {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !isRoomJoined) {
         throw new Error("Not connected");
       }
 
@@ -579,7 +610,6 @@ export function useWebSocket(options: UseWebSocketOptions) {
     [roomId, isRoomJoined]
   );
 
-  // ✅ NEW: Goals & Preferences methods
   const updateGoals = useCallback(
     async (goals: {
       purpose?: string;
@@ -613,64 +643,49 @@ export function useWebSocket(options: UseWebSocketOptions) {
     );
   }, []);
 
-  // ✅ Listen for custom events and send to WebSocket server
+  // Listen for custom events
   useEffect(() => {
     const handleCustomEvent = (event: CustomEvent) => {
       const { event: eventType, data } = event.detail;
 
-      console.log(
-        "📡 Custom event received:",
-        eventType,
-        "Connected:",
-        isConnected,
-        "Room joined:",
-        isRoomJoined
-      );
-
-      // ✅ FIXED: Queue if not ready, otherwise send immediately
-      if (
-        !wsRef.current ||
-        wsRef.current.readyState !== WebSocket.OPEN ||
-        !isRoomJoined
-      ) {
-        console.log("⏳ WS: Queueing event", eventType);
-
-        // Add to queue for later
-        if (
-          !messageQueueRef.current.find(
-            (msg) => msg.event === eventType && msg.data === data
-          )
-        ) {
-          messageQueueRef.current.push({ event: eventType, data });
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !isRoomJoined) {
+        // Queue if not ready
+        if (!messageQueueRef.current.find(
+          (msg) => msg.event === eventType && JSON.stringify(msg.data) === JSON.stringify(data)
+        )) {
+          if (messageQueueRef.current.length < WEBSOCKET_CONFIG.queue.maxSize) {
+            messageQueueRef.current.push({ event: eventType, data });
+            console.log("⏳ WS: Queued custom event:", eventType);
+          }
         }
         return;
       }
 
-      // Send to WebSocket server for broadcasting
-      wsRef.current.send(
-        JSON.stringify({
-          event: eventType,
-          data,
-        })
-      );
-
-      console.log("✅ WS: Sent custom event:", eventType);
+      // Send immediately
+      try {
+        wsRef.current.send(
+          JSON.stringify({
+            event: eventType,
+            data,
+          })
+        );
+        console.log("✅ WS: Sent custom event:", eventType);
+      } catch (err) {
+        console.error("Failed to send custom event:", err);
+      }
     };
 
-    // ✅ Attach listener immediately, not dependent on connection state
     window.addEventListener("ws-event", handleCustomEvent as EventListener);
 
     return () => {
-      window.removeEventListener(
-        "ws-event",
-        handleCustomEvent as EventListener
-      );
+      window.removeEventListener("ws-event", handleCustomEvent as EventListener);
     };
   }, [isConnected, isRoomJoined]);
 
   return {
     isConnected,
     isRoomJoined,
+    connectionState,
     error,
     sendMessage,
     editMessage,
@@ -678,13 +693,10 @@ export function useWebSocket(options: UseWebSocketOptions) {
     toggleReaction,
     startTyping,
     stopTyping,
-    // ✅ Question methods
-    
     createQuestion,
     toggleQuestionUpvote,
     trackQuestionView,
     answerQuestion,
-    // ✅ NEW: Goals & Preferences methods
     updateGoals,
     updatePreferences,
   };

@@ -1,5 +1,6 @@
+// hooks/useQuestionWebSocket.ts
 import { useEffect, useRef, useState, useCallback } from 'react';
-import Cookies from 'js-cookie';
+import { getWebSocketUrl, WEBSOCKET_CONFIG } from '@/lib/websocket-config';
 
 interface UseQuestionWebSocketOptions {
   courseId: string;
@@ -29,10 +30,12 @@ export function useQuestionWebSocket(options: UseQuestionWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSubscribed, setIsSubscribed] = useState(false);
 
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 5;
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isCleaningUpRef = useRef(false);
 
   // Stable event handlers using refs
   const handlersRef = useRef({
@@ -66,24 +69,50 @@ export function useQuestionWebSocket(options: UseQuestionWebSocketOptions) {
   ]);
 
   const cleanup = useCallback(() => {
+    isCleaningUpRef.current = true;
+
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
+
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+
     if (wsRef.current) {
       try {
-        wsRef.current.close();
+        wsRef.current.onopen = null;
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onmessage = null;
+        
+        if (wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.close(1000, 'Component unmounting');
+        }
       } catch (e) {
-        console.log('Error closing WS:', e);
+        console.log('Error closing Question WS:', e);
       }
       wsRef.current = null;
     }
+
     setIsConnected(false);
+    setIsSubscribed(false);
+
+    setTimeout(() => {
+      isCleaningUpRef.current = false;
+    }, 100);
   }, []);
 
   const connect = useCallback(() => {
     if (!enabled || !courseId) {
       console.log('⏸️ Question WS: Not connecting - disabled or no courseId');
+      return;
+    }
+
+    if (isCleaningUpRef.current) {
+      console.log('⏸️ Question WS: Cleanup in progress');
       return;
     }
 
@@ -94,46 +123,79 @@ export function useQuestionWebSocket(options: UseQuestionWebSocketOptions) {
 
     cleanup();
 
-    const wsUrl = `ws://localhost:3001`;
+    const wsUrl = getWebSocketUrl();
     console.log('🔌 Question WS: Connecting to', wsUrl);
 
     try {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
+      const connectionTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          console.log('⏱️ Question WS: Connection timeout');
+          ws.close();
+          setError('Connection timeout');
+        }
+      }, 10000);
+
       ws.onopen = () => {
+        clearTimeout(connectionTimeout);
         console.log('✅ Question WS: Connected');
         setIsConnected(true);
         setError(null);
         reconnectAttemptsRef.current = 0;
 
-        // Subscribe to question updates
-        const token = Cookies.get('auth-token');
-        ws.send(JSON.stringify({
-          event: 'question:subscribe',
-          data: { token, courseId }
-        }));
+        // Start heartbeat
+        heartbeatIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(JSON.stringify({ event: 'ping' }));
+            } catch (err) {
+              console.error('Question WS: Failed to send ping:', err);
+            }
+          }
+        }, WEBSOCKET_CONFIG.heartbeat.interval);
       };
 
       ws.onerror = (err) => {
+        clearTimeout(connectionTimeout);
         console.error('❌ Question WS: Error', err);
         setError('Connection error');
       };
 
-      ws.onclose = () => {
-        console.log('🔌 Question WS: Closed');
+      ws.onclose = (event) => {
+        clearTimeout(connectionTimeout);
+        console.log('🔌 Question WS: Closed', event.code, event.reason);
         setIsConnected(false);
+        setIsSubscribed(false);
 
-        if (reconnectAttemptsRef.current < maxReconnectAttempts && enabled) {
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+          heartbeatIntervalRef.current = null;
+        }
+
+        if (isCleaningUpRef.current || event.code === 1000) {
+          console.log('✋ Question WS: Clean disconnect');
+          return;
+        }
+
+        if (reconnectAttemptsRef.current < WEBSOCKET_CONFIG.reconnect.maxAttempts && enabled) {
           reconnectAttemptsRef.current++;
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 10000);
+          const delay = Math.min(
+            WEBSOCKET_CONFIG.reconnect.baseDelay * Math.pow(2, reconnectAttemptsRef.current),
+            WEBSOCKET_CONFIG.reconnect.maxDelay
+          );
           
-          setError(`Reconnecting in ${Math.ceil(delay / 1000)}s...`);
+          const retryMessage = `Reconnecting in ${Math.ceil(delay / 1000)}s... (${reconnectAttemptsRef.current}/${WEBSOCKET_CONFIG.reconnect.maxAttempts})`;
+          console.log('🔄 Question WS:', retryMessage);
+          setError(retryMessage);
           
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
+            if (!isCleaningUpRef.current) {
+              connect();
+            }
           }, delay);
-        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+        } else if (reconnectAttemptsRef.current >= WEBSOCKET_CONFIG.reconnect.maxAttempts) {
           setError('Connection failed. Please refresh.');
         }
       };
@@ -143,11 +205,22 @@ export function useQuestionWebSocket(options: UseQuestionWebSocketOptions) {
           const { event: eventType, data } = JSON.parse(event.data);
 
           switch (eventType) {
+            case 'authenticated':
+              console.log('✅ Question WS: Authenticated, subscribing to course:', courseId);
+              ws.send(JSON.stringify({
+                event: 'question:subscribe',
+                data: { courseId }
+              }));
+              break;
+
             case 'question:subscribed':
-              console.log('✅ Question WS: Subscribed');
+              console.log('✅ Question WS: Subscribed to course updates');
+              setIsSubscribed(true);
+              setError(null);
               break;
 
             case 'question:created':
+            case 'question:new':
               console.log('📨 Question WS: New question');
               handlersRef.current.onQuestionCreated?.(data);
               break;
@@ -162,21 +235,25 @@ export function useQuestionWebSocket(options: UseQuestionWebSocketOptions) {
               handlersRef.current.onQuestionDeleted?.(data);
               break;
 
+            case 'question:upvote':
             case 'question:upvote:updated':
               console.log('👍 Question WS: Upvote updated');
               handlersRef.current.onQuestionUpvoteUpdated?.(data);
               break;
 
+            case 'question:view':
             case 'question:view:updated':
               console.log('👁️ Question WS: View updated');
               handlersRef.current.onQuestionViewUpdated?.(data);
               break;
 
             case 'answer:created':
+            case 'question:answer':
               console.log('💬 Question WS: New answer');
               handlersRef.current.onAnswerCreated?.(data);
               break;
 
+            case 'answer:upvote':
             case 'answer:upvote:updated':
               console.log('👍 Question WS: Answer upvote updated');
               handlersRef.current.onAnswerUpvoteUpdated?.(data);
@@ -187,11 +264,15 @@ export function useQuestionWebSocket(options: UseQuestionWebSocketOptions) {
               setError(data.message);
               break;
 
+            case 'pong':
+              // Heartbeat response
+              break;
+
             default:
               console.log('⚠️ Question WS: Unknown event:', eventType);
           }
         } catch (err) {
-          console.error('Failed to parse message:', err);
+          console.error('Failed to parse Question WS message:', err);
         }
       };
 
@@ -211,34 +292,47 @@ export function useQuestionWebSocket(options: UseQuestionWebSocketOptions) {
 
   // WebSocket methods
   const upvoteQuestion = useCallback((questionId: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        event: 'question:upvote',
-        data: { questionId }
-      }));
+    if (wsRef.current?.readyState === WebSocket.OPEN && isSubscribed) {
+      try {
+        wsRef.current.send(JSON.stringify({
+          event: 'question:upvote',
+          data: { questionId }
+        }));
+      } catch (err) {
+        console.error('Failed to send upvote:', err);
+      }
     }
-  }, []);
+  }, [isSubscribed]);
 
   const upvoteAnswer = useCallback((answerId: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        event: 'answer:upvote',
-        data: { answerId }
-      }));
+    if (wsRef.current?.readyState === WebSocket.OPEN && isSubscribed) {
+      try {
+        wsRef.current.send(JSON.stringify({
+          event: 'answer:upvote',
+          data: { answerId }
+        }));
+      } catch (err) {
+        console.error('Failed to send answer upvote:', err);
+      }
     }
-  }, []);
+  }, [isSubscribed]);
 
   const trackView = useCallback((questionId: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        event: 'question:view',
-        data: { questionId }
-      }));
+    if (wsRef.current?.readyState === WebSocket.OPEN && isSubscribed) {
+      try {
+        wsRef.current.send(JSON.stringify({
+          event: 'question:view',
+          data: { questionId }
+        }));
+      } catch (err) {
+        console.error('Failed to track view:', err);
+      }
     }
-  }, []);
+  }, [isSubscribed]);
 
   return {
     isConnected,
+    isSubscribed,
     error,
     upvoteQuestion,
     upvoteAnswer,
