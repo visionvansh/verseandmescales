@@ -1,10 +1,10 @@
 // lib/websocket-config.ts
 export const WEBSOCKET_CONFIG = {
   // Dynamic URL based on environment
-  url: process.env.NEXT_PUBLIC_WS_URL || 
+ url: process.env.NEXT_PUBLIC_WS_URL || 
        (typeof window !== 'undefined' && window.location.hostname === 'localhost'
-         ? 'https://websocket-chats.onrender.com'
-         : 'https://websocket-chats.onrender.com'), // Replace with your Render URL
+         ? 'ws://localhost:3001'
+         : 'wss://websocket-chats.onrender.com'), // ✅ Your actual Render URL
   
   // Reconnection settings
   reconnect: {

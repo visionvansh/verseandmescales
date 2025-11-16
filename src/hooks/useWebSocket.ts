@@ -158,269 +158,278 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
   // ✅ Connect function with production support
   const connect = useCallback(() => {
-    if (!enabled || !roomId) {
-      console.log("⏸️ WS: Not connecting - disabled or no roomId");
-      return;
-    }
+  if (!enabled || !roomId) {
+    console.log("⏸️ WS: Not connecting - disabled or no roomId", { enabled, roomId });
+    return;
+  }
 
-    if (isCleaningUpRef.current) {
-      console.log("⏸️ WS: Cleanup in progress, skipping connect");
-      return;
-    }
+  if (isCleaningUpRef.current) {
+    console.log("⏸️ WS: Cleanup in progress, skipping connect");
+    return;
+  }
 
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log("⏸️ WS: Already connected");
-      return;
-    }
+  if (wsRef.current?.readyState === WebSocket.OPEN) {
+    console.log("⏸️ WS: Already connected");
+    return;
+  }
 
-    cleanup();
+  cleanup();
 
-    const wsUrl = getWebSocketUrl();
-    console.log("🔌 WS: Connecting to", wsUrl);
-    setConnectionState('connecting');
+  const wsUrl = getWebSocketUrl();
+  console.log("🔌 WS: Connecting to", wsUrl);
+  console.log("🍪 WS: Cookies available:", document.cookie ? 'YES' : 'NO');
+  
+  setConnectionState('connecting');
 
-    try {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+  try {
+    // ✅ IMPORTANT: WebSocket doesn't send cookies by default in cross-origin
+    // We need to handle auth differently
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
 
-      // Connection timeout
-      const connectionTimeout = setTimeout(() => {
-        if (ws.readyState !== WebSocket.OPEN) {
-          console.log("⏱️ WS: Connection timeout");
-          ws.close();
-          setError("Connection timeout");
-          setConnectionState('error');
-        }
-      }, 10000); // 10 second timeout
-
-      ws.onopen = () => {
-        clearTimeout(connectionTimeout);
-        console.log("✅ WS: Connected successfully");
-        setIsConnected(true);
-        setError(null);
-        setConnectionState('connected');
-        reconnectAttemptsRef.current = 0;
-
-        // Start heartbeat to keep connection alive
-        heartbeatIntervalRef.current = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            try {
-              ws.send(JSON.stringify({ event: "ping" }));
-            } catch (err) {
-              console.error("Failed to send ping:", err);
-            }
-          }
-        }, WEBSOCKET_CONFIG.heartbeat.interval);
-      };
-
-      ws.onerror = (err) => {
-        clearTimeout(connectionTimeout);
-        console.error("❌ WS: Error", err);
+    const connectionTimeout = setTimeout(() => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        console.log("⏱️ WS: Connection timeout after 10s");
+        console.log("🔍 WS: ReadyState:", ws.readyState);
+        ws.close();
+        setError("Connection timeout - server may be sleeping");
         setConnectionState('error');
-        setError("Connection error");
-        handlersRef.current.onError?.(err);
-      };
+      }
+    }, 10000);
 
-      ws.onclose = (event) => {
-        clearTimeout(connectionTimeout);
-        console.log("🔌 WS: Closed", event.code, event.reason);
-        setIsConnected(false);
-        setIsRoomJoined(false);
-        setConnectionState('disconnected');
+    ws.onopen = () => {
+      clearTimeout(connectionTimeout);
+      console.log("✅ WS: Connected successfully");
+      console.log("🔗 WS: URL:", wsUrl);
+      console.log("🌐 WS: ReadyState:", ws.readyState);
+      setIsConnected(true);
+      setError(null);
+      setConnectionState('connected');
+      reconnectAttemptsRef.current = 0;
 
-        if (heartbeatIntervalRef.current) {
-          clearInterval(heartbeatIntervalRef.current);
-          heartbeatIntervalRef.current = null;
-        }
-
-        // Don't reconnect if cleanup was intentional
-        if (isCleaningUpRef.current || event.code === 1000) {
-          console.log("✋ WS: Clean disconnect, not reconnecting");
-          return;
-        }
-
-        // Reconnect logic with exponential backoff
-        if (reconnectAttemptsRef.current < WEBSOCKET_CONFIG.reconnect.maxAttempts && enabled) {
-          reconnectAttemptsRef.current++;
-          const delay = Math.min(
-            WEBSOCKET_CONFIG.reconnect.baseDelay * Math.pow(2, reconnectAttemptsRef.current),
-            WEBSOCKET_CONFIG.reconnect.maxDelay
-          );
-
-          const retryMessage = `Reconnecting in ${Math.ceil(delay / 1000)}s... (${reconnectAttemptsRef.current}/${WEBSOCKET_CONFIG.reconnect.maxAttempts})`;
-          console.log("🔄 WS:", retryMessage);
-          setError(retryMessage);
-
-          reconnectTimeoutRef.current = setTimeout(() => {
-            if (!isCleaningUpRef.current) {
-              connect();
-            }
-          }, delay);
-        } else if (reconnectAttemptsRef.current >= WEBSOCKET_CONFIG.reconnect.maxAttempts) {
-          setError("Connection failed. Please refresh the page.");
-          setConnectionState('error');
-        }
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const { event: eventType, data } = JSON.parse(event.data);
-
-          switch (eventType) {
-            case "authenticated":
-              console.log("✅ WS: Authenticated, joining room:", roomId);
-              ws.send(
-                JSON.stringify({
-                  event: "join_room",
-                  data: { roomId },
-                })
-              );
-              break;
-
-            case "room_joined":
-              console.log("✅ WS: Room joined successfully");
-              setIsRoomJoined(true);
-              setError(null);
-
-              // Process queued messages
-              if (messageQueueRef.current.length > 0) {
-                console.log(
-                  `📤 WS: Processing ${messageQueueRef.current.length} queued items`
-                );
-
-                messageQueueRef.current.forEach((item) => {
-                  try {
-                    if (item.event) {
-                      ws.send(JSON.stringify({ event: item.event, data: item.data }));
-                    } else {
-                      ws.send(JSON.stringify({ event: "send_message", data: item }));
-                    }
-                  } catch (err) {
-                    console.error("Failed to send queued message:", err);
-                  }
-                });
-
-                messageQueueRef.current = [];
-              }
-              break;
-
-            case "message:new":
-              console.log("📨 WS: New message received");
-              handlersRef.current.onMessage?.(data);
-              break;
-
-            case "message:edited":
-              console.log("✏️ WS: Message edited");
-              handlersRef.current.onMessageEdited?.(data);
-              break;
-
-            case "message:deleted":
-              console.log("🗑️ WS: Message deleted");
-              handlersRef.current.onMessageDeleted?.(data);
-              break;
-
-            case "reaction:toggle":
-              console.log("👍 WS: Reaction toggled");
-              handlersRef.current.onReaction?.(data);
-              break;
-
-            case "user:typing":
-              handlersRef.current.onTyping?.(data);
-              break;
-
-            case "user:online":
-              console.log("🟢 WS: User online", data.userId);
-              handlersRef.current.onUserOnline?.(data);
-              break;
-
-            case "user:offline":
-              console.log("⚫ WS: User offline", data.userId);
-              handlersRef.current.onUserOffline?.(data);
-              break;
-
-            case "question:new":
-              console.log("📝 WS: New question");
-              handlersRef.current.onQuestionNew?.(data);
-              break;
-
-            case "question:upvote":
-              console.log("👍 WS: Question upvoted");
-              handlersRef.current.onQuestionUpvote?.(data);
-              break;
-
-            case "question:view":
-              console.log("👁️ WS: Question viewed");
-              handlersRef.current.onQuestionView?.(data);
-              break;
-
-            case "question:answer":
-              console.log("💬 WS: Question answered");
-              handlersRef.current.onQuestionAnswer?.(data);
-              
-              // Dispatch global event
-              if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('question:answer', {
-                  detail: data
-                }));
-              }
-              break;
-
-            case "answer:thanked":
-              console.log("🙏 WS: Answer thanked");
-              handlersRef.current.onAnswerThanked?.(data);
-              
-              // Dispatch global event
-              if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('answer:thanked', {
-                  detail: data
-                }));
-              }
-              break;
-
-            case "answer:upvote":
-              console.log("👍 WS: Answer upvoted");
-              handlersRef.current.onAnswerUpvote?.(data);
-              break;
-
-            case "goals:updated":
-              console.log("📊 WS: Goals updated");
-              handlersRef.current.onGoalsUpdated?.(data);
-              break;
-
-            case "preferences:updated":
-              console.log("⚙️ WS: Preferences updated");
-              handlersRef.current.onPreferencesUpdated?.(data);
-              break;
-
-            case "error":
-              console.error("❌ WS: Server error", data);
-              setError(data.message);
-              handlersRef.current.onError?.(data);
-              break;
-
-            case "pong":
-              // Heartbeat response - connection is alive
-              break;
-
-            case "server:shutdown":
-              console.log("🛑 WS: Server shutting down");
-              setError("Server restarting...");
-              break;
-
-            default:
-              console.log("⚠️ WS: Unknown event:", eventType, data);
+      // Start heartbeat
+      heartbeatIntervalRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify({ event: "ping" }));
+            console.log("💓 WS: Heartbeat sent");
+          } catch (err) {
+            console.error("❌ WS: Failed to send ping:", err);
           }
-        } catch (err) {
-          console.error("Failed to parse WebSocket message:", err);
         }
-      };
-    } catch (err) {
-      console.error("❌ WS: Failed to create connection", err);
-      setError("Failed to connect");
+      }, WEBSOCKET_CONFIG.heartbeat.interval);
+    };
+
+    ws.onerror = (err) => {
+      clearTimeout(connectionTimeout);
+      console.error("❌ WS: Error event", err);
+      console.error("❌ WS: Error type:", err.type);
+      console.error("❌ WS: Target:", err.target);
       setConnectionState('error');
+      setError("Connection error - check console");
       handlersRef.current.onError?.(err);
-    }
-  }, [enabled, roomId, cleanup]);
+    };
+
+    ws.onclose = (event) => {
+      clearTimeout(connectionTimeout);
+      console.log("🔌 WS: Closed", event.code, event.reason);
+      setIsConnected(false);
+      setIsRoomJoined(false);
+      setConnectionState('disconnected');
+
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+
+      // Don't reconnect if cleanup was intentional
+      if (isCleaningUpRef.current || event.code === 1000) {
+        console.log("✋ WS: Clean disconnect, not reconnecting");
+        return;
+      }
+
+      // Reconnect logic with exponential backoff
+      if (reconnectAttemptsRef.current < WEBSOCKET_CONFIG.reconnect.maxAttempts && enabled) {
+        reconnectAttemptsRef.current++;
+        const delay = Math.min(
+          WEBSOCKET_CONFIG.reconnect.baseDelay * Math.pow(2, reconnectAttemptsRef.current),
+          WEBSOCKET_CONFIG.reconnect.maxDelay
+        );
+
+        const retryMessage = `Reconnecting in ${Math.ceil(delay / 1000)}s... (${reconnectAttemptsRef.current}/${WEBSOCKET_CONFIG.reconnect.maxAttempts})`;
+        console.log("🔄 WS:", retryMessage);
+        setError(retryMessage);
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (!isCleaningUpRef.current) {
+            connect();
+          }
+        }, delay);
+      } else if (reconnectAttemptsRef.current >= WEBSOCKET_CONFIG.reconnect.maxAttempts) {
+        setError("Connection failed. Please refresh the page.");
+        setConnectionState('error');
+      }
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const { event: eventType, data } = JSON.parse(event.data);
+
+        switch (eventType) {
+          case "authenticated":
+            console.log("✅ WS: Authenticated, joining room:", roomId);
+            ws.send(
+              JSON.stringify({
+                event: "join_room",
+                data: { roomId },
+              })
+            );
+            break;
+
+          case "room_joined":
+            console.log("✅ WS: Room joined successfully");
+            setIsRoomJoined(true);
+            setError(null);
+
+            // Process queued messages
+            if (messageQueueRef.current.length > 0) {
+              console.log(
+                `📤 WS: Processing ${messageQueueRef.current.length} queued items`
+              );
+
+              messageQueueRef.current.forEach((item) => {
+                try {
+                  if (item.event) {
+                    ws.send(JSON.stringify({ event: item.event, data: item.data }));
+                  } else {
+                    ws.send(JSON.stringify({ event: "send_message", data: item }));
+                  }
+                } catch (err) {
+                  console.error("Failed to send queued message:", err);
+                }
+              });
+
+              messageQueueRef.current = [];
+            }
+            break;
+
+          case "message:new":
+            console.log("📨 WS: New message received");
+            handlersRef.current.onMessage?.(data);
+            break;
+
+          case "message:edited":
+            console.log("✏️ WS: Message edited");
+            handlersRef.current.onMessageEdited?.(data);
+            break;
+
+          case "message:deleted":
+            console.log("🗑️ WS: Message deleted");
+            handlersRef.current.onMessageDeleted?.(data);
+            break;
+
+          case "reaction:toggle":
+            console.log("👍 WS: Reaction toggled");
+            handlersRef.current.onReaction?.(data);
+            break;
+
+          case "user:typing":
+            handlersRef.current.onTyping?.(data);
+            break;
+
+          case "user:online":
+            console.log("🟢 WS: User online", data.userId);
+            handlersRef.current.onUserOnline?.(data);
+            break;
+
+          case "user:offline":
+            console.log("⚫ WS: User offline", data.userId);
+            handlersRef.current.onUserOffline?.(data);
+            break;
+
+          case "question:new":
+            console.log("📝 WS: New question");
+            handlersRef.current.onQuestionNew?.(data);
+            break;
+
+          case "question:upvote":
+            console.log("👍 WS: Question upvoted");
+            handlersRef.current.onQuestionUpvote?.(data);
+            break;
+
+          case "question:view":
+            console.log("👁️ WS: Question viewed");
+            handlersRef.current.onQuestionView?.(data);
+            break;
+
+          case "question:answer":
+            console.log("💬 WS: Question answered");
+            handlersRef.current.onQuestionAnswer?.(data);
+            
+            // Dispatch global event
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('question:answer', {
+                detail: data
+              }));
+            }
+            break;
+
+          case "answer:thanked":
+            console.log("🙏 WS: Answer thanked");
+            handlersRef.current.onAnswerThanked?.(data);
+            
+            // Dispatch global event
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('answer:thanked', {
+                detail: data
+              }));
+            }
+            break;
+
+          case "answer:upvote":
+            console.log("👍 WS: Answer upvoted");
+            handlersRef.current.onAnswerUpvote?.(data);
+            break;
+
+          case "goals:updated":
+            console.log("📊 WS: Goals updated");
+            handlersRef.current.onGoalsUpdated?.(data);
+            break;
+
+          case "preferences:updated":
+            console.log("⚙️ WS: Preferences updated");
+            handlersRef.current.onPreferencesUpdated?.(data);
+            break;
+
+          case "error":
+            console.error("❌ WS: Server error", data);
+            setError(data.message);
+            handlersRef.current.onError?.(data);
+            break;
+
+          case "pong":
+            // Heartbeat response - connection is alive
+            break;
+
+          case "server:shutdown":
+            console.log("🛑 WS: Server shutting down");
+            setError("Server restarting...");
+            break;
+
+          default:
+            console.log("⚠️ WS: Unknown event:", eventType, data);
+        }
+      } catch (err) {
+        console.error("Failed to parse WebSocket message:", err);
+      }
+    };
+  } catch (err) {
+    console.error("❌ WS: Failed to create connection", err);
+    setError("Failed to connect");
+    setConnectionState('error');
+    handlersRef.current.onError?.(err);
+  }
+}, [enabled, roomId, cleanup]);
 
   // Single connection effect
   useEffect(() => {
