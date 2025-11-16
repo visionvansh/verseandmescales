@@ -3,12 +3,13 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext'; // ✅ Add this import
+import { useAuth } from '@/contexts/AuthContext';
 import { FaCheckCircle, FaGraduationCap, FaMoneyBillWave, FaUserGraduate, 
          FaChalkboardTeacher, FaChartLine, FaSignInAlt, FaLightbulb, 
          FaLock, FaRegClock, FaPhoneAlt, FaEnvelope, FaRocket, FaTrophy,
          FaUsers, FaVideo, FaCertificate, FaShieldAlt, FaGlobe, FaMobileAlt,
-         FaHeadset, FaStar, FaArrowRight, FaPlay, FaDollarSign, FaHandHoldingUsd, FaQuestionCircle,FaInstagram, FaLaptopCode, FaSearch } from "react-icons/fa";
+         FaHeadset, FaStar, FaArrowRight, FaPlay, FaDollarSign, FaHandHoldingUsd, 
+         FaQuestionCircle, FaInstagram, FaLaptopCode, FaSearch } from "react-icons/fa";
 import { Spotlight } from "@/components/ui/Spotlight";
 import Image from "next/image";
 import MainContent from "@/components/MainContent";
@@ -24,7 +25,6 @@ export default function HomePage() {
   });
   const router = useRouter();
   
-  // ✅ Get auth state
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   // Simulate initial loading
@@ -299,7 +299,6 @@ export default function HomePage() {
 
   // Skeletal Loading State
   if (isLoading || authLoading) {
-    // ... keep existing loading state code
     return (
       <div className="relative min-h-screen overflow-hidden bg-black">
         {/* Background Effects */}
@@ -432,63 +431,73 @@ export default function HomePage() {
         />
       </div>
 
-      {/* Header */}
-      <header className="relative z-10 py-4 top-0 bg-black/80 backdrop-blur-lg border-b border-gray-800/50">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+      {/* Header - CONDITIONAL BUTTON RENDERING */}
+      <header className="relative z-10 py-3 sm:py-4 top-0 bg-black/80 backdrop-blur-lg border-b border-gray-800/50">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="flex items-center justify-between gap-2">
+            {/* Logo */}
+            <div className="flex items-center space-x-2 flex-shrink-0">
               <motion.div
                 initial={{ rotate: -10, scale: 0.9 }}
                 animate={{ rotate: 0, scale: 1 }}
                 transition={{ duration: 0.5 }}
               >
-                <div className="bg-red-600 text-white h-10 w-10 rounded-lg flex items-center justify-center font-bold text-xl">VS</div>
+                <div className="bg-red-600 text-white h-8 w-8 sm:h-10 sm:w-10 rounded-lg flex items-center justify-center font-bold text-base sm:text-xl">
+                  VS
+                </div>
               </motion.div>
-              <h1 className="text-white font-bold text-xl">
-                Verseandme <span className="text-red-500">Scales</span>
+              <h1 className="text-white font-bold text-sm sm:text-base md:text-xl">
+                <span className="hidden sm:inline">Verseandme <span className="text-red-500">Scales</span></span>
+                <span className="sm:hidden">VS <span className="text-red-500">Scales</span></span>
               </h1>
             </div>
 
-            <nav className="hidden md:flex items-center space-x-8">
-              <a href="#features" className="text-gray-300 hover:text-white transition-colors">How It Works</a>
-              <a href="#courses" className="text-gray-300 hover:text-white transition-colors">Courses</a>
-              <a href="#earn" className="text-gray-300 hover:text-white transition-colors">Start Earning</a>
-              <a href="#testimonials" className="text-gray-300 hover:text-white transition-colors">Success Stories</a>
-              <a href="#pricing" className="text-gray-300 hover:text-white transition-colors">Pricing</a>
+            {/* Desktop Navigation */}
+            <nav className="hidden lg:flex items-center space-x-6 xl:space-x-8">
+              <a href="#features" className="text-gray-300 hover:text-white transition-colors text-sm xl:text-base">How It Works</a>
+              <a href="#courses" className="text-gray-300 hover:text-white transition-colors text-sm xl:text-base">Courses</a>
+              <a href="#earn" className="text-gray-300 hover:text-white transition-colors text-sm xl:text-base">Start Earning</a>
+              <a href="#testimonials" className="text-gray-300 hover:text-white transition-colors text-sm xl:text-base">Success Stories</a>
+              <a href="#pricing" className="text-gray-300 hover:text-white transition-colors text-sm xl:text-base">Pricing</a>
             </nav>
 
-            <div className="flex items-center space-x-4">
-              {/* ✅ Show "Get in" OR "Log In" based on auth status */}
+            {/* Auth Buttons - Conditional Rendering */}
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               {isAuthenticated ? (
+                // When authenticated, show only "Get in" button
                 <motion.button 
-                  className="hidden md:block bg-transparent border border-red-500 text-red-500 px-4 py-2 rounded-lg hover:bg-red-500/10 transition-all"
+                  className="bg-gradient-to-r from-red-600 to-red-700 text-white px-3 xs:px-4 sm:px-5 md:px-6 py-1.5 sm:py-2 rounded-md sm:rounded-lg hover:from-red-500 hover:to-red-600 transition-all text-[11px] xs:text-xs sm:text-sm md:text-base whitespace-nowrap font-medium shadow-md sm:shadow-lg"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
+                  style={{ boxShadow: "0 5px 15px rgba(220, 38, 38, 0.3)" }}
                   onClick={() => router.push('/users')}
                 >
                   Get in
                 </motion.button>
               ) : (
-                <motion.button 
-                  className="hidden md:block bg-transparent border border-red-500 text-red-500 px-4 py-2 rounded-lg hover:bg-red-500/10 transition-all"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => router.push('/auth/signin')}
-                >
-                  Log In
-                </motion.button>
+                // When not authenticated, show both "Log In" and "Sign Up" buttons
+                <>
+                  <motion.button 
+                    className="bg-transparent border border-red-500 text-red-500 px-2 xs:px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-md sm:rounded-lg hover:bg-red-500/10 transition-all text-[10px] xs:text-xs sm:text-sm md:text-base whitespace-nowrap font-medium"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => router.push('/auth/signin')}
+                  >
+                    Log In
+                  </motion.button>
+                  
+                  <motion.button 
+                    className="bg-gradient-to-r from-red-600 to-red-700 text-white px-2 xs:px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-md sm:rounded-lg hover:from-red-500 hover:to-red-600 transition-all text-[10px] xs:text-xs sm:text-sm md:text-base whitespace-nowrap font-medium shadow-md sm:shadow-lg"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    style={{ boxShadow: "0 5px 15px rgba(220, 38, 38, 0.3)" }}
+                    onClick={() => router.push('/auth/signup')}
+                  >
+                    <span className="hidden xs:inline">Sign Up Free</span>
+                    <span className="xs:hidden">Sign Up</span>
+                  </motion.button>
+                </>
               )}
-              
-              {/* ✅ "Sign Up Free" always shows in the same position */}
-              <motion.button 
-                className="bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-2 rounded-lg hover:from-red-500 hover:to-red-600 transition-all"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                style={{ boxShadow: "0 10px 25px rgba(220, 38, 38, 0.3)" }}
-                onClick={() => router.push('/auth/signup')}
-              >
-                Sign Up Free
-              </motion.button>
             </div>
           </div>
         </div>
