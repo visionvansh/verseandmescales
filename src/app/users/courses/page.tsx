@@ -66,6 +66,157 @@ interface CourseCard {
   isEnrolled?: boolean;
 }
 
+// ✅ NEW: Separate hook for card data (NO CACHE)
+function useCourseCardData(refreshKey: number) {
+  const [cardData, setCardData] = useState<Map<string, {
+    title: string;
+    description: string;
+    price: string;
+    salePrice: string | null;
+    saleEndsAt: string | null;
+  }>>(new Map());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCardData() {
+      try {
+        console.log(`🎴 [FRONTEND] Fetching fresh card data (refresh: ${refreshKey})...`);
+        const startTime = Date.now();
+
+        const response = await fetch('/api/course/cards', {
+          credentials: 'include',
+          cache: 'no-store', // ✅ NO CACHE
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch card data');
+        }
+
+        const data = await response.json();
+        const loadTime = Date.now() - startTime;
+
+        console.log(`✅ [FRONTEND] Card data loaded in ${loadTime}ms`);
+
+        if (isMounted) {
+          const cardsMap = new Map();
+          data.cards.forEach((card: any) => {
+            cardsMap.set(card.id, {
+              title: card.title || 'Untitled Course',
+              description: card.description || '',
+              price: card.price || '0',
+              salePrice: card.salePrice,
+              saleEndsAt: card.saleEndsAt,
+            });
+          });
+
+          setCardData(cardsMap);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('❌ [FRONTEND] Card data load error:', error);
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadCardData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshKey]);
+
+  return { cardData, loading };
+}
+
+// Update the atomic hook to NOT refresh card data
+function useAtomicCoursesData(refreshKey: number) {
+  const [data, setData] = useState<{
+    courses: CourseCard[];
+    users: Map<string, ExtendedUser>;
+    loading: boolean;
+    error: string | null;
+  }>({
+    courses: [],
+    users: new Map(),
+    loading: true,
+    error: null,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAtomic() {
+      try {
+        console.log(`⚡ Loading atomic data (refresh: ${refreshKey})...`);
+        const startTime = Date.now();
+
+        const response = await fetch('/api/course/atomic', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch atomic data');
+        }
+
+        const atomicData = await response.json();
+        const loadTime = Date.now() - startTime;
+
+        console.log(`⚡ Atomic data loaded in ${loadTime}ms`);
+
+        if (isMounted) {
+          const usersMap = new Map<string, ExtendedUser>(
+            Object.entries(atomicData.users)
+          );
+
+          usersMap.forEach((user, username) => {
+            const avatars = atomicData.avatars[username] || [];
+            const primaryAvatar = avatars.find((a: any) => a.isPrimary) || avatars[0] || null;
+
+            userCache.set(username, {
+              data: {
+                ...user,
+                avatars: avatars,
+                primaryAvatar: primaryAvatar,
+              },
+              timestamp: Date.now(),
+            });
+          });
+
+          setData({
+            courses: atomicData.courses,
+            users: usersMap,
+            loading: false,
+            error: null,
+          });
+        }
+      } catch (error) {
+        console.error('❌ Atomic load error:', error);
+        if (isMounted) {
+          setData({
+            courses: [],
+            users: new Map(),
+            loading: false,
+            error: 'Failed to load courses',
+          });
+        }
+      }
+    }
+
+    loadAtomic();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshKey]);
+
+  return data;
+}
+
 // ✅ IMPROVED: Professional Countdown Timer - No Background, Positioned Right
 const CountdownTimer = ({ endsAt }: { endsAt: string }) => {
   const [timeLeft, setTimeLeft] = useState<{
@@ -295,106 +446,36 @@ function useAutoRefresh(refreshFn: () => void, interval = 30000) {
   }, [refreshFn, interval]);
 }
 
-// Update the atomic hook to accept refreshKey
-function useAtomicCoursesData(refreshKey: number) {
-  const [data, setData] = useState<{
-    courses: CourseCard[];
-    users: Map<string, ExtendedUser>;
-    loading: boolean;
-    error: string | null;
-  }>({
-    courses: [],
-    users: new Map(),
-    loading: true,
-    error: null,
-  });
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadAtomic() {
-      try {
-        console.log(`⚡ Loading atomic data (refresh: ${refreshKey})...`);
-        const startTime = Date.now();
-
-        const response = await fetch('/api/course/atomic', {
-          credentials: 'include',
-          cache: 'no-store', // ✅ Force fresh data
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch atomic data');
-        }
-
-        const atomicData = await response.json();
-        const loadTime = Date.now() - startTime;
-
-        console.log(`⚡ Atomic data loaded in ${loadTime}ms`);
-
-        if (isMounted) {
-          const usersMap = new Map<string, ExtendedUser>(
-            Object.entries(atomicData.users)
-          );
-
-          usersMap.forEach((user, username) => {
-            const avatars = atomicData.avatars[username] || [];
-            const primaryAvatar = avatars.find((a: any) => a.isPrimary) || avatars[0] || null;
-
-            userCache.set(username, {
-              data: {
-                ...user,
-                avatars: avatars,
-                primaryAvatar: primaryAvatar,
-              },
-              timestamp: Date.now(),
-            });
-          });
-
-          setData({
-            courses: atomicData.courses,
-            users: usersMap,
-            loading: false,
-            error: null,
-          });
-        }
-      } catch (error) {
-        console.error('❌ Atomic load error:', error);
-        if (isMounted) {
-          setData({
-            courses: [],
-            users: new Map(),
-            loading: false,
-            error: 'Failed to load courses',
-          });
-        }
-      }
-    }
-
-    loadAtomic();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [refreshKey]); // ✅ Re-run when refreshKey changes
-
-  return data;
-}
-
 export default function CoursesPage() {
   const { user, authChecked } = useAuth();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [refreshKey, setRefreshKey] = useState(0); // ✅ NEW
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const { courses, users, loading, error } = useAtomicCoursesData(refreshKey); // ✅ Pass key
+  // ✅ CHANGED: Fetch both atomic data AND card data separately
+  const { courses, users, loading: atomicLoading, error } = useAtomicCoursesData(refreshKey);
+  const { cardData, loading: cardLoading } = useCourseCardData(refreshKey);
 
   // ✅ NEW: Auto-refresh every 30 seconds
   useAutoRefresh(() => {
     setRefreshKey(prev => prev + 1);
   }, 30000);
 
-  const shouldShowSkeleton = loading || !authChecked;
+  const shouldShowSkeleton = (atomicLoading || cardLoading) || !authChecked;
+
+  // ✅ FIXED: Use undefined instead of null
+  const coursesWithCardData = courses.map(course => {
+    const card = cardData.get(course.id);
+    return {
+      ...course,
+      title: card?.title || 'Untitled Course',
+      description: card?.description || '',
+      price: card?.price || '0',
+      salePrice: card?.salePrice || undefined, // ✅ FIXED
+      saleEndsAt: card?.saleEndsAt || undefined, // ✅ FIXED
+    };
+  });
 
   // Hover card states
   const [showHoverCard, setShowHoverCard] = useState(false);
@@ -456,7 +537,7 @@ export default function CoursesPage() {
   };
 
   // ✅ Simplified filter - only search, no category filtering
-  const filteredCourses = courses.filter((course) => {
+  const filteredCourses = coursesWithCardData.filter((course) => {
     return (
       course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       course.description.toLowerCase().includes(searchQuery.toLowerCase())

@@ -1,7 +1,7 @@
 //Volumes/vision/codes/course/my-app/src/app/users/courses/[id]/page.tsx
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
@@ -316,18 +316,75 @@ const CoursePageSkeleton = () => {
 
 // app/users/courses/[id]/page.tsx
 
-function useAutoRefresh(refreshFn: () => void, interval = 30000) {
-  useEffect(() => {
-    const timer = setInterval(() => {
-      console.log('🔄 [AUTO-REFRESH] Refreshing data...');
-      refreshFn();
-    }, interval);
+// ✅ NEW: Hook to fetch ONLY card data (price, sale, title, description)
+function useCourseCardData(courseId: string, refreshKey: number) {
+  const [cardData, setCardData] = useState<{
+    title: string;
+    description: string;
+    price: string;
+    salePrice: string | null;
+    saleEndsAt: string | null;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
 
-    return () => clearInterval(timer);
-  }, [refreshFn, interval]);
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCardData() {
+      try {
+        console.log(`🎴 [Course Detail] Fetching fresh card data (refresh: ${refreshKey})...`);
+        const startTime = Date.now();
+
+        const response = await fetch('/api/course/cards', {
+          credentials: 'include',
+          cache: 'no-store', // ✅ NO CACHE
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch card data');
+        }
+
+        const data = await response.json();
+        const loadTime = Date.now() - startTime;
+
+        console.log(`✅ [Course Detail] Card data loaded in ${loadTime}ms`);
+
+        if (isMounted) {
+          // Find the card for this specific course
+          const card = data.cards.find((c: any) => c.id === courseId);
+          
+          if (card) {
+            setCardData({
+              title: card.title || 'Untitled Course',
+              description: card.description || '',
+              price: card.price || '0',
+              salePrice: card.salePrice,
+              saleEndsAt: card.saleEndsAt,
+            });
+          }
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('❌ [Course Detail] Card data load error:', error);
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    if (courseId) {
+      loadCardData();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [courseId, refreshKey]);
+
+  return { cardData, loading };
 }
 
-// ✅ NEW: Atomic data hook (replaces all the separate useEffects)
+// ✅ UPDATE: Modified atomic hook - NO longer includes card data
 function useAtomicCourseData(id: string, refreshKey: number) {
   const [data, setData] = useState<{
     courseData: any;
@@ -355,7 +412,7 @@ function useAtomicCourseData(id: string, refreshKey: number) {
 
         const response = await fetch(`/api/course/atomic/${id}`, {
           credentials: 'include',
-          cache: 'no-store', // ✅ Force fresh data
+          cache: 'no-store',
         });
 
         if (!response.ok) {
@@ -371,7 +428,6 @@ function useAtomicCourseData(id: string, refreshKey: number) {
         console.log(`⚡ Atomic course data loaded in ${loadTime}ms`);
 
         if (isMounted) {
-          // ✅ Populate owner in user cache instantly
           if (atomicData.owner && atomicData.owner.username) {
             userCache.set(atomicData.owner.username, {
               data: atomicData.owner,
@@ -416,30 +472,75 @@ function useAtomicCourseData(id: string, refreshKey: number) {
   return data;
 }
 
+function useAutoRefresh(refreshFn: () => void, interval = 30000) {
+  useEffect(() => {
+    const timer = setInterval(() => {
+      console.log('🔄 [AUTO-REFRESH] Refreshing data...');
+      refreshFn();
+    }, interval);
+
+    return () => clearInterval(timer);
+  }, [refreshFn, interval]);
+}
+
 export default function PublicCoursePage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
   const { user, logout, checkAuthStatus } = useAuth();
-  const [refreshKey, setRefreshKey] = useState(0); // ✅ NEW
+  
+  // ✅ ALL STATE HOOKS FIRST
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
+  const [showOwnerHoverCard, setShowOwnerHoverCard] = useState(false);
+  const [hoveredOwner, setHoveredOwner] = useState<ExtendedUser | null>(null);
+  const [ownerHoverPosition, setOwnerHoverPosition] = useState({ x: 0, y: 0 });
+  const [ownerHoverTimeout, setOwnerHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  // ✅ Use atomic data loader - replaces all separate fetches
-  const { courseData, owner, currentUserAvatars, enrollmentStatus, loading, error } =
-    useAtomicCourseData(id, refreshKey); // ✅ Pass refreshKey
+  // ✅ ALL CUSTOM HOOKS
+  const { courseData, owner, currentUserAvatars, enrollmentStatus, loading: atomicLoading, error } =
+    useAtomicCourseData(id, refreshKey);
+  const { cardData, loading: cardLoading } = useCourseCardData(id, refreshKey);
 
-  // ✅ NEW: Auto-refresh every 30 seconds
+  // ✅ ALL EFFECTS
   useAutoRefresh(() => {
     setRefreshKey(prev => prev + 1);
   }, 30000);
 
-  // Set primary avatar from atomic data
-  const primaryAvatar = currentUserAvatars?.find((a) => a.isPrimary) || currentUserAvatars?.[0] || null;
+  useEffect(() => {
+    const initAuth = async () => {
+      console.log("[Course Page] Checking auth on mount");
+      await checkAuthStatus(true);
+    };
 
-  // Navbar states
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [enrolling, setEnrolling] = useState(false);
+    if (id) {
+      initAuth();
+    }
+  }, [checkAuthStatus, id]);
 
-  // ✅ ADD: Debug logging
+  useEffect(() => {
+    const handleReturnFromSignup = async () => {
+      const shouldForceCheck = sessionStorage.getItem('force_auth_check_on_return');
+      
+      if (shouldForceCheck) {
+        console.log('[Course Page] 🔄 Forcing auth check after signup');
+        sessionStorage.removeItem('force_auth_check_on_return');
+        await checkAuthStatus(true);
+      }
+    };
+
+    handleReturnFromSignup();
+  }, [checkAuthStatus]);
+
+  useEffect(() => {
+    return () => {
+      if (ownerHoverTimeout) {
+        clearTimeout(ownerHoverTimeout);
+      }
+    };
+  }, [ownerHoverTimeout]);
+
   useEffect(() => {
     if (courseData && owner && user) {
       console.log('[Course Detail] Debug:', {
@@ -451,51 +552,55 @@ export default function PublicCoursePage() {
     }
   }, [courseData, owner, user, enrollmentStatus]);
 
-  // ✅ Hover card states
-  const [showOwnerHoverCard, setShowOwnerHoverCard] = useState(false);
-  const [hoveredOwner, setHoveredOwner] = useState<ExtendedUser | null>(null);
-  const [ownerHoverPosition, setOwnerHoverPosition] = useState({ x: 0, y: 0 });
-  const [ownerHoverTimeout, setOwnerHoverTimeout] = useState<NodeJS.Timeout | null>(null);
-
-  // ✅ FIRST: Check auth on mount
   useEffect(() => {
-    const initAuth = async () => {
-      console.log("[Course Page] Checking auth on mount");
-      await checkAuthStatus(true); // Force check
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".dropdown-container")) {
+        setIsProfileOpen(false);
+      }
     };
 
-    if (id) {
-      initAuth();
+    if (isProfileOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [checkAuthStatus, id]);
+  }, [isProfileOpen]);
 
-  // Add this effect to handle return from signup:
-  useEffect(() => {
-    const handleReturnFromSignup = async () => {
-      const shouldForceCheck = sessionStorage.getItem('force_auth_check_on_return');
-      
-      if (shouldForceCheck) {
-        console.log('[Course Page] 🔄 Forcing auth check after signup');
-        sessionStorage.removeItem('force_auth_check_on_return');
-        
-        // Force immediate auth check
-        await checkAuthStatus(true);
-      }
+  // ✅ ALL MEMOIZED VALUES
+  const mergedCourseData = useMemo(() => {
+    if (!courseData) return null;
+    if (!cardData) return courseData;
+
+    return {
+      ...courseData,
+      courseTitle: cardData.title || courseData.courseTitle,
+      courseDescription: cardData.description || courseData.courseDescription,
+      price: cardData.price || courseData.price || '0',
+      salePrice: cardData.salePrice || undefined,
+      saleEndsAt: cardData.saleEndsAt || undefined,
+      footerPrice: cardData.price || courseData.footerPrice || '0',
+      footerSalePrice: cardData.salePrice || undefined,
+      footerSaleEndsAt: cardData.saleEndsAt || undefined,
     };
+  }, [courseData, cardData]);
 
-    handleReturnFromSignup();
-  }, [checkAuthStatus]);
+  const primaryAvatar = useMemo(() => 
+    currentUserAvatars?.find((a) => a.isPrimary) || currentUserAvatars?.[0] || null,
+    [currentUserAvatars]
+  );
 
-  // ✅ Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (ownerHoverTimeout) {
-        clearTimeout(ownerHoverTimeout);
-      }
-    };
-  }, [ownerHoverTimeout]);
+  const ownerPrimaryAvatar = useMemo(() => 
+    owner?.primaryAvatar || null,
+    [owner]
+  );
 
-  // ✅ Owner hover handlers (owner is ALWAYS in cache from atomic load)
+  const shouldShowSkeleton = useMemo(() => 
+    atomicLoading || cardLoading,
+    [atomicLoading, cardLoading]
+  );
+
+  // ✅ ALL EVENT HANDLERS (regular functions, not hooks)
   const handleOwnerHover = (e: React.MouseEvent) => {
     if (ownerHoverTimeout) {
       clearTimeout(ownerHoverTimeout);
@@ -512,7 +617,6 @@ export default function PublicCoursePage() {
       y: rect.top + scrollY,
     });
 
-    // ✅ Owner is ALWAYS in cache from atomic load
     const ownerData = userCache.get(owner.username);
 
     if (ownerData) {
@@ -549,40 +653,6 @@ export default function PublicCoursePage() {
     }
   };
 
-  // ✅ NEW: Render appropriate homepage
-  const renderHomepage = () => {
-    if (!courseData) return null;
-
-    // Use custom homepage if specified
-    if (courseData.homepageType === "custom" && courseData.customHomepageFile) {
-      const CustomHomepage = getCustomHomepage(courseData.customHomepageFile);
-      
-      if (CustomHomepage) {
-        return (
-          <CustomHomepage
-            courseData={courseData}
-            enrollmentStatus={enrollmentStatus}
-            onEnroll={handleEnroll}
-            onStartLearning={handleStartLearning}
-            enrolling={enrolling}
-          />
-        );
-      }
-    }
-
-    // Default: Use LivePreview (builder homepage)
-    return (
-      <LivePreview
-        data={courseData}
-        enrollmentStatus={enrollmentStatus}
-        onEnroll={handleEnroll}
-        onStartLearning={handleStartLearning}
-        enrolling={enrolling}
-      />
-    );
-  };
-
-  // Update the handleEnroll function:
   const handleEnroll = async () => {
     try {
       setEnrolling(true);
@@ -590,7 +660,6 @@ export default function PublicCoursePage() {
       if (!user) {
         const courseUrl = `/users/courses/${id}`;
 
-        // Store minimal metadata
         const minimalMetadata = {
           courseId: id,
           fromCourse: true,
@@ -599,11 +668,8 @@ export default function PublicCoursePage() {
 
         console.log('[Course Page] 📦 Storing minimal metadata:', minimalMetadata);
 
-        // Store in multiple places
         sessionStorage.setItem('signup_course_metadata', JSON.stringify(minimalMetadata));
         sessionStorage.setItem('signup_redirect_url', courseUrl);
-        
-        // ✅ ADD: Set flag to force auth check on return
         sessionStorage.setItem('force_auth_check_on_return', 'true');
         
         localStorage.setItem('temp_signup_course_metadata', JSON.stringify(minimalMetadata));
@@ -619,7 +685,6 @@ export default function PublicCoursePage() {
         return;
       }
 
-      // Existing enrollment logic for logged-in users
       router.push(`/users/courses/${id}/checkout`);
     } catch (err) {
       console.error("[Course Page] ❌ Error:", err);
@@ -628,6 +693,7 @@ export default function PublicCoursePage() {
       setEnrolling(false);
     }
   };
+
   const handleStartLearning = () => {
     router.push(`/users/courseinside?courseId=${id}`);
   };
@@ -640,27 +706,48 @@ export default function PublicCoursePage() {
     }
   };
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest(".dropdown-container")) {
-        setIsProfileOpen(false);
+  const renderHomepage = () => {
+    if (!mergedCourseData) return null;
+
+    if (mergedCourseData.homepageType === "custom" && mergedCourseData.customHomepageFile) {
+      const CustomHomepage = getCustomHomepage(mergedCourseData.customHomepageFile);
+      
+      if (CustomHomepage) {
+        return (
+          <CustomHomepage
+            courseData={mergedCourseData}
+            enrollmentStatus={enrollmentStatus}
+            onEnroll={handleEnroll}
+            onStartLearning={handleStartLearning}
+            enrolling={enrolling}
+          />
+        );
       }
-    };
-
-    if (isProfileOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () =>
-        document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [isProfileOpen]);
 
-  // ✅ UPDATE: Show loading while checking auth
-  if (loading) {
+    return (
+      <LivePreview
+        data={mergedCourseData}
+        enrollmentStatus={enrollmentStatus}
+        onEnroll={handleEnroll}
+        onStartLearning={handleStartLearning}
+        enrolling={enrolling}
+      />
+    );
+  };
+
+  // ✅ NOW CONDITIONAL RENDERING (after ALL hooks)
+  console.log("[Course Page] Render state:", {
+    hasUser: !!user,
+    userEmail: user?.email,
+    enrollmentStatus,
+  });
+
+  if (shouldShowSkeleton) {
     return <CoursePageSkeleton />;
   }
 
-  if (error || !courseData) {
+  if (error || !mergedCourseData) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <motion.div
@@ -689,18 +776,9 @@ export default function PublicCoursePage() {
     );
   }
 
-  // ✅ In your navbar, add debug logging:
-  console.log("[Course Page] Render state:", {
-    hasUser: !!user,
-    userEmail: user?.email,
-    enrollmentStatus,
-  });
-
-  const ownerPrimaryAvatar = owner?.primaryAvatar || null;
-
   return (
     <div className="relative min-h-screen">
-      {/* ✅ Floating Glassmorphic Navbar */}
+      {/* Navbar */}
       <motion.header
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -717,7 +795,6 @@ export default function PublicCoursePage() {
             <div className="relative px-3 sm:px-4 md:px-6 py-2 sm:py-3">
               {/* Desktop Layout */}
               <div className="hidden md:grid md:grid-cols-[auto_1fr_auto] items-center gap-4">
-                {/* Left: Course Info with Owner Avatar */}
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-3">
                     <div
@@ -735,7 +812,7 @@ export default function PublicCoursePage() {
                     </div>
                     <div>
                       <h2 className="text-white font-bold text-sm leading-tight">
-                        {courseData?.courseTitle}
+                        {mergedCourseData?.courseTitle}
                       </h2>
                       <p
                         className="text-gray-400 text-xs flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors"
@@ -752,7 +829,6 @@ export default function PublicCoursePage() {
 
                 {/* Center: Status Badge */}
                 <div className="flex justify-center">
-                  {/* ✅ FIX: Add debug and check enrollmentStatus properly */}
                   {enrollmentStatus?.isOwner && (
                     <div className="inline-flex items-center gap-2 bg-blue-900/20 border border-blue-500/30 px-4 py-2 rounded-xl backdrop-blur-sm">
                       <FaCheckCircle className="text-blue-400" />
@@ -773,14 +849,12 @@ export default function PublicCoursePage() {
 
                 {/* Right: Actions + Profile */}
                 <div className="flex items-center gap-2">
-                  {/* ✅ FIX: Proper conditional rendering */}
                   {enrollmentStatus?.isOwner ? (
-                    // Owner buttons
                     <>
                       <motion.button
                         onClick={() =>
                           router.push(
-                            `/users/homepage-builder?courseId=${courseData?.courseId}`
+                            `/users/homepage-builder?courseId=${mergedCourseData?.courseId}`
                           )
                         }
                         whileHover={{ scale: 1.05 }}
@@ -811,7 +885,6 @@ export default function PublicCoursePage() {
                       </motion.button>
                     </>
                   ) : enrollmentStatus?.enrolled ? (
-                    // Enrolled button
                     <motion.button
                       onClick={handleStartLearning}
                       whileHover={{ scale: 1.05 }}
@@ -826,7 +899,6 @@ export default function PublicCoursePage() {
                       </span>
                     </motion.button>
                   ) : user ? (
-                    // Logged in but not enrolled - Show Enroll Now
                     <motion.button
                       onClick={handleEnroll}
                       disabled={enrolling}
@@ -853,7 +925,6 @@ export default function PublicCoursePage() {
                       )}
                     </motion.button>
                   ) : (
-                    // Not logged in - Show Sign Up
                     <motion.button
                       onClick={() =>
                         router.push(
@@ -875,7 +946,6 @@ export default function PublicCoursePage() {
                     </motion.button>
                   )}
 
-                  {/* Profile dropdown - only show if user exists */}
                   {user && (
                     <div className="relative dropdown-container">
                       <motion.button
@@ -1013,7 +1083,7 @@ export default function PublicCoursePage() {
                 </div>
               </div>
 
-              {/* Mobile Layout - Similar fixes */}
+              {/* Mobile Layout - keep existing code */}
               <div className="flex md:hidden items-center justify-between gap-2">
                 {/* ✅ Course Title + Owner Avatar - HOVERABLE & CLICKABLE */}
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1032,7 +1102,7 @@ export default function PublicCoursePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h2 className="text-white font-bold text-xs leading-tight truncate">
-                      {courseData?.courseTitle}
+                      {mergedCourseData?.courseTitle}
                     </h2>
                     {/* ✅ Owner Name - CLICKABLE on mobile */}
                     <p
@@ -1182,10 +1252,10 @@ export default function PublicCoursePage() {
         </div>
       </motion.header>
 
-      {/* ✅ Dynamic Homepage Rendering */}
+      {/* Dynamic Homepage Rendering */}
       {renderHomepage()}
       
-      {/* Floating Action Buttons */}
+      {/* Floating Action Buttons - keep existing */}
       {!user && (
         <motion.button
           initial={{ scale: 0 }}

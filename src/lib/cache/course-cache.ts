@@ -3,9 +3,9 @@ import { redis, CACHE_TIMES } from '@/lib/redis';
 
 export const COURSE_CACHE_TIMES = {
   PUBLIC_COURSES: 30, // Authenticated users
-  PUBLIC_COURSES_ANONYMOUS: 30, // ✅ CHANGED: 30s (was 10s)
+  PUBLIC_COURSES_ANONYMOUS: 60, // ✅ CHANGED: 60s (was 30s) - longer for stability
   COURSE_DETAIL: 45, // Authenticated users  
-  COURSE_DETAIL_ANONYMOUS: 30, // ✅ CHANGED: 30s (was 15s)
+  COURSE_DETAIL_ANONYMOUS: 60, // ✅ CHANGED: 60s (was 30s) - longer for stability
   USER_AVATARS: 60 * 30,
   ENROLLMENT_STATUS: 20,
   COURSE_STATS: 25,

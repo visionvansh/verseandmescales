@@ -13,7 +13,6 @@ export async function loadCompleteCoursesData(
   try {
     const useStale = Boolean(userId);
     
-    // ✅ FIX: Use shorter TTL for anonymous users
     const cacheTTL = userId 
       ? COURSE_CACHE_TIMES.PUBLIC_COURSES 
       : COURSE_CACHE_TIMES.PUBLIC_COURSES_ANONYMOUS;
@@ -21,7 +20,7 @@ export async function loadCompleteCoursesData(
     const data = await getCachedData(
       cacheKey,
       () => fetchCoursesFromDB(userId),
-      cacheTTL, // ✅ Dynamic TTL based on auth status
+      cacheTTL,
       useStale
     );
 
@@ -35,7 +34,6 @@ export async function loadCompleteCoursesData(
   }
 }
 
-// Keep fetchCoursesFromDB as is - it already has correct sale price logic
 async function fetchCoursesFromDB(userId?: string): Promise<any> {
   console.log('📊 Fetching fresh courses from database...');
   
@@ -47,13 +45,9 @@ async function fetchCoursesFromDB(userId?: string): Promise<any> {
       },
       select: {
         id: true,
-        title: true,
+        // ✅ REMOVED: title, description, price, salePrice, saleEndsAt
         slug: true,
-        description: true,
         thumbnail: true,
-        price: true,
-        salePrice: true,
-        saleEndsAt: true,
         category: true,
         averageRating: true,
         userId: true,
@@ -108,7 +102,6 @@ async function fetchCoursesFromDB(userId?: string): Promise<any> {
             },
           },
         },
-        // ✅ FIX: Get REAL-TIME enrollment count
         enrollments: {
           where: {
             status: 'active',
@@ -142,7 +135,6 @@ async function fetchCoursesFromDB(userId?: string): Promise<any> {
       ],
     }),
 
-    // ✅ Get current user's enrollments if logged in
     userId
       ? prisma.courseEnrollment.findMany({
           where: {
@@ -208,57 +200,20 @@ async function fetchCoursesFromDB(userId?: string): Promise<any> {
     }
   });
 
-  const now = new Date();
-  
   const transformedCourses = courses.map((course) => {
     const totalDuration = calculateTotalDuration(course.modules || []);
-    
-    // ✅ FIX: Use REAL enrollment count from query
     const activeStudents = course.enrollments?.length || 0;
-
-    // ✅ FIX: Proper sale price handling
-    let effectiveSalePrice: string | null = null;
-    let effectiveSaleEndsAt: string | null = null;
-
-    if (course.salePrice) {
-      const basePriceNum = course.price ? parseFloat(course.price) : 0;
-      const salePriceNum = parseFloat(course.salePrice);
-      
-      if (salePriceNum < basePriceNum) {
-        if (!course.saleEndsAt) {
-          // No end date = sale is always active
-          effectiveSalePrice = course.salePrice;
-          effectiveSaleEndsAt = null;
-        } else {
-          const saleEndDate = new Date(course.saleEndsAt);
-          if (saleEndDate > now) {
-            // Sale still active
-            effectiveSalePrice = course.salePrice;
-            effectiveSaleEndsAt = course.saleEndsAt.toISOString();
-          }
-        }
-      }
-    }
-
-    // ✅ FIX: Use actual rating from database
     const rating = course.averageRating || 0;
 
-    // ✅ FIX: Proper ownership check
     const isOwner = userId ? course.userId === userId : false;
     const hasEnrollmentRecord = enrollmentIds.has(course.id);
-    
-    // ✅ CRITICAL: Owner should NOT see "enrolled"
     const isEnrolled = isOwner ? false : hasEnrollmentRecord;
 
     return {
       id: course.id,
-      title: course.title,
+      // ✅ REMOVED: title, description, price, salePrice, saleEndsAt
       slug: course.slug,
-      description: course.description,
       thumbnail: course.thumbnail,
-      price: course.price || '0',
-      salePrice: effectiveSalePrice,
-      saleEndsAt: effectiveSaleEndsAt,
       category: course.category,
       owner: {
         id: course.user.id,
@@ -268,12 +223,12 @@ async function fetchCoursesFromDB(userId?: string): Promise<any> {
         primaryAvatar: course.user.avatars?.find((a) => a.isPrimary) || course.user.avatars?.[0] || null,
       },
       stats: {
-        students: activeStudents, // ✅ Real-time count
-        rating: rating, // ✅ Real-time rating
+        students: activeStudents,
+        rating: rating,
         duration: totalDuration,
       },
       isOwner: isOwner,
-      isEnrolled: isEnrolled, // ✅ Correct enrollment status
+      isEnrolled: isEnrolled,
     };
   });
 
