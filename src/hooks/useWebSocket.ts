@@ -156,8 +156,37 @@ export function useWebSocket(options: UseWebSocketOptions) {
     console.log("✅ WS: Cleanup complete");
   }, []);
 
+  // ✅ IMPROVED: Fetch token from API endpoint instead of cookies
+  const getAuthToken = useCallback(async () => {
+    try {
+      // ✅ Fetch token from server (which can read HttpOnly cookies)
+      const response = await fetch('/api/auth/ws-token', {
+        credentials: 'include', // Include cookies in request
+      });
+      
+      if (!response.ok) {
+        console.error("❌ WS: Failed to get token from API:", response.status);
+        return null;
+      }
+      
+      const data = await response.json();
+      
+      if (!data.token) {
+        console.error("❌ WS: No token in API response");
+        return null;
+      }
+      
+      console.log("✅ WS: Token fetched from API, length:", data.token.length);
+      return data.token;
+      
+    } catch (error) {
+      console.error("❌ WS: Error fetching token:", error);
+      return null;
+    }
+  }, []);
+
   // ✅ IMPROVED: Connect with better state management
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (!enabled || !roomId) {
       console.log("⏸️ WS: Not connecting", { enabled, roomId });
       return;
@@ -182,42 +211,8 @@ export function useWebSocket(options: UseWebSocketOptions) {
       wsRef.current = null;
     }
 
-    // ✅ IMPROVED: Get auth token with better error handling
-    const getAuthToken = () => {
-      if (typeof document === 'undefined') {
-        console.log("❌ WS: No document (SSR)");
-        return null;
-      }
-      
-      try {
-        const cookies = document.cookie.split(';');
-        console.log("🍪 WS: Found cookies:", cookies.length);
-        
-        const authCookie = cookies.find(c => c.trim().startsWith('auth-token='));
-        
-        if (!authCookie) {
-          console.error("❌ WS: No auth-token cookie found");
-          console.log("🍪 Available cookies:", cookies.map(c => c.split('=')[0].trim()));
-          return null;
-        }
-        
-        const token = authCookie.split('=')[1]?.trim();
-        
-        if (!token) {
-          console.error("❌ WS: Empty token value");
-          return null;
-        }
-        
-        console.log("✅ WS: Token found, length:", token.length);
-        return token;
-        
-      } catch (error) {
-        console.error("❌ WS: Error parsing cookies:", error);
-        return null;
-      }
-    };
-
-    const token = getAuthToken();
+    // ✅ Fetch token from API
+    const token = await getAuthToken();
     
     if (!token) {
       console.error("❌ WS: No auth token - cannot connect");
@@ -327,9 +322,9 @@ export function useWebSocket(options: UseWebSocketOptions) {
           console.log("🔄 WS:", retryMessage);
           setError(retryMessage);
 
-          reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = setTimeout(async () => {
             console.log("🔄 WS: Attempting reconnection...");
-            connect();
+            await connect();
           }, delay);
         } else {
           console.error("❌ WS: Max reconnection attempts reached");
@@ -474,7 +469,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
       setConnectionState('error');
       handlersRef.current.onError?.(err);
     }
-  }, [enabled, roomId]); // ✅ Remove cleanup from dependencies
+  }, [enabled, roomId, getAuthToken]); // ✅ Remove cleanup from dependencies
 
   // ✅ IMPROVED: Effect with better dependency management
   useEffect(() => {
