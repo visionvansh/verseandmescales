@@ -5,27 +5,49 @@ import jwt from 'jsonwebtoken';
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('[WS Token] Request received');
+    
     const cookieStore = await cookies();
     const authToken = cookieStore.get('auth-token')?.value;
     
     if (!authToken) {
+      console.error('[WS Token] No auth token in cookies');
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
       );
     }
 
+    console.log('[WS Token] Token found, length:', authToken.length);
+
     // Verify the token is valid
     try {
-      jwt.verify(authToken, process.env.JWT_SECRET!);
-    } catch (error) {
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        console.error('[WS Token] JWT_SECRET not configured');
+        return NextResponse.json(
+          { error: 'Server configuration error' },
+          { status: 500 }
+        );
+      }
+      
+      const decoded = jwt.verify(authToken, jwtSecret) as any;
+      console.log('[WS Token] Token verified for user:', decoded.userId);
+      
+    } catch (error: any) {
+      console.error('[WS Token] Token verification failed:', error.message);
       return NextResponse.json(
-        { error: 'Invalid token' },
+        { 
+          error: 'Invalid token',
+          details: error.message 
+        },
         { status: 401 }
       );
     }
 
-    // Return the token (server can read HttpOnly cookies)
+    console.log('[WS Token] Returning valid token');
+
+    // Return the token
     return NextResponse.json({
       token: authToken,
       expiresIn: 3600
@@ -36,7 +58,7 @@ export async function GET(request: NextRequest) {
     });
     
   } catch (error) {
-    console.error('[WS Token] Error:', error);
+    console.error('[WS Token] Unexpected error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

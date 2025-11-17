@@ -157,33 +157,37 @@ export function useWebSocket(options: UseWebSocketOptions) {
   }, []);
 
   // ✅ IMPROVED: Fetch token from API endpoint instead of cookies
-  const getAuthToken = useCallback(async () => {
-    try {
-      // ✅ Fetch token from server (which can read HttpOnly cookies)
-      const response = await fetch('/api/auth/ws-token', {
-        credentials: 'include', // Include cookies in request
-      });
-      
-      if (!response.ok) {
-        console.error("❌ WS: Failed to get token from API:", response.status);
-        return null;
-      }
-      
-      const data = await response.json();
-      
-      if (!data.token) {
-        console.error("❌ WS: No token in API response");
-        return null;
-      }
-      
-      console.log("✅ WS: Token fetched from API, length:", data.token.length);
-      return data.token;
-      
-    } catch (error) {
-      console.error("❌ WS: Error fetching token:", error);
+const getAuthToken = useCallback(async () => {
+  try {
+    console.log('🎫 [WS] Fetching token from API...');
+    
+    const response = await fetch('/api/auth/ws-token', {
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ [WS] Token API failed:', response.status, errorData);
       return null;
     }
-  }, []);
+    
+    const data = await response.json();
+    
+    if (!data.token) {
+      console.error('❌ [WS] No token in API response');
+      return null;
+    }
+    
+    console.log('✅ [WS] Token fetched, length:', data.token.length);
+    console.log('🔑 [WS] Token preview:', data.token.substring(0, 20) + '...');
+    
+    return data.token;
+    
+  } catch (error) {
+    console.error('❌ [WS] Token fetch error:', error);
+    return null;
+  }
+}, []);
 
   // ✅ IMPROVED: Connect with better state management
   const connect = useCallback(async () => {
