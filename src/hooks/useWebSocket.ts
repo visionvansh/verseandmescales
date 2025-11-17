@@ -55,7 +55,6 @@ export function useWebSocket(options: UseWebSocketOptions) {
   const reconnectAttemptsRef = useRef(0);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const messageQueueRef = useRef<Array<any>>([]);
-  const isCleaningUpRef = useRef(false);
 
   // Stable event handlers using refs
   const handlersRef = useRef({
@@ -116,10 +115,13 @@ export function useWebSocket(options: UseWebSocketOptions) {
     onPreferencesUpdated,
   ]);
 
-  // ✅ Cleanup function
+  // ✅ IMPROVED: Cleanup with immediate flag reset
   const cleanup = useCallback(() => {
-    isCleaningUpRef.current = true;
-
+    console.log("🧹 WS: Starting cleanup");
+    
+    // ✅ Don't block new connections
+    const wasConnected = wsRef.current?.readyState === WebSocket.OPEN;
+    
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -139,10 +141,10 @@ export function useWebSocket(options: UseWebSocketOptions) {
         wsRef.current.onmessage = null;
         
         if (wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.close(1000, 'Component unmounting');
+          wsRef.current.close(1000, 'Component cleanup');
         }
       } catch (e) {
-        console.log("Error closing WebSocket:", e);
+        console.log("⚠️ WS: Error during cleanup:", e);
       }
       wsRef.current = null;
     }
@@ -151,289 +153,344 @@ export function useWebSocket(options: UseWebSocketOptions) {
     setIsRoomJoined(false);
     setConnectionState('disconnected');
     
-    setTimeout(() => {
-      isCleaningUpRef.current = false;
-    }, 100);
+    console.log("✅ WS: Cleanup complete");
   }, []);
 
-  // ✅ Connect function with production support
-const connect = useCallback(() => {
-  if (!enabled || !roomId) {
-    console.log("⏸️ WS: Not connecting", { enabled, roomId });
-    return;
-  }
-
-  if (isCleaningUpRef.current) {
-    console.log("⏸️ WS: Cleanup in progress");
-    return;
-  }
-
-  if (wsRef.current?.readyState === WebSocket.OPEN) {
-    console.log("⏸️ WS: Already connected");
-    return;
-  }
-
-  cleanup();
-
-  // ✅ GET AUTH TOKEN FROM COOKIES
-  const getAuthToken = () => {
-    if (typeof document === 'undefined') return null;
-    const cookies = document.cookie.split(';');
-    const authCookie = cookies.find(c => c.trim().startsWith('auth-token='));
-    if (!authCookie) return null;
-    return authCookie.split('=')[1];
-  };
-
-  const token = getAuthToken();
-  
-  if (!token) {
-    console.error("❌ WS: No auth token found");
-    setError("Not authenticated - please log in");
-    setConnectionState('error');
-    return;
-  }
-
-  // ✅ ADD TOKEN TO WEBSOCKET URL
-  const baseUrl = getWebSocketUrl();
-  const wsUrl = `${baseUrl}?token=${encodeURIComponent(token)}`;
-  
-  console.log("🔌 WS: Connecting with auth token");
-  console.log("🔗 WS: URL:", baseUrl);
-  console.log("🎫 WS: Has token:", !!token);
-  
-  setConnectionState('connecting');
-
-  try {
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    const connectionTimeout = setTimeout(() => {
-      if (ws.readyState !== WebSocket.OPEN) {
-        console.log("⏱️ WS: Connection timeout");
-        ws.close();
-        setError("Connection timeout");
-        setConnectionState('error');
-      }
-    }, 10000);
-
-    ws.onopen = () => {
-      clearTimeout(connectionTimeout);
-      console.log("✅ WS: Connected successfully");
-      setIsConnected(true);
-      setError(null);
-      setConnectionState('connected');
-      reconnectAttemptsRef.current = 0;
-
-      // Start heartbeat
-      heartbeatIntervalRef.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          try {
-            ws.send(JSON.stringify({ event: "ping" }));
-          } catch (err) {
-            console.error("Failed to send ping:", err);
-          }
-        }
-      }, WEBSOCKET_CONFIG.heartbeat.interval);
-    };
-
-    ws.onerror = (err) => {
-      clearTimeout(connectionTimeout);
-      console.error("❌ WS: Error", err);
-      setConnectionState('error');
-      setError("Connection error");
-      handlersRef.current.onError?.(err);
-    };
-
-    ws.onclose = (event) => {
-      clearTimeout(connectionTimeout);
-      console.log("🔌 WS: Closed", event.code, event.reason);
-      setIsConnected(false);
-      setIsRoomJoined(false);
-      setConnectionState('disconnected');
-
-      if (heartbeatIntervalRef.current) {
-        clearInterval(heartbeatIntervalRef.current);
-        heartbeatIntervalRef.current = null;
-      }
-
-      // Don't reconnect if intentional close or auth failure
-      if (isCleaningUpRef.current || event.code === 1000) {
-        console.log("✋ WS: Clean disconnect");
-        return;
-      }
-
-      // ✅ Don't reconnect if authentication failed
-      if (event.code === 1008 || event.reason?.includes('auth')) {
-        console.error("❌ WS: Authentication failed, not reconnecting");
-        setError("Authentication failed - please refresh");
-        return;
-      }
-
-      // Reconnect logic
-      if (reconnectAttemptsRef.current < WEBSOCKET_CONFIG.reconnect.maxAttempts && enabled) {
-        reconnectAttemptsRef.current++;
-        const delay = Math.min(
-          WEBSOCKET_CONFIG.reconnect.baseDelay * Math.pow(2, reconnectAttemptsRef.current),
-          WEBSOCKET_CONFIG.reconnect.maxDelay
-        );
-
-        const retryMessage = `Reconnecting in ${Math.ceil(delay / 1000)}s... (${reconnectAttemptsRef.current}/${WEBSOCKET_CONFIG.reconnect.maxAttempts})`;
-        console.log("🔄 WS:", retryMessage);
-        setError(retryMessage);
-
-        reconnectTimeoutRef.current = setTimeout(() => {
-          if (!isCleaningUpRef.current) {
-            connect();
-          }
-        }, delay);
-      } else if (reconnectAttemptsRef.current >= WEBSOCKET_CONFIG.reconnect.maxAttempts) {
-        setError("Connection failed. Please refresh the page.");
-        setConnectionState('error');
-      }
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const { event: eventType, data } = JSON.parse(event.data);
-
-        switch (eventType) {
-          case "authenticated":
-            console.log("✅ WS: Authenticated, joining room:", roomId);
-            ws.send(
-              JSON.stringify({
-                event: "join_room",
-                data: { roomId },
-              })
-            );
-            break;
-
-          case "room_joined":
-            console.log("✅ WS: Room joined successfully");
-            setIsRoomJoined(true);
-            setError(null);
-
-            // Process queued messages
-            if (messageQueueRef.current.length > 0) {
-              console.log(`📤 WS: Processing ${messageQueueRef.current.length} queued items`);
-              messageQueueRef.current.forEach((item) => {
-                try {
-                  if (item.event) {
-                    ws.send(JSON.stringify({ event: item.event, data: item.data }));
-                  } else {
-                    ws.send(JSON.stringify({ event: "send_message", data: item }));
-                  }
-                } catch (err) {
-                  console.error("Failed to send queued message:", err);
-                }
-              });
-              messageQueueRef.current = [];
-            }
-            break;
-
-          // ... rest of your message handlers
-          case "message:new":
-            handlersRef.current.onMessage?.(data);
-            break;
-
-          case "message:edited":
-            handlersRef.current.onMessageEdited?.(data);
-            break;
-
-          case "message:deleted":
-            handlersRef.current.onMessageDeleted?.(data);
-            break;
-
-          case "reaction:toggle":
-            handlersRef.current.onReaction?.(data);
-            break;
-
-          case "user:typing":
-            handlersRef.current.onTyping?.(data);
-            break;
-
-          case "user:online":
-            handlersRef.current.onUserOnline?.(data);
-            break;
-
-          case "user:offline":
-            handlersRef.current.onUserOffline?.(data);
-            break;
-
-          case "question:new":
-            handlersRef.current.onQuestionNew?.(data);
-            break;
-
-          case "question:upvote":
-            handlersRef.current.onQuestionUpvote?.(data);
-            break;
-
-          case "question:view":
-            handlersRef.current.onQuestionView?.(data);
-            break;
-
-          case "question:answer":
-            handlersRef.current.onQuestionAnswer?.(data);
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('question:answer', {
-                detail: data
-              }));
-            }
-            break;
-
-          case "answer:thanked":
-            handlersRef.current.onAnswerThanked?.(data);
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('answer:thanked', {
-                detail: data
-              }));
-            }
-            break;
-
-          case "answer:upvote":
-            handlersRef.current.onAnswerUpvote?.(data);
-            break;
-
-          case "goals:updated":
-            handlersRef.current.onGoalsUpdated?.(data);
-            break;
-
-          case "preferences:updated":
-            handlersRef.current.onPreferencesUpdated?.(data);
-            break;
-
-          case "error":
-            console.error("❌ WS: Server error", data);
-            setError(data.message);
-            handlersRef.current.onError?.(data);
-            break;
-
-          case "pong":
-            // Heartbeat response
-            break;
-
-          default:
-            console.log("⚠️ WS: Unknown event:", eventType);
-        }
-      } catch (err) {
-        console.error("Failed to parse WebSocket message:", err);
-      }
-    };
-  } catch (err) {
-    console.error("❌ WS: Failed to create connection", err);
-    setError("Failed to connect");
-    setConnectionState('error');
-    handlersRef.current.onError?.(err);
-  }
-}, [enabled, roomId, cleanup]);
-
-  // Single connection effect
-  useEffect(() => {
-    if (enabled && roomId) {
-      connect();
+  // ✅ IMPROVED: Connect with better state management
+  const connect = useCallback(() => {
+    if (!enabled || !roomId) {
+      console.log("⏸️ WS: Not connecting", { enabled, roomId });
+      return;
     }
 
-    return cleanup;
-  }, [enabled, roomId, connect, cleanup]);
+    // ✅ REMOVE the isCleaningUpRef check - it's blocking reconnection!
+    
+    // ✅ Check if already connected
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log("✅ WS: Already connected");
+      return;
+    }
+
+    // ✅ Close any existing connection before creating new one
+    if (wsRef.current) {
+      console.log("🔄 WS: Closing previous connection");
+      try {
+        wsRef.current.close();
+      } catch (e) {
+        console.log("⚠️ WS: Error closing previous connection:", e);
+      }
+      wsRef.current = null;
+    }
+
+    // ✅ IMPROVED: Get auth token with better error handling
+    const getAuthToken = () => {
+      if (typeof document === 'undefined') {
+        console.log("❌ WS: No document (SSR)");
+        return null;
+      }
+      
+      try {
+        const cookies = document.cookie.split(';');
+        console.log("🍪 WS: Found cookies:", cookies.length);
+        
+        const authCookie = cookies.find(c => c.trim().startsWith('auth-token='));
+        
+        if (!authCookie) {
+          console.error("❌ WS: No auth-token cookie found");
+          console.log("🍪 Available cookies:", cookies.map(c => c.split('=')[0].trim()));
+          return null;
+        }
+        
+        const token = authCookie.split('=')[1]?.trim();
+        
+        if (!token) {
+          console.error("❌ WS: Empty token value");
+          return null;
+        }
+        
+        console.log("✅ WS: Token found, length:", token.length);
+        return token;
+        
+      } catch (error) {
+        console.error("❌ WS: Error parsing cookies:", error);
+        return null;
+      }
+    };
+
+    const token = getAuthToken();
+    
+    if (!token) {
+      console.error("❌ WS: No auth token - cannot connect");
+      setError("Not authenticated - please log in");
+      setConnectionState('error');
+      return;
+    }
+
+    // ✅ ADD TOKEN TO WEBSOCKET URL
+    const baseUrl = getWebSocketUrl();
+    const wsUrl = `${baseUrl}?token=${encodeURIComponent(token)}`;
+    
+    console.log("🔌 WS: Connecting...");
+    console.log("🔗 WS: URL:", baseUrl);
+    console.log("🎫 WS: Token length:", token.length);
+    console.log("🏠 WS: Room ID:", roomId);
+    
+    setConnectionState('connecting');
+    setError(null); // ✅ Clear previous errors
+
+    try {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      const connectionTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          console.log("⏱️ WS: Connection timeout");
+          ws.close();
+          setError("Connection timeout - check your internet");
+          setConnectionState('error');
+        }
+      }, 10000);
+
+      ws.onopen = () => {
+        clearTimeout(connectionTimeout);
+        console.log("✅ WS: Connected successfully!");
+        setIsConnected(true);
+        setError(null);
+        setConnectionState('connected');
+        reconnectAttemptsRef.current = 0;
+
+        // Start heartbeat
+        heartbeatIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(JSON.stringify({ event: "ping" }));
+            } catch (err) {
+              console.error("❌ WS: Failed to send ping:", err);
+            }
+          }
+        }, WEBSOCKET_CONFIG.heartbeat.interval);
+      };
+
+      ws.onerror = (err) => {
+        clearTimeout(connectionTimeout);
+        console.error("❌ WS: Connection error", err);
+        setConnectionState('error');
+        setError("Connection error - check server status");
+        handlersRef.current.onError?.(err);
+      };
+
+      ws.onclose = (event) => {
+        clearTimeout(connectionTimeout);
+        console.log("🔌 WS: Connection closed");
+        console.log("   Code:", event.code);
+        console.log("   Reason:", event.reason || 'No reason provided');
+        console.log("   Clean:", event.wasClean);
+        
+        setIsConnected(false);
+        setIsRoomJoined(false);
+        setConnectionState('disconnected');
+
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+          heartbeatIntervalRef.current = null;
+        }
+
+        // ✅ Don't reconnect if:
+        // 1. Normal close (1000)
+        // 2. Auth failed (1008)
+        // 3. Component disabled
+        if (event.code === 1000) {
+          console.log("✋ WS: Normal close - not reconnecting");
+          return;
+        }
+
+        if (event.code === 1008 || event.reason?.toLowerCase().includes('auth')) {
+          console.error("❌ WS: Authentication failed");
+          setError("Authentication failed - please refresh and log in again");
+          return;
+        }
+
+        if (!enabled) {
+          console.log("✋ WS: Disabled - not reconnecting");
+          return;
+        }
+
+        // ✅ Reconnect logic
+        if (reconnectAttemptsRef.current < WEBSOCKET_CONFIG.reconnect.maxAttempts) {
+          reconnectAttemptsRef.current++;
+          const delay = Math.min(
+            WEBSOCKET_CONFIG.reconnect.baseDelay * Math.pow(2, reconnectAttemptsRef.current - 1),
+            WEBSOCKET_CONFIG.reconnect.maxDelay
+          );
+
+          const retryMessage = `Reconnecting in ${Math.ceil(delay / 1000)}s... (${reconnectAttemptsRef.current}/${WEBSOCKET_CONFIG.reconnect.maxAttempts})`;
+          console.log("🔄 WS:", retryMessage);
+          setError(retryMessage);
+
+          reconnectTimeoutRef.current = setTimeout(() => {
+            console.log("🔄 WS: Attempting reconnection...");
+            connect();
+          }, delay);
+        } else {
+          console.error("❌ WS: Max reconnection attempts reached");
+          setError("Connection failed. Please refresh the page.");
+          setConnectionState('error');
+        }
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const { event: eventType, data } = JSON.parse(event.data);
+          
+          // ✅ Add debug logging for important events
+          if (!['pong', 'user:typing'].includes(eventType)) {
+            console.log("📨 WS: Event:", eventType);
+          }
+
+          switch (eventType) {
+            case "authenticated":
+              console.log("✅ WS: Authenticated! Joining room:", roomId);
+              ws.send(
+                JSON.stringify({
+                  event: "join_room",
+                  data: { roomId },
+                })
+              );
+              break;
+
+            case "room_joined":
+              console.log("🎉 WS: Room joined successfully!");
+              setIsRoomJoined(true);
+              setError(null);
+
+              // Process queued messages
+              if (messageQueueRef.current.length > 0) {
+                console.log(`📤 WS: Processing ${messageQueueRef.current.length} queued messages`);
+                messageQueueRef.current.forEach((item) => {
+                  try {
+                    if (item.event) {
+                      ws.send(JSON.stringify({ event: item.event, data: item.data }));
+                    } else {
+                      ws.send(JSON.stringify({ event: "send_message", data: item }));
+                    }
+                  } catch (err) {
+                    console.error("❌ WS: Failed to send queued message:", err);
+                  }
+                });
+                messageQueueRef.current = [];
+              }
+              break;
+
+            case "message:new":
+              handlersRef.current.onMessage?.(data);
+              break;
+
+            case "message:edited":
+              handlersRef.current.onMessageEdited?.(data);
+              break;
+
+            case "message:deleted":
+              handlersRef.current.onMessageDeleted?.(data);
+              break;
+
+            case "reaction:toggle":
+              handlersRef.current.onReaction?.(data);
+              break;
+
+            case "user:typing":
+              handlersRef.current.onTyping?.(data);
+              break;
+
+            case "user:online":
+              handlersRef.current.onUserOnline?.(data);
+              break;
+
+            case "user:offline":
+              handlersRef.current.onUserOffline?.(data);
+              break;
+
+            case "question:new":
+              handlersRef.current.onQuestionNew?.(data);
+              break;
+
+            case "question:upvote":
+              handlersRef.current.onQuestionUpvote?.(data);
+              break;
+
+            case "question:view":
+              handlersRef.current.onQuestionView?.(data);
+              break;
+
+            case "question:answer":
+              handlersRef.current.onQuestionAnswer?.(data);
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('question:answer', {
+                  detail: data
+                }));
+              }
+              break;
+
+            case "answer:thanked":
+              handlersRef.current.onAnswerThanked?.(data);
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('answer:thanked', {
+                  detail: data
+                }));
+              }
+              break;
+
+            case "answer:upvote":
+              handlersRef.current.onAnswerUpvote?.(data);
+              break;
+
+            case "goals:updated":
+              handlersRef.current.onGoalsUpdated?.(data);
+              break;
+
+            case "preferences:updated":
+              handlersRef.current.onPreferencesUpdated?.(data);
+              break;
+
+            case "error":
+              console.error("❌ WS: Server error:", data.message);
+              setError(data.message);
+              handlersRef.current.onError?.(data);
+              break;
+
+            case "pong":
+              // Heartbeat response - silent
+              break;
+
+            default:
+              console.log("⚠️ WS: Unknown event:", eventType, data);
+          }
+        } catch (err) {
+          console.error("❌ WS: Failed to parse message:", err, event.data);
+        }
+      };
+    } catch (err) {
+      console.error("❌ WS: Failed to create WebSocket:", err);
+      setError("Failed to create connection");
+      setConnectionState('error');
+      handlersRef.current.onError?.(err);
+    }
+  }, [enabled, roomId]); // ✅ Remove cleanup from dependencies
+
+  // ✅ IMPROVED: Effect with better dependency management
+  useEffect(() => {
+    if (enabled && roomId) {
+      console.log("🎬 WS: Effect triggered - connecting");
+      connect();
+    } else {
+      console.log("🎬 WS: Effect triggered - cleaning up");
+      cleanup();
+    }
+
+    return () => {
+      console.log("🎬 WS: Effect cleanup - component unmounting");
+      cleanup();
+    };
+  }, [enabled, roomId]); // ✅ Only depend on enabled and roomId
 
   // ✅ WebSocket methods with better error handling
   const sendMessage = useCallback(
