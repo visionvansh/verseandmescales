@@ -1,19 +1,15 @@
 // src/lib/loaders/checkout-loader.ts
 import prisma from '@/lib/prisma';
-import { getCachedData, courseCacheKeys, COURSE_CACHE_TIMES } from '@/lib/cache/course-cache';
+import { createPayPalOrder, calculatePlatformFee, calculateSellerAmount } from '@/lib/paypal';
 
 interface AtomicCheckoutData {
   course: any;
   owner: any;
   currentUserAvatars: any[];
-  clientSecret: string;
-  paymentIntentId: string;
+  paypalOrderId: string;
   timestamp: number;
 }
 
-/**
- * ✅ FIXED: Always fetch fresh course data for checkout (no cache)
- */
 export async function loadCompleteCheckoutData(
   courseId: string,
   userId: string
@@ -22,10 +18,8 @@ export async function loadCompleteCheckoutData(
   console.log('⚡ Loading checkout data for:', courseId);
 
   try {
-    // ✅ FIX: Always fetch fresh course data for checkout (bypass cache)
     const courseDetail = await fetchCourseForCheckout(courseId);
-
-    // ✅ Fetch current user's avatars (fresh, as it's user-specific)
+    
     const currentUserAvatars = await prisma.avatar.findMany({
       where: { userId },
       orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
@@ -40,8 +34,7 @@ export async function loadCompleteCheckoutData(
       },
     });
 
-    // ✅ Always fetch fresh payment/enrollment data (never cached)
-    const paymentData = await createPaymentIntent(courseId, userId, courseDetail.course);
+    const paymentData = await createPayPalOrderForCourse(courseId, userId, courseDetail.course);
 
     const totalTime = Date.now() - startTime;
     console.log(`⚡ Checkout data loaded in ${totalTime}ms`);
@@ -58,9 +51,6 @@ export async function loadCompleteCheckoutData(
   }
 }
 
-/**
- * ✅ FIXED: Always fetch fresh from DB (no cache for checkout)
- */
 async function fetchCourseForCheckout(courseId: string) {
   console.log('[Checkout Loader] 🔍 Fetching fresh course data from database...');
   
@@ -79,7 +69,6 @@ async function fetchCourseForCheckout(courseId: string) {
           name: true,
           surname: true,
           img: true,
-          stripeCustomerId: true,
           avatars: {
             orderBy: { createdAt: 'desc' },
             select: {
@@ -92,11 +81,6 @@ async function fetchCourseForCheckout(courseId: string) {
               customImageUrl: true,
             },
           },
-          earnings: {
-            select: {
-              stripeAccountId: true,
-            },
-          },
         },
       },
     },
@@ -106,7 +90,6 @@ async function fetchCourseForCheckout(courseId: string) {
     throw new Error('Course not found');
   }
 
-  // ✅ CRITICAL: Ensure userId is ALWAYS present
   if (!course.userId) {
     console.error('[Checkout Loader] ❌ CRITICAL: Course has no userId!', {
       courseId: course.id,
@@ -131,8 +114,7 @@ async function fetchCourseForCheckout(courseId: string) {
       thumbnail: course.thumbnail,
       price: course.price,
       salePrice: course.salePrice,
-      userId: course.userId, // ✅ ALWAYS present
-      stripeAccountId: course.user.earnings?.stripeAccountId,
+      userId: course.userId,
     },
     owner: {
       id: course.user.id,
@@ -147,11 +129,7 @@ async function fetchCourseForCheckout(courseId: string) {
   };
 }
 
-/**
- * ✅ FIXED: Simplified - seller ID is guaranteed from fresh fetch
- */
-async function createPaymentIntent(courseId: string, userId: string, course: any) {
-  // ✅ Seller ID is now guaranteed to exist from fresh fetch
+async function createPayPalOrderForCourse(courseId: string, userId: string, course: any) {
   const sellerId = course.userId;
 
   if (!sellerId) {
@@ -173,25 +151,22 @@ async function createPaymentIntent(courseId: string, userId: string, course: any
     throw new Error('Already enrolled in this course');
   }
 
-  // ✅ VALIDATION: Cannot buy own course
   if (sellerId === userId) {
     throw new Error('You cannot purchase your own course');
   }
 
-  console.log('[Checkout Loader] ✅ Creating payment intent:', {
+  console.log('[Checkout Loader] ✅ Creating PayPal order:', {
     courseId,
     buyerId: userId,
     sellerId,
   });
 
-  // Get buyer
   const buyer = await prisma.student.findUnique({
     where: { id: userId },
     select: {
       id: true,
       email: true,
       name: true,
-      stripeCustomerId: true,
     },
   });
 
@@ -199,26 +174,6 @@ async function createPaymentIntent(courseId: string, userId: string, course: any
     throw new Error('User not found');
   }
 
-  // Create/get Stripe customer
-  const stripe = require('@/lib/stripe').stripe;
-  let stripeCustomerId = buyer.stripeCustomerId;
-
-  if (!stripeCustomerId) {
-    const customer = await stripe.customers.create({
-      email: buyer.email,
-      name: buyer.name || undefined,
-      metadata: { userId: buyer.id },
-    });
-
-    stripeCustomerId = customer.id;
-
-    await prisma.student.update({
-      where: { id: buyer.id },
-      data: { stripeCustomerId },
-    });
-  }
-
-  // Create payment intent
   const price = parseFloat(course.salePrice || course.price || '0');
   
   if (price <= 0) {
@@ -226,37 +181,23 @@ async function createPaymentIntent(courseId: string, userId: string, course: any
   }
 
   const amountInCents = Math.round(price * 100);
-  const { calculatePlatformFee, calculateSellerAmount } = require('@/lib/stripe');
   const platformFee = calculatePlatformFee(amountInCents);
   const sellerAmount = calculateSellerAmount(amountInCents);
 
-  const paymentIntentParams: any = {
-    amount: amountInCents,
-    currency: 'usd',
-    customer: stripeCustomerId,
-    metadata: {
-      courseId,
-      buyerId: userId,
-      sellerId: sellerId,
-      platformFee: platformFee.toString(),
-      sellerAmount: sellerAmount.toString(),
-    },
+  // Create PayPal order
+  const { orderId } = await createPayPalOrder({
+    amount: price,
+    currency: 'USD',
+    courseId,
+    buyerId: userId,
+    sellerId: sellerId,
     description: `Purchase: ${course.title}`,
-  };
+  });
 
-  if (course.stripeAccountId) {
-    paymentIntentParams.application_fee_amount = platformFee;
-    paymentIntentParams.transfer_data = {
-      destination: course.stripeAccountId,
-    };
-  }
-
-  const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
-
-  // ✅ Create payment record
+  // Create payment record
   await prisma.payment.create({
     data: {
-      stripePaymentId: paymentIntent.id,
+      stripePaymentId: orderId, // Reusing this field for PayPal order ID
       amount: price,
       currency: 'USD',
       status: 'pending',
@@ -275,8 +216,8 @@ async function createPaymentIntent(courseId: string, userId: string, course: any
     },
   });
 
-  console.log('✅ Payment intent created successfully:', {
-    paymentIntentId: paymentIntent.id,
+  console.log('✅ PayPal order created successfully:', {
+    orderId,
     courseId,
     buyerId: userId,
     sellerId: sellerId,
@@ -284,7 +225,6 @@ async function createPaymentIntent(courseId: string, userId: string, course: any
   });
 
   return {
-    clientSecret: paymentIntent.client_secret!,
-    paymentIntentId: paymentIntent.id,
+    paypalOrderId: orderId,
   };
 }

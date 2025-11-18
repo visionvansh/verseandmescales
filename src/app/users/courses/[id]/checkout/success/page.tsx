@@ -10,16 +10,11 @@ import {
   FaExclamationTriangle, 
   FaArrowRight,
   FaUserCircle,
-  FaCog,
-  FaHome,
-  FaBook,
-  FaSignOutAlt,
 } from "react-icons/fa";
 import Confetti from "react-confetti";
 import AvatarGenerator from "@/components/settings/AvatarGenerator";
 import { useAuth } from "@/contexts/AuthContext";
 
-// ✅ Avatar Interface
 interface UserAvatar {
   id: string;
   avatarIndex: number;
@@ -30,7 +25,6 @@ interface UserAvatar {
   customImageUrl: string | null;
 }
 
-// ✅ ProfileAvatar Component
 const ProfileAvatar = ({
   customImage,
   avatar,
@@ -83,26 +77,21 @@ const ProfileAvatar = ({
   return <FaUserCircle className={`w-full h-full text-white ${className}`} />;
 };
 
-// ✅ Simple Loading Skeleton (like /courses page)
 const LoadingSkeleton = () => (
   <LazyMotion features={domAnimation}>
     <div className="container mx-auto px-3 xs:px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 py-6 sm:py-8 md:py-10 lg:py-12 mt-20">
       <div className="max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto">
         
-        {/* Simple Content Skeleton */}
         <div className="max-w-2xl mx-auto">
           <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/20">
             <div className="p-6 sm:p-8 md:p-10 lg:p-12 space-y-6">
-              {/* Icon Skeleton */}
               <div className="mx-auto w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-gray-800/40 rounded-full animate-pulse" />
               
-              {/* Text Skeletons */}
               <div className="space-y-3">
                 <div className="h-8 sm:h-10 w-64 sm:w-80 bg-gray-800/40 rounded-lg animate-pulse mx-auto" />
                 <div className="h-5 w-48 sm:w-64 bg-gray-800/30 rounded mx-auto animate-pulse" />
               </div>
 
-              {/* Button Skeleton */}
               <div className="h-12 sm:h-14 w-full max-w-sm bg-gray-800/40 rounded-xl animate-pulse mx-auto" />
             </div>
           </div>
@@ -117,7 +106,8 @@ export default function CheckoutSuccess() {
   const searchParams = useSearchParams();
   const { user, logout, checkAuthStatus } = useAuth();
   
-  const paymentIntentId = searchParams.get('payment_intent');
+  // PayPal returns 'token' parameter with order ID
+  const paypalOrderId = searchParams.get('token');
   const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -208,13 +198,13 @@ export default function CheckoutSuccess() {
 
   // ✅ FOURTH: Verify payment after auth is checked
   useEffect(() => {
-    if (authChecked && paymentIntentId) {
+    if (authChecked && paypalOrderId) {
       verifyPaymentAndEnrollment();
-    } else if (authChecked && !paymentIntentId) {
+    } else if (authChecked && !paypalOrderId) {
       setError('Invalid payment session');
       setLoading(false);
     }
-  }, [authChecked, paymentIntentId]);
+  }, [authChecked, paypalOrderId]);
 
   // ✅ Close dropdown on outside click
   useEffect(() => {
@@ -235,13 +225,13 @@ export default function CheckoutSuccess() {
     try {
       setLoading(true);
       
-      console.log('[Success] 🔍 Verifying payment intent:', paymentIntentId);
+      console.log('[Success] 🔍 Verifying PayPal order:', paypalOrderId);
       
       const response = await fetch('/api/atomic/checkout/success', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ paymentIntentId }),
+        body: JSON.stringify({ paypalOrderId }),
       });
 
       if (!response.ok) {
@@ -285,7 +275,6 @@ export default function CheckoutSuccess() {
     }
   };
 
-  // ✅ Show simple loading skeleton
   if (loading || !authChecked) {
     return <LoadingSkeleton />;
   }
@@ -297,7 +286,6 @@ export default function CheckoutSuccess() {
         <div className="container mx-auto px-3 xs:px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 py-6 sm:py-8 md:py-10 lg:py-12 mt-20">
           <div className="max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto">
             
-            {/* Error Header */}
             <motion.div
               className="text-center mb-6 sm:mb-8 md:mb-10 lg:mb-12"
               initial={{ opacity: 0, y: -20 }}
@@ -311,7 +299,6 @@ export default function CheckoutSuccess() {
               </h1>
             </motion.div>
 
-            {/* Error Content */}
             <div className="max-w-2xl mx-auto">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}

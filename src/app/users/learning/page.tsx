@@ -848,22 +848,107 @@ export default function LearningPage() {
     [moduleId]
   );
 
+  const checkEnrollmentAccess = useCallback(async (courseId: string) => {
+    try {
+      const response = await fetch(`/api/course/check-enrollment?courseId=${courseId}`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        router.push(`/users/courses/${courseId}`);
+        return false;
+      }
+
+      const data = await response.json();
+
+      if (!data.enrolled && !data.isOwner) {
+        router.push(`/users/courses/${courseId}`);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Enrollment check failed:', error);
+      router.push('/users/courses');
+      return false;
+    }
+  }, [router]);
+
+  const fetchModuleDataUpdated = useCallback(
+    async (showRefreshIndicator = false) => {
+      if (!moduleId) {
+        setError("No module ID provided");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        if (showRefreshIndicator) {
+          setIsRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+        setError(null);
+
+        const response = await fetch(
+          `/api/course/learning?moduleId=${moduleId}`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch module data");
+        }
+
+        const data = await response.json();
+
+        console.log("📚 Module data fetched:", {
+          moduleId: data.id,
+          moduleTitle: data.title,
+          courseId: data.course?.id, // ✅ Added
+          progress: data.progress,
+          completedLessons: data.completedLessons,
+          totalLessons: data.totalLessons,
+          totalWatchTime: data.totalWatchTime,
+          lessonsWithProgress: data.lessons.filter(
+            (l: Lesson) => l.watchTime && l.watchTime > 0
+          ).length,
+        });
+
+        // ✅ NEW: Check enrollment after getting module data
+        if (data.course?.id) {
+          const hasAccess = await checkEnrollmentAccess(data.course.id);
+          if (!hasAccess) {
+            return; // Stop processing if no access
+          }
+        }
+
+        setModuleData(data);
+      } catch (err) {
+        console.error("❌ Error fetching module:", err);
+        setError("Failed to load module data");
+      } finally {
+        setLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [moduleId, checkEnrollmentAccess] // ✅ Add to dependencies
+  );
+
   useEffect(() => {
-    fetchModuleData(false);
-  }, [fetchModuleData]);
+    fetchModuleDataUpdated(false);
+  }, [fetchModuleDataUpdated]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && moduleId) {
         console.log("👀 Page visible - refreshing data...");
-        fetchModuleData(true);
+        fetchModuleDataUpdated(true);
       }
     };
 
     const handleFocus = () => {
       if (moduleId) {
         console.log("🔍 Window focused - refreshing data...");
-        fetchModuleData(true);
+        fetchModuleDataUpdated(true);
       }
     };
 
@@ -874,12 +959,12 @@ export default function LearningPage() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [moduleId, fetchModuleData]);
+  }, [moduleId, fetchModuleDataUpdated]);
 
   const handleManualRefresh = useCallback(() => {
     console.log("🔄 Manual refresh triggered");
-    fetchModuleData(true);
-  }, [fetchModuleData]);
+    fetchModuleDataUpdated(true);
+  }, [fetchModuleDataUpdated]);
 
   const handleLessonClick = useCallback(
     (lesson: Lesson) => {

@@ -15,7 +15,6 @@ export async function GET(
     console.log('⚡ Atomic checkout API called for:', id);
     const startTime = Date.now();
 
-    // Get authenticated user
     const user = await getAuthUser(request);
 
     if (!user) {
@@ -25,7 +24,6 @@ export async function GET(
       );
     }
 
-    // ✅ Load ALL checkout data atomically
     const atomicData = await loadCompleteCheckoutData(id, user.id);
 
     const totalTime = Date.now() - startTime;

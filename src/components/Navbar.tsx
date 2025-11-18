@@ -16,11 +16,7 @@ import {
 import { IconType } from "react-icons";
 import AvatarGenerator from "@/components/settings/AvatarGenerator";
 
-// ✅ Add this helper function near the top after imports
-const isCoursesPublicRoute = (path: string | null) => {
-  if (!path) return false;
-  return path === '/users/courses' || path.startsWith('/users/courses/');
-};
+// ✅ REMOVED: isCoursesPublicRoute helper - no longer needed
 
 // Define proper types for command items
 interface BaseCommandItem {
@@ -75,13 +71,12 @@ interface NavbarData {
   timestamp: number;
 }
 
-// ✅ Atomic data hook - UPDATED: Use atomic API pattern from Navbar.tsx
+// ✅ Atomic data hook
 function useAtomicNavbarData() {
   const { user, authChecked } = useAuth();
   const [data, setData] = useState<NavbarData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Load navbar data atomically (updated to match Navbar.tsx pattern)
   useEffect(() => {
     let isMounted = true;
 
@@ -127,7 +122,6 @@ function useAtomicNavbarData() {
     };
   }, [user, authChecked]);
 
-  // Return compatible shape for existing usage (map to previous structure)
   if (!data) {
     return {
       navbarUser: null,
@@ -414,9 +408,8 @@ const CommandHeader = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
 
-  // ✅ Add these checks after the atomic data loading
-  const isPublicCoursesRoute = isCoursesPublicRoute(pathname);
-  const shouldLockFeatures = isPublicCoursesRoute && !user && authChecked;
+  // ✅ UPDATED: Lock features for ALL pages when user is not authenticated
+  const shouldLockFeatures = !user && authChecked;
 
   // ✅ ALL useCallback hooks
   const handleLogout = useCallback(async () => {
@@ -461,6 +454,7 @@ const CommandHeader = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // ✅ Only allow Cmd+K if user is authenticated
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setIsCommandOpen(true);
@@ -493,50 +487,11 @@ const CommandHeader = () => {
   }, [isProfileOpen, isNotificationsOpen]);
 
   useEffect(() => {
-    if (user?.id) {
-      const mockNotifications: Notification[] = [
-        { 
-          id: 1, 
-          type: 'payment',
-          icon: FaMoneyBillWave,
-          iconColor: 'text-green-400',
-          title: 'Payment received',
-          message: '\$127.50 from 3 sales', 
-          read: false, 
-          time: '5m ago'
-        },
-        { 
-          id: 2, 
-          type: 'student',
-          icon: FaUserFriends,
-          iconColor: 'text-blue-400',
-          title: 'New enrollments',
-          message: '8 students enrolled', 
-          read: false, 
-          time: '1h ago'
-        },
-        { 
-          id: 3, 
-          type: 'review',
-          icon: FaStar,
-          iconColor: 'text-yellow-400',
-          title: '5-star review',
-          message: 'Sarah M. loved your course!', 
-          read: true, 
-          time: '3h ago'
-        }
-      ];
-      setNotifications(mockNotifications);
-      setUnreadCount(mockNotifications.filter(n => !n.read).length);
-    }
-  }, [user?.id]);
-
-  useEffect(() => {
     const handleAuthChange = async (event: Event) => {
       if (!(event instanceof CustomEvent)) return;
       
       const { user: newUser } = event.detail;
-      console.log('[Navbar] 🔥 Auth state changed:', newUser?.email);
+      console.log('[Navbar] 🔥 Auth state changed:', newUser?.email)
     };
 
     window.addEventListener('auth-state-changed', handleAuthChange);
@@ -566,6 +521,7 @@ const CommandHeader = () => {
     hasDisplayUser: !!displayUser,
     userRole: userRole(),
     isLoading,
+    shouldLockFeatures, // ✅ Log lock status
   });
 
   // Command Palette Items
@@ -576,26 +532,15 @@ const CommandHeader = () => {
         { icon: FaPlus, label: 'Create new course', shortcut: 'C', href: '/users/management', color: 'text-red-400' },
         { icon: FaVideo, label: 'Explore Courses', shortcut: 'E', href: '/users/courses', color: 'text-blue-400' },
         { icon: FaChartLine, label: 'Your Profile', shortcut: 'P', href: '/users/profile', color: 'text-purple-400' },
-        { icon: FaMoneyBillWave, label: 'Check earnings', shortcut: 'E', href: '/users/payout', color: 'text-green-400' },
       ]
     },
     {
       category: 'Navigation',
       items: [
         { icon: FaBookOpen, label: 'My Courses', href: '/users/my-courses', color: 'text-green-400' },
-        { icon: FaUserFriends, label: 'Students', href: '/users/students', color: 'text-cyan-400' },
-        { icon: FaGraduationCap, label: 'Learning', href: '/users/learning', color: 'text-purple-400' },
         { icon: FaCog, label: 'Settings', href: '/users/settings', color: 'text-gray-400' },
       ]
     },
-    {
-      category: 'Recent',
-      items: [
-        { icon: FaClock, label: 'Advanced Marketing Course', subtext: 'Edited 2 hours ago', href: '/users/my-courses', color: 'text-yellow-400' },
-        { icon: FaClock, label: 'Loading... Messages', subtext: '5 unread', href: '/users/messages', color: 'text-blue-400' },
-        { icon: FaClock, label: 'Revenue Report', subtext: 'Viewed yesterday', href: '/users/analytics', color: 'text-green-400' },
-      ]
-    }
   ];
 
   const filteredCommands = commandItems.map(category => ({
@@ -644,16 +589,8 @@ const CommandHeader = () => {
 
                 {/* Center: Command Bar */}
                 <div className="flex justify-center">
-                  {/* ✅ Update the Command Palette button (Desktop - Center) */}
                   <motion.button
-                    onClick={() => {
-                      if (shouldLockFeatures) {
-                        // Show locked state
-                        setIsCommandOpen(true);
-                      } else {
-                        setIsCommandOpen(true);
-                      }
-                    }}
+                    onClick={() => setIsCommandOpen(true)}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className="w-full max-w-lg relative rounded-xl overflow-hidden group"
@@ -687,7 +624,7 @@ const CommandHeader = () => {
                   {displayUser ? (
                     <>
                       {/* Quick Create */}
-                      <Link href="/users/create-course">
+                      <Link href="/users/management">
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
@@ -826,7 +763,7 @@ const CommandHeader = () => {
                           </div>
                         </motion.button>
 
-                        {/* Profile Dropdown - continues... */}
+                        {/* Profile Dropdown */}
                         <AnimatePresence>
                           {isProfileOpen && (
                             <>
@@ -882,7 +819,6 @@ const CommandHeader = () => {
 
                                   <div className="p-2">
                                     {[
-                                      { icon: FaChartLine, label: 'Analytics', href: '/users/analytics' },
                                       { icon: FaMoneyBillWave, label: 'Earnings', href: '/users/payout' },
                                       { icon: FaBookOpen, label: 'My Courses', href: '/users/my-courses' },
                                       { icon: FaCog, label: 'Settings', href: '/users/settings' },
@@ -921,22 +857,13 @@ const CommandHeader = () => {
                     </>
                   ) : (
                     <>
-                      {/* Guest Profile Icon */}
-                      {/* ✅ Update the Profile section (Desktop - Right) */}
+                      {/* Guest Profile Icon with Lock */}
                       <div className="relative dropdown-container">
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => {
-                            if (shouldLockFeatures) {
-                              // Show locked profile dropdown
-                              setIsProfileOpen(true);
-                            } else {
-                              setIsProfileOpen(!isProfileOpen);
-                            }
-                          }}
+                          onClick={() => setIsProfileOpen(true)}
                           className="relative p-2.5 rounded-xl text-gray-400 hover:text-white transition-colors"
-                          disabled={shouldLockFeatures && isProfileOpen === false}
                         >
                           <div className="absolute inset-0 bg-gray-900/30 hover:bg-gray-900/50 backdrop-blur-sm rounded-xl transition-all" />
                           <div className="absolute inset-0 border border-gray-700/30 hover:border-gray-600/50 rounded-xl transition-all" />
@@ -947,10 +874,8 @@ const CommandHeader = () => {
                         </motion.button>
 
                         <AnimatePresence>
-                          {isProfileOpen && (
-                            shouldLockFeatures ? (
-                              <LockedProfileDropdown onClose={() => setIsProfileOpen(false)} />
-                            ) : null
+                          {isProfileOpen && shouldLockFeatures && (
+                            <LockedProfileDropdown onClose={() => setIsProfileOpen(false)} />
                           )}
                         </AnimatePresence>
                       </div>
@@ -968,15 +893,9 @@ const CommandHeader = () => {
                   </div>
                 </Link>
 
-                {/* ✅ Update Mobile search button */}
+                {/* Mobile search button */}
                 <motion.button
-                  onClick={() => {
-                    if (shouldLockFeatures) {
-                      setIsCommandOpen(true);
-                    } else {
-                      setIsCommandOpen(true);
-                    }
-                  }}
+                  onClick={() => setIsCommandOpen(true)}
                   whileTap={{ scale: 0.98 }}
                   className="flex-1 max-w-[200px] sm:max-w-xs mx-auto relative rounded-lg overflow-hidden"
                 >
@@ -1003,7 +922,7 @@ const CommandHeader = () => {
                   >
                     <div className="absolute inset-0 bg-gray-900/30 backdrop-blur-sm rounded-lg" />
                     {displayUser ? (
-                      <div className="relative w-7 h-7 rounded-full border-2 border-red-500/50 overflow-hidden bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center">
+                      <div className="relative w-7 h-7 rounded-full border-2 border-red-500/50 flex-shrink-0 overflow-hidden hover:border-red-500 transition-all duration-200 cursor-pointer bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center">
                         <ProfileAvatar
                           customImage={displayUser?.img}
                           avatar={primaryAvatar}
@@ -1012,7 +931,12 @@ const CommandHeader = () => {
                         />
                       </div>
                     ) : (
-                      <FaUserCircle className="w-7 h-7 text-gray-400" />
+                      <div className="relative">
+                        <FaUserCircle className="w-7 h-7 text-gray-400" />
+                        {shouldLockFeatures && (
+                          <FaLock className="absolute -top-1 -right-1 text-red-500 text-xs bg-gray-900 rounded-full p-0.5" />
+                        )}
+                      </div>
                     )}
                   </motion.button>
 
@@ -1074,7 +998,6 @@ const CommandHeader = () => {
                                 {[
                                   { icon: FaHome, label: 'Home', href: '/users/dashboard' },
                                   { icon: FaBookOpen, label: 'My Courses', href: '/users/my-courses' },
-                                  { icon: FaChartLine, label: 'Analytics', href: '/users/analytics' },
                                   { icon: FaMoneyBillWave, label: 'Earnings', href: '/users/payout' },
                                   { icon: FaBell, label: 'Notifications', href: '#', badge: unreadCount },
                                   { icon: FaCog, label: 'Settings', href: '/users/settings' },
@@ -1166,10 +1089,10 @@ const CommandHeader = () => {
 
       {/* Command Palette */}
       <AnimatePresence>
-        
         {isCommandOpen && (
           shouldLockFeatures ? (
-            <LockedCommandPalette onClose={() => setIsCommandOpen(false)} />) : (
+            <LockedCommandPalette onClose={() => setIsCommandOpen(false)} />
+          ) : (
             <>
               <motion.div
                 initial={{ opacity: 0 }}
@@ -1242,7 +1165,7 @@ const CommandHeader = () => {
                                     <kbd className="hidden sm:block px-2 py-1 bg-gray-800/50 border border-gray-700/50 rounded text-xs text-gray-400 font-mono flex-shrink-0">
                                       {item.shortcut}
                                     </kbd>
-                                  )}
+                                                                    )}
                                 </Link>
                               ))}
                             </div>
@@ -1275,9 +1198,10 @@ const CommandHeader = () => {
                 </motion.div>
               </div>
             </>
-          ))}
-        </AnimatePresence>
-      </>
+          )
+        )}
+      </AnimatePresence>
+    </>
   );
 };
 

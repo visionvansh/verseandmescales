@@ -288,6 +288,79 @@ const VideoPlayerPage = () => {
     }
   };
 
+  const checkEnrollmentAccess = useCallback(async (courseId: string) => {
+    try {
+      const response = await fetch(`/api/course/check-enrollment?courseId=${courseId}`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        router.push(`/users/courses/${courseId}`);
+        return false;
+      }
+
+      const data = await response.json();
+
+      if (!data.enrolled && !data.isOwner) {
+        router.push(`/users/courses/${courseId}`);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Enrollment check failed:', error);
+      router.push('/users/courses');
+      return false;
+    }
+  }, [router]);
+
+  const fetchLessonDataUpdated = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch(`/api/course/video?lessonId=${lessonId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch lesson data');
+      }
+
+      const data = await response.json();
+      console.log('Lesson data loaded:', {
+        lessonId: data.id,
+        courseId: data.course?.id, // ✅ Added
+        lastPosition: data.lastPosition,
+        progressPercent: data.progressPercent,
+        watchTime: data.watchTime
+      });
+      
+      // ✅ NEW: Check enrollment after getting lesson data
+      if (data.course?.id) {
+        const hasAccess = await checkEnrollmentAccess(data.course.id);
+        if (!hasAccess) {
+          return; // Stop processing if no access
+        }
+      }
+      
+      setLessonData(data);
+      
+      // Set initial states from database
+      if (data.watchTime > 0) {
+        setWatchTime(data.watchTime);
+      }
+      if (data.progressPercent > 0) {
+        setProgress(data.progressPercent);
+      }
+      setIsMarkedComplete(data.isCompleted);
+      
+    } catch (err) {
+      console.error('Error fetching lesson:', err);
+      setError('Failed to load lesson data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ✅ ADD THIS: Fetch room ID when lesson loads
   useEffect(() => {
     if (lessonData?.course?.id) {
@@ -672,7 +745,7 @@ const VideoPlayerPage = () => {
                 Go Back
               </button>
               <button
-                onClick={fetchLessonData}
+                onClick={fetchLessonDataUpdated}
                 className="flex-1 bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl font-bold hover:scale-105 transition-transform"
               >
                 Retry

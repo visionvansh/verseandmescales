@@ -4,6 +4,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence, LazyMotion, domAnimation, m } from "framer-motion";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 import {
   FaChevronRight,
@@ -49,6 +50,10 @@ import {
   FaTrash,
   FaCode,
   FaTags,
+  FaComment,
+  FaPlay,
+  FaCircle,
+  FaStarHalfAlt,
 } from "react-icons/fa";
 
 interface Question {
@@ -63,6 +68,729 @@ interface Question {
     description?: string;
   }[];
 }
+
+// ============================================
+// NEW: Enrolled Course Data Interface
+// ============================================
+interface EnrolledCourseData {
+  id: string;
+  title: string;
+  thumbnail: string;
+  progress: number;
+  totalModules: number;
+  completedModules: number;
+  totalLessons: number;
+  completedLessons: number;
+  rating: number | null;
+  userComment: string | null;
+  unreadMessages: number;
+  newQuestions: number;
+  onlineUsers: number;
+  lastAccessedAt: string;
+  enrolledAt: string;
+  averageRating: number; // ✅ ADDED: Course's average rating
+  totalRatings: number;  // ✅ ADDED: Total number of ratings
+}
+
+// ============================================
+// ✅ IMPROVED: RATING STARS COMPONENT
+// ============================================
+const RatingStars = ({ 
+  rating, 
+  size = "md",
+  showNumber = true,
+  totalRatings,
+  interactive = false,
+  onRate
+}: { 
+  rating: number;
+  size?: "sm" | "md" | "lg";
+  showNumber?: boolean;
+  totalRatings?: number;
+  interactive?: boolean;
+  onRate?: (rating: number) => void;
+}) => {
+  const [hoveredStar, setHoveredStar] = useState(0);
+
+  const sizeClasses = {
+    sm: "text-xs",
+    md: "text-sm",
+    lg: "text-base"
+  };
+
+  const displayRating = interactive ? (hoveredStar || rating) : rating;
+  const fullStars = Math.floor(displayRating);
+  const hasHalfStar = displayRating % 1 >= 0.5;
+  const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className={`flex items-center gap-0.5 ${sizeClasses[size]}`}>
+        {/* Full Stars */}
+        {[...Array(fullStars)].map((_, i) => (
+          <motion.button
+            key={`full-${i}`}
+            type="button"
+            disabled={!interactive}
+            onClick={() => interactive && onRate?.(i + 1)}
+            onMouseEnter={() => interactive && setHoveredStar(i + 1)}
+            onMouseLeave={() => interactive && setHoveredStar(0)}
+            className={`${interactive ? 'cursor-pointer hover:scale-125' : ''} transition-transform`}
+            whileHover={interactive ? { scale: 1.25 } : {}}
+            whileTap={interactive ? { scale: 0.9 } : {}}
+          >
+            <FaStar className="text-yellow-500 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
+          </motion.button>
+        ))}
+        
+        {/* Half Star */}
+        {hasHalfStar && !interactive && <FaStarHalfAlt className="text-yellow-500" />}
+        
+        {/* Empty Stars */}
+        {[...Array(emptyStars)].map((_, i) => (
+          <motion.button
+            key={`empty-${i}`}
+            type="button"
+            disabled={!interactive}
+            onClick={() => interactive && onRate?.(fullStars + (hasHalfStar ? 1 : 0) + i + 1)}
+            onMouseEnter={() => interactive && setHoveredStar(fullStars + (hasHalfStar ? 1 : 0) + i + 1)}
+            onMouseLeave={() => interactive && setHoveredStar(0)}
+            className={`${interactive ? 'cursor-pointer hover:scale-125' : ''} transition-transform`}
+            whileHover={interactive ? { scale: 1.25 } : {}}
+            whileTap={interactive ? { scale: 0.9 } : {}}
+          >
+            <FaStar className="text-gray-600" />
+          </motion.button>
+        ))}
+      </div>
+      
+      {showNumber && (
+        <div className="flex items-center gap-1">
+          <span className={`font-bold text-white ${sizeClasses[size]}`}>
+            {rating.toFixed(1)}
+          </span>
+          {totalRatings !== undefined && totalRatings > 0 && (
+            <span className={`text-gray-400 ${sizeClasses[size]}`}>
+              ({totalRatings})
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================
+// ✅ COMPLETELY REDESIGNED: CAROUSEL WITH VISIBLE BLUR CARDS
+// ============================================
+const EnrolledCoursesArea = ({ courses }: { courses: EnrolledCourseData[] }) => {
+  const router = useRouter();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [touchStart, setTouchStart] = useState(0);
+  const [touchEnd, setTouchEnd] = useState(0);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedCourseForRating, setSelectedCourseForRating] = useState<string | null>(null);
+
+  const currentCourse = courses[currentIndex];
+  const hasMultipleCourses = courses.length > 1;
+
+  // Swipe handlers for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+
+    if (isLeftSwipe && hasMultipleCourses) {
+      handleNext();
+    }
+    if (isRightSwipe && hasMultipleCourses) {
+      handlePrev();
+    }
+
+    setTouchStart(0);
+    setTouchEnd(0);
+  };
+
+  const handleNext = () => {
+    setCurrentIndex((prev) => (prev + 1) % courses.length);
+  };
+
+  const handlePrev = () => {
+    setCurrentIndex((prev) => (prev - 1 + courses.length) % courses.length);
+  };
+
+  const getPrevIndex = () => (currentIndex - 1 + courses.length) % courses.length;
+  const getNextIndex = () => (currentIndex + 1) % courses.length;
+
+  return (
+    <div className="relative min-h-screen py-6 sm:py-8 md:py-10">
+      <div className="container mx-auto px-3 xs:px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20">
+        <div className="max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto">
+          
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-6 sm:mb-8 md:mb-10"
+          >
+            <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-black text-white leading-tight">
+              <span className="bg-gradient-to-r from-red-400 via-red-500 to-red-600 bg-clip-text text-transparent">
+                YOUR LEARNING
+              </span>{" "}
+              <span className="block sm:inline">JOURNEY</span>
+            </h1>
+          </motion.div>
+
+          {/* ✅ IMPROVED: Sliding Cards with LESS BLUR & VISIBLE on ALL DEVICES */}
+          <div className="relative mb-8 sm:mb-10 md:mb-12">
+            {/* Desktop Navigation Buttons */}
+            {hasMultipleCourses && (
+              <div className="hidden md:block">
+                <button
+                  onClick={handlePrev}
+                  className="absolute -left-6 lg:-left-8 top-1/2 -translate-y-1/2 z-20 bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 backdrop-blur-2xl p-3 sm:p-4 rounded-full transition-all duration-300 hover:scale-110 hover:border-red-500/50 group shadow-xl"
+                >
+                  <FaChevronLeft className="text-white text-lg sm:text-xl group-hover:text-red-400 transition-colors" />
+                </button>
+
+                <button
+                  onClick={handleNext}
+                  className="absolute -right-6 lg:-right-8 top-1/2 -translate-y-1/2 z-20 bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 backdrop-blur-2xl p-3 sm:p-4 rounded-full transition-all duration-300 hover:scale-110 hover:border-red-500/50 group shadow-xl"
+                >
+                  <FaChevronRight className="text-white text-lg sm:text-xl group-hover:text-red-400 transition-colors" />
+                </button>
+              </div>
+            )}
+
+            {/* ✅ IMPROVED: Carousel with VISIBLE Blur Cards on ALL Devices */}
+            <div 
+              className="relative overflow-visible"
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              {hasMultipleCourses ? (
+                // Multiple courses: Show blur effect on BOTH mobile and desktop
+                <div className="relative flex items-center justify-center">
+                  {/* Previous Card (Less Blur - Visible on ALL screens) */}
+                  <div className="absolute left-0 w-[75%] sm:w-[70%] md:w-[65%] lg:w-[60%] opacity-60 sm:opacity-70 blur-[2px] scale-[0.85] sm:scale-90 transform -translate-x-[55%] sm:-translate-x-[60%] z-0 pointer-events-none">
+                    <CourseCarouselCard course={courses[getPrevIndex()]} isBlurred />
+                  </div>
+
+                  {/* Current Card (Main Focus) */}
+                  <div className="relative z-10 w-full">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={currentIndex}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <CourseCarouselCard 
+                          course={currentCourse} 
+                          onRateClick={(courseId) => {
+                            setSelectedCourseForRating(courseId);
+                            setShowRatingModal(true);
+                          }}
+                          router={router}
+                        />
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Next Card (Less Blur - Visible on ALL screens) */}
+                  <div className="absolute right-0 w-[75%] sm:w-[70%] md:w-[65%] lg:w-[60%] opacity-60 sm:opacity-70 blur-[2px] scale-[0.85] sm:scale-90 transform translate-x-[55%] sm:translate-x-[60%] z-0 pointer-events-none">
+                    <CourseCarouselCard course={courses[getNextIndex()]} isBlurred />
+                  </div>
+                </div>
+              ) : (
+                // Single course: No blur effect
+                <CourseCarouselCard 
+                  course={currentCourse} 
+                  onRateClick={(courseId) => {
+                    setSelectedCourseForRating(courseId);
+                    setShowRatingModal(true);
+                  }}
+                  router={router}
+                />
+              )}
+            </div>
+
+            {/* Progress Indicators */}
+            {hasMultipleCourses && (
+              <div className="flex justify-center gap-2 mt-6">
+                {courses.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentIndex(index)}
+                    className="relative group"
+                  >
+                    <div
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        index === currentIndex
+                          ? 'w-12 bg-gradient-to-r from-red-600 to-red-500'
+                          : 'w-2 bg-gray-600 group-hover:bg-gray-500'
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ✅ Rating Modal */}
+      <AnimatePresence>
+        {showRatingModal && selectedCourseForRating && (
+          <RatingModal
+            courseId={selectedCourseForRating}
+            onClose={() => {
+              setShowRatingModal(false);
+              setSelectedCourseForRating(null);
+            }}
+            onSuccess={() => {
+              // Refresh course data
+              window.location.reload();
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// ============================================
+// ✅ IMPROVED: MODERN CARD WITH EVERYTHING INSIDE
+// ============================================
+const CourseCarouselCard = ({ 
+  course, 
+  isBlurred = false,
+  onRateClick,
+  router
+}: { 
+  course: EnrolledCourseData; 
+  isBlurred?: boolean;
+  onRateClick?: (courseId: string) => void;
+  router?: any;
+}) => {
+  const [imageError, setImageError] = useState(false);
+
+  return (
+    <div className={`relative w-full ${isBlurred ? 'pointer-events-none select-none' : ''}`}>
+      {/* ✅ Card Container with Optimized Height */}
+      <div className="relative bg-gradient-to-br from-gray-900/90 to-black/95 rounded-2xl sm:rounded-3xl border border-red-500/30 backdrop-blur-2xl overflow-hidden shadow-2xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-2xl sm:rounded-3xl" />
+        
+        {/* ✅ IMPROVED: Two Column Layout on Desktop */}
+        <div className="relative grid grid-cols-1 lg:grid-cols-[40%_60%] gap-0">
+          
+          {/* LEFT: Thumbnail Section */}
+          <div className="relative w-full aspect-video lg:aspect-[3/4] rounded-t-2xl sm:rounded-t-3xl lg:rounded-l-3xl lg:rounded-tr-none overflow-hidden group">
+            {course.thumbnail && !imageError ? (
+              <Image
+                src={course.thumbnail}
+                alt={course.title}
+                fill
+                className="object-cover transition-transform duration-500 group-hover:scale-105"
+                onError={() => setImageError(true)}
+                sizes="(max-width: 1024px) 100vw, 40vw"
+                priority
+                unoptimized
+              />
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-black flex items-center justify-center">
+                <FaBook className="text-red-400 text-5xl sm:text-6xl md:text-7xl opacity-30" />
+              </div>
+            )}
+            
+            {/* Overlay Gradient */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+            
+            {/* Progress Badge */}
+            <div className="absolute top-4 right-4 z-10">
+              <div className="bg-black/80 backdrop-blur-sm px-4 py-2 rounded-full border border-red-500/30">
+                <span className="text-red-400 font-bold text-lg">{course.progress}%</span>
+              </div>
+            </div>
+
+            {/* Play Overlay */}
+            {!isBlurred && (
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+                <div className="bg-red-600 p-6 rounded-full shadow-2xl">
+                  <FaPlay className="text-white text-3xl ml-1" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Content Section */}
+          <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+            {/* Title & Rating */}
+            <div>
+              <h2 className="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-black text-white line-clamp-2 mb-3">
+                {course.title}
+              </h2>
+              
+              {/* ✅ Course Rating & Quick Rate */}
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  {course.averageRating > 0 ? (
+                    <RatingStars 
+                      rating={course.averageRating} 
+                      size="md"
+                      showNumber={true}
+                      totalRatings={course.totalRatings}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 text-gray-500 text-sm">
+                      <FaStar className="text-gray-600" />
+                      <span>No ratings yet</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* ✅ Quick Rate Button */}
+                {!isBlurred && (
+                  <button
+                    onClick={() => onRateClick?.(course.id)}
+                    className="group flex items-center gap-2 px-3 py-1.5 bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-500/30 hover:border-yellow-500/50 rounded-lg transition-all"
+                  >
+                    <FaStar className="text-yellow-500 group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-bold text-yellow-400">
+                      {course.rating ? 'Update Rating' : 'Rate Course'}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {/* Last Accessed */}
+              <div className="flex items-center gap-2 text-xs text-gray-400 mt-2">
+                <FaClock className="text-red-400" />
+                <span>Last accessed: {new Date(course.lastAccessedAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+
+            {/* ✅ Progress Bar */}
+            <div className="bg-black/30 rounded-xl p-3 sm:p-4 border border-red-500/20">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-gray-400 text-xs sm:text-sm font-semibold">Course Progress</span>
+                <span className="text-white font-bold text-base sm:text-lg">{course.progress}%</span>
+              </div>
+              
+              <div className="relative h-2.5 sm:h-3 bg-gray-800/50 rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${course.progress}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-red-600 to-red-500 rounded-full"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-3">
+                <div className="text-center">
+                  <p className="text-gray-400 text-[10px] sm:text-xs mb-1">Modules</p>
+                  <p className="text-lg sm:text-xl font-black text-white">
+                    {course.completedModules}/{course.totalModules}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-gray-400 text-[10px] sm:text-xs mb-1">Lessons</p>
+                  <p className="text-lg sm:text-xl font-black text-white">
+                    {course.completedLessons}/{course.totalLessons}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* ✅ Stats Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+              <StatCardCompact
+                icon={FaStar}
+                label="Your Rating"
+                value={course.rating ? `${course.rating}.0` : 'Not rated'}
+                color="from-yellow-600 to-yellow-700"
+              />
+              
+              <StatCardCompact
+                icon={FaComment}
+                label="Messages"
+                value={course.unreadMessages.toString()}
+                color="from-purple-600 to-purple-700"
+                badge={course.unreadMessages}
+              />
+              
+              <StatCardCompact
+                icon={FaQuestion}
+                label="Questions"
+                value={course.newQuestions.toString()}
+                color="from-orange-600 to-orange-700"
+                badge={course.newQuestions}
+              />
+              
+              <StatCardCompact
+                icon={FaUsers}
+                label="Online"
+                value={course.onlineUsers.toString()}
+                color="from-green-600 to-green-700"
+                showPulse
+              />
+            </div>
+
+            {/* ✅ MOVED: Action Buttons INSIDE Card */}
+            {!isBlurred && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-2">
+                <button
+                  onClick={() => router?.push(`/users/courseinside?courseId=${course.id}`)}
+                  className="relative overflow-hidden group"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-700 rounded-xl" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-700 to-red-800 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  
+                  <div className="relative px-4 sm:px-6 py-3 sm:py-3.5 flex items-center justify-center gap-2 sm:gap-3">
+                    <FaPlay className="text-white text-sm sm:text-base" />
+                    <span className="text-white font-bold text-sm sm:text-base">Continue Learning</span>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => router?.push(`/users/courses/${course.id}`)}
+                  className="relative overflow-hidden group"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 rounded-xl border border-red-500/30 backdrop-blur-2xl" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  
+                  <div className="relative px-4 sm:px-6 py-3 sm:py-3.5 flex items-center justify-center gap-2 sm:gap-3">
+                    <FaEye className="text-red-400 text-sm sm:text-base group-hover:text-red-300 transition-colors" />
+                    <span className="text-white font-bold text-sm sm:text-base">View Details</span>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// ✅ COMPACT STAT CARD
+// ============================================
+const StatCardCompact = ({ 
+  icon: Icon, 
+  label, 
+  value, 
+  color, 
+  badge, 
+  showPulse = false
+}: any) => (
+  <div className="relative bg-black/30 rounded-lg p-2 sm:p-3 border border-red-500/20">
+    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center mb-1.5 sm:mb-2 relative`}>
+      <Icon className="text-white text-xs sm:text-sm" />
+      {badge !== undefined && badge > 0 && (
+        <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
+      {showPulse && (
+        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
+      )}
+    </div>
+    <p className="text-gray-400 text-[9px] sm:text-[10px] font-semibold mb-0.5 sm:mb-1">{label}</p>
+    <p className="text-white text-xs sm:text-sm font-bold truncate">{value}</p>
+  </div>
+);
+
+// ============================================
+// ✅ RATING MODAL COMPONENT
+// ============================================
+const RatingModal = ({ 
+  courseId, 
+  onClose, 
+  onSuccess 
+}: { 
+  courseId: string; 
+  onClose: () => void; 
+  onSuccess: () => void;
+}) => {
+  const [rating, setRating] = useState(0);
+  const [review, setReview] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    if (rating === 0) {
+      setError('Please select a rating');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/course/rating', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          courseId,
+          rating,
+          review: review.trim() || null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit rating');
+      }
+
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to submit rating');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const ratingLabels = {
+    1: { text: 'Poor', emoji: '😞', color: 'text-red-400' },
+    2: { text: 'Fair', emoji: '😐', color: 'text-orange-400' },
+    3: { text: 'Good', emoji: '🙂', color: 'text-yellow-400' },
+    4: { text: 'Very Good', emoji: '😊', color: 'text-lime-400' },
+    5: { text: 'Excellent', emoji: '🤩', color: 'text-green-400' },
+  };
+
+  const currentLabel = ratingLabels[rating as keyof typeof ratingLabels];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-gradient-to-br from-gray-900/95 to-black/98 border border-red-500/30 rounded-2xl sm:rounded-3xl p-6 sm:p-8 max-w-lg w-full backdrop-blur-xl shadow-2xl"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl sm:text-3xl font-black text-white">
+            <span className="bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent">
+              RATE
+            </span>{' '}
+            COURSE
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-800/50 rounded-lg transition-colors"
+          >
+            <FaTimes className="text-gray-400 hover:text-white text-xl" />
+          </button>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-900/30 border border-red-500/30 rounded-lg text-red-400 text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Star Rating */}
+        <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30 mb-4">
+          <label className="block text-gray-300 text-sm font-bold mb-4 uppercase tracking-wide">
+            Your Rating *
+          </label>
+          <div className="flex flex-col items-center gap-4">
+            <RatingStars 
+              rating={rating}
+              size="lg"
+              showNumber={false}
+              interactive
+              onRate={setRating}
+            />
+            {currentLabel && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-2"
+              >
+                <span className="text-3xl">{currentLabel.emoji}</span>
+                <span className={`text-xl font-bold ${currentLabel.color}`}>
+                  {currentLabel.text}
+                </span>
+              </motion.div>
+            )}
+          </div>
+        </div>
+
+        {/* Review Input */}
+        <div className="mb-6">
+          <label className="block text-gray-300 text-sm font-bold mb-3 uppercase tracking-wide">
+            Write a Review (Optional)
+          </label>
+          <textarea
+            value={review}
+            onChange={(e) => setReview(e.target.value)}
+            placeholder="Share your experience with this course..."
+            className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-transparent transition-all resize-none"
+            rows={4}
+            maxLength={500}
+          />
+          <p className="text-gray-500 text-xs mt-2">
+            {review.length}/500 characters
+          </p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="flex-1 bg-gray-800/50 hover:bg-gray-700/50 text-white py-3 rounded-xl font-bold transition-all disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || rating === 0}
+            className="flex-1 bg-gradient-to-r from-red-600 to-red-700 text-white py-3 rounded-xl font-bold hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Submitting...</span>
+              </>
+            ) : (
+              <>
+                <FaStar className="text-yellow-400" />
+                <span>Submit Rating</span>
+              </>
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
 
 // Optimized Skeleton Loader Component
 const UsersSkeleton = () => {
@@ -656,27 +1384,44 @@ const Users = () => {
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // ✅ NEW: Enrolled courses state
+  const [enrolledCourses, setEnrolledCourses] = useState<EnrolledCourseData[]>([]);
+  const [hasEnrollments, setHasEnrollments] = useState(false);
+
   useEffect(() => {
-    async function checkOnboarding() {
+    async function checkOnboardingAndEnrollments() {
       try {
-        const response = await fetch('/api/user/goals');
+        // Check onboarding status
+        const goalsResponse = await fetch('/api/user/goals');
         
-        if (!response.ok) {
+        if (!goalsResponse.ok) {
           throw new Error('Failed to fetch goals');
         }
         
-        const data = await response.json();
+        const goalsData = await goalsResponse.json();
         
-        if (data.completed && data.goals) {
+        if (goalsData.completed && goalsData.goals) {
           setHasCompletedOnboarding(true);
           setAnswers({
-            purpose: data.goals.purpose,
-            monthlyGoal: data.goals.monthlyGoal,
-            timeCommitment: data.goals.timeCommitment,
+            purpose: goalsData.goals.purpose,
+            monthlyGoal: goalsData.goals.monthlyGoal,
+            timeCommitment: goalsData.goals.timeCommitment,
           });
           setShowPreview(true);
         } else {
           setHasCompletedOnboarding(false);
+        }
+
+        // ✅ NEW: Check for course enrollments
+        const enrollmentsResponse = await fetch('/api/user/enrolled-courses');
+        
+        if (enrollmentsResponse.ok) {
+          const enrollmentsData = await enrollmentsResponse.json();
+          
+          if (enrollmentsData.courses && enrollmentsData.courses.length > 0) {
+            setEnrolledCourses(enrollmentsData.courses);
+            setHasEnrollments(true);
+          }
         }
       } catch (error) {
         console.error('Failed to check onboarding status:', error);
@@ -686,7 +1431,7 @@ const Users = () => {
       }
     }
 
-    checkOnboarding();
+    checkOnboardingAndEnrollments();
   }, []);
 
   const questions: Question[] = useMemo(() => {
@@ -809,6 +1554,18 @@ const Users = () => {
     );
   }
 
+  // ✅ NEW: Show Enrolled Area if user has purchased courses
+  if (hasEnrollments && enrolledCourses.length > 0) {
+    return (
+      <LazyMotion features={domAnimation}>
+        {/* ✅ ADDED: 20px margin from top on mobile */}
+        <div className="relative mt-5 sm:mt-12 xs:mt-16 md:mt-20">
+          <EnrolledCoursesArea courses={enrolledCourses} />
+        </div>
+      </LazyMotion>
+    );
+  }
+
   if (!currentQuestion && !showPersonalizing && !showPreview) return null;
 
   return (
@@ -850,7 +1607,7 @@ const Users = () => {
                 </div>
               </motion.div>
 
-                            {/* Question Card - Enhanced Responsive */}
+              {/* Question Card - Enhanced Responsive */}
               <AnimatePresence mode="wait">
                 <motion.div key={currentStep} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="relative mb-5 xs:mb-6">
                   <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 rounded-xl sm:rounded-2xl border border-red-500/30 backdrop-blur-2xl" />

@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/utils/auth.ts
 import { NextRequest } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';

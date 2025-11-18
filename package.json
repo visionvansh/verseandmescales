@@ -13,6 +13,9 @@
     "@dicebear/collection": "^9.2.4",
     "@dicebear/core": "^9.2.4",
     "@emoji-mart/data": "^1.2.1",
+    "@fingerprintjs/fingerprintjs": "^5.0.1",
+    "@paypal/paypal-server-sdk": "^2.0.0",
+    "@paypal/react-paypal-js": "^8.9.2",
     "@prisma/client": "^6.17.1",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@simplewebauthn/browser": "^13.2.2",
@@ -70,6 +73,7 @@
   },
   "devDependencies": {
     "@types/crypto-js": "^4.2.2",
+    "@types/fingerprintjs": "^0.5.28",
     "@types/geoip-lite": "^1.4.4",
     "@types/js-cookie": "^3.0.6",
     "@types/jsonwebtoken": "^9.0.10",

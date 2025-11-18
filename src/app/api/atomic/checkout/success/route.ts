@@ -21,17 +21,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { paymentIntentId } = await request.json();
+    const { paypalOrderId } = await request.json();
 
-    if (!paymentIntentId) {
+    if (!paypalOrderId) {
       return NextResponse.json(
-        { error: 'Payment Intent ID is required' },
+        { error: 'PayPal Order ID is required' },
         { status: 400 }
       );
     }
 
     // ✅ Load ALL success data atomically
-    const atomicData = await loadCheckoutSuccessData(paymentIntentId, user.id);
+    const atomicData = await loadCheckoutSuccessData(paypalOrderId, user.id);
 
     const totalTime = Date.now() - startTime;
     console.log(`⚡ Atomic success API completed in ${totalTime}ms`);
@@ -61,4 +61,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

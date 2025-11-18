@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/app/page.tsx
 "use client";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
