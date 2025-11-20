@@ -125,6 +125,20 @@ export interface LiveMessage {
   replyTo?: MessageReply;
   isDeleted?: boolean;
   readBy: string[];
+ 
+
+
+  messageType?: 'text' | 'voice' | 'image' | 'video' | 'pdf';
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'pdf';
+  mediaFileName?: string;
+  mediaFileSize?: number;
+  mediaPublicId?: string;
+  mediaWidth?: number;
+  mediaHeight?: number;
+  mediaDuration?: number;
+  mediaThumbnail?: string;
+  
 }
 
 export interface Reaction {

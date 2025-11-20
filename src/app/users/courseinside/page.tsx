@@ -35,6 +35,76 @@ import {
 import { RatingComponent } from '@/components/course-builder/RatingComponent';
 
 // ============================================
+// NOT ENROLLED PAGE COMPONENT
+// ============================================
+
+const NotEnrolledPage = memo(({ courseId }: { courseId: string }) => {
+  const router = useRouter();
+  
+  return (
+    <div className="relative w-full min-h-screen overflow-x-hidden mt-20">
+      <div className="relative z-10">
+        <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-8 sm:py-12 md:py-16">
+          <div className="max-w-2xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="relative"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 rounded-2xl border border-red-500/30 backdrop-blur-2xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-2xl" />
+              
+              <div className="relative p-8 sm:p-12 md:p-16 text-center">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring" }}
+                  className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-6 sm:mb-8 rounded-full bg-gradient-to-br from-red-600/20 to-red-800/20 border-2 border-red-500/30 flex items-center justify-center"
+                >
+                  <FaExclamationTriangle className="text-4xl sm:text-5xl text-red-400" />
+                </motion.div>
+
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
+                  You Are Not Enrolled
+                </h2>
+                <p className="text-base sm:text-lg text-gray-400 mb-8 max-w-md mx-auto">
+                  You need to enroll in this course to access the learning materials and modules
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
+                  <button
+                    onClick={() => router.push(`/users/courses/${courseId}`)}
+                    className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl font-semibold hover:scale-105 transition-transform text-base"
+                  >
+                    View Course Details
+                  </button>
+                  <button
+                    onClick={() => router.push('/users/courses')}
+                    className="w-full sm:w-auto px-8 py-3 bg-gray-800/50 border border-gray-700 text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors text-base"
+                  >
+                    Browse Courses
+                  </button>
+                </div>
+
+                <div className="mt-8 pt-8 border-t border-red-500/20">
+                  <button
+                    onClick={() => router.back()}
+                    className="text-gray-400 hover:text-white transition-colors text-sm"
+                  >
+                    ← Go Back
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+NotEnrolledPage.displayName = 'NotEnrolledPage';
+
+// ============================================
 // UTILITY FUNCTIONS
 // ============================================
 
@@ -323,16 +393,27 @@ export default function CourseInsidePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [bookmarkedModules, setBookmarkedModules] = useState<Set<string>>(new Set());
 
+  // ✅ ADD THIS STATE
+  const [enrollmentStatus, setEnrollmentStatus] = useState<{
+    checked: boolean;
+    enrolled: boolean;
+    isOwner: boolean;
+  }>({
+    checked: false,
+    enrolled: false,
+    isOwner: false,
+  });
+
   // Refs for horizontal scrolling
   const featuredScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (courseId) {
       checkEnrollmentAccess();
-      fetchModules();
     }
   }, [courseId]);
 
+  // ✅ MODIFIED: Don't redirect, just set state
   const checkEnrollmentAccess = async () => {
     try {
       const response = await fetch(`/api/course/check-enrollment?courseId=${courseId}`, {
@@ -340,18 +421,24 @@ export default function CourseInsidePage() {
       });
 
       if (!response.ok) {
-        router.push(`/users/courses/${courseId}`);
+        setEnrollmentStatus({ checked: true, enrolled: false, isOwner: false });
         return;
       }
 
       const data = await response.json();
+      setEnrollmentStatus({
+        checked: true,
+        enrolled: data.enrolled || false,
+        isOwner: data.isOwner || false,
+      });
 
-      if (!data.enrolled && !data.isOwner) {
-        router.push(`/users/courses/${courseId}`);
+      // Only fetch modules if enrolled or is owner
+      if (data.enrolled || data.isOwner) {
+        fetchModules();
       }
     } catch (error) {
       console.error('Enrollment check failed:', error);
-      router.push(`/users/courses/${courseId}`);
+      setEnrollmentStatus({ checked: true, enrolled: false, isOwner: false });
     }
   };
 
@@ -563,8 +650,13 @@ export default function CourseInsidePage() {
 
   const featuredModules = useMemo(() => modules.filter(m => m.isFeatured), [modules]);
 
+  // ✅ ADD THIS: Show not enrolled page
+  if (enrollmentStatus.checked && !enrollmentStatus.enrolled && !enrollmentStatus.isOwner) {
+    return <NotEnrolledPage courseId={courseId || ''} />;
+  }
+
   // Show skeleton while loading
-  if (loading) {
+  if (loading || !enrollmentStatus.checked) {
     return <CourseInsideLoadingSkeleton />;
   }
 
@@ -880,9 +972,6 @@ export default function CourseInsidePage() {
                           </span>{' '}
                           <span className="text-white">COURSE</span>
                         </h2>
-                        <p className="text-gray-400 text-base sm:text-lg max-w-2xl mx-auto">
-                          Share your experience and help other students make informed decisions
-                        </p>
                       </motion.div>
                     </div>
 

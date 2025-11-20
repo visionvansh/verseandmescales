@@ -1449,10 +1449,16 @@ model ChatMessage {
   voiceDuration     Int?     // in seconds
   voiceUrl          String?
   
-  // Media messages
+  // ✅ COMPLETE MEDIA FIELDS
   mediaUrl          String?
-  mediaType         String?
+  mediaType         String?  // 'image' | 'video' | 'pdf'
   mediaThumbnail    String?
+  mediaFileName     String?  // ✅ ADD THIS
+  mediaFileSize     Int?     // ✅ ADD THIS
+  mediaPublicId     String?  // ✅ ADD THIS
+  mediaWidth        Int?     // ✅ ADD THIS
+  mediaHeight       Int?     // ✅ ADD THIS
+  mediaDuration     Float?   // ✅ ADD THIS (was Int? change to Float?)
   
   // Status
   isEdited          Boolean  @default(false)
@@ -1482,6 +1488,7 @@ model ChatMessage {
   @@index([createdAt])
   @@index([replyToId])
   @@index([isDeleted])
+  @@index([mediaType])  // ✅ ADD INDEX for filtering media messages
 }
 
 model ChatReaction {

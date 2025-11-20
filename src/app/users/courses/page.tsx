@@ -103,7 +103,7 @@ function useCourseCardData(refreshKey: number) {
           const cardsMap = new Map();
           data.cards.forEach((card: any) => {
             cardsMap.set(card.id, {
-              title: card.title || 'Untitled Course',
+              title: card.title || 'Untitled Program',
               description: card.description || '',
               price: card.price || '0',
               salePrice: card.salePrice,
@@ -469,7 +469,7 @@ export default function CoursesPage() {
     const card = cardData.get(course.id);
     return {
       ...course,
-      title: card?.title || 'Untitled Course',
+      title: card?.title || 'Untitled Program',
       description: card?.description || '',
       price: card?.price || '0',
       salePrice: card?.salePrice || undefined, // ✅ FIXED
@@ -570,7 +570,7 @@ export default function CoursesPage() {
                     className="relative"
                   >
                     <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-black tracking-tight">
-                      <span className="inline-block text-white">Course</span>
+                      <span className="inline-block text-white">Programs</span>
                       <span className="inline-block text-red-600 ml-3 sm:ml-4 md:ml-6">
                         Hub
                       </span>
@@ -716,13 +716,13 @@ function CourseCardComponent({
   const getButtonConfig = () => {
     if (course.isEnrolled) {
       return {
-        text: "Get in the Course",
+        text: "Get in the Program",
         className: "bg-green-600 hover:bg-green-700",
         icon: <FaPlay className="mr-2 text-xs sm:text-sm" />,
       };
     }
     return {
-      text: "View Course",
+      text: "View Program",
       className: "bg-red-600 hover:bg-red-700",
       icon: null,
     };

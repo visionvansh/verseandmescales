@@ -466,15 +466,28 @@ export default function CheckoutPage() {
     parseFloat(courseData.salePrice) < originalPrice;
 
   return (
-   <PayPalScriptProvider
-  options={{
-    clientId: PAYPAL_CLIENT_ID,
-    currency: "USD",
-    intent: "capture",
-    components: "buttons,funding-eligibility", // ✅ ADD funding-eligibility
-    vault: false, // ✅ ADD this
-  }}
->
+    <PayPalScriptProvider
+      options={{
+        clientId: PAYPAL_CLIENT_ID,
+        currency: "USD",
+        intent: "capture",
+        components: "buttons,funding-eligibility",
+        vault: false,
+        // ✅ FIX: Disable features that cause errors for digital products
+        dataPageType: "checkout",
+        dataUserIdToken: undefined,
+        disableFunding: undefined, // Allow all funding sources
+        enableFunding: undefined, // Don't force specific funding
+        locale: "en_US",
+        commit: true, // Show "Pay Now" instead of "Continue"
+        // ✅ FIX: Disable shipping for digital products
+        "data-no-shipping": "1",
+        "disable-funding": "", // Empty string allows all methods
+        "data-csp-nonce": typeof window !== "undefined" ? window.crypto.randomUUID() : undefined,
+      }}
+      // ✅ FIX: Add deferLoading to prevent premature SDK initialization
+      deferLoading={false}
+    >
       <div className="container mx-auto px-3 xs:px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 py-6 sm:py-8 md:py-10 lg:py-12 mt-20">
         <div className="max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto">
           <motion.div

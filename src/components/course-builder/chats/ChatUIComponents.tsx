@@ -1,4 +1,4 @@
-///Volumes/vision/codes/course/my-app/src/components/course-builder/chats/ChatQuestionComponents.tsx
+///Volumes/vision/codes/course/my-app/src/components/course-builder/chats/ChatUIComponents.tsx
 "use client";
 
 import React, {
@@ -21,6 +21,7 @@ import ChatUserHoverCard from "@/components/course-builder/chats/ChatUserHoverCa
 import { HoverCardPortal } from "./HoverCardPortal";
 import { useUserHover } from "@/hooks/useUserHover";
 import AvatarGenerator from "@/components/settings/AvatarGenerator";
+import { MediaDisplay } from '@/components/course-builder/chats/MediaDisplay';
 import {
   FaClock,
   FaPlay,
@@ -761,6 +762,21 @@ export const LiveMessageBubble = memo(
       "sending" | "sent" | "delivered" | "read"
     >("read");
 
+    // ✅ DEBUG: Log incoming message data
+    useEffect(() => {
+      console.log('🎨 MESSAGE RENDER DEBUG:', {
+        id: message.id,
+        hasContent: !!message.content,
+        contentLength: message.content?.length,
+        messageType: message.messageType,
+        hasMediaUrl: !!message.mediaUrl,
+        mediaUrl: message.mediaUrl?.substring(0, 50),
+        mediaType: message.mediaType,
+        mediaFileName: message.mediaFileName,
+        allKeys: Object.keys(message)
+      });
+    }, [message]);
+
     // Refs
     const messageRef = useRef<HTMLDivElement | null>(null);
     const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1085,7 +1101,27 @@ export const LiveMessageBubble = memo(
 
                   {/* Content */}
                   <div className="relative z-10">
-                    {message.isVoiceMessage ? (
+                    {/* ✅ CRITICAL FIX: Check for media FIRST */}
+                    {message.mediaUrl && message.mediaType ? (
+                      // ✅ NEW: Media attachments (images, videos, PDFs)
+                      <div className="space-y-2 media-display-container">
+                        <MediaDisplay
+                          url={message.mediaUrl}
+                          type={message.mediaType}
+                          fileName={message.mediaFileName}
+                          thumbnail={message.mediaThumbnail}
+                          width={message.mediaWidth}
+                          height={message.mediaHeight}
+                        />
+                        {/* Optional caption text */}
+                        {message.content && message.content !== message.mediaFileName && (
+                          <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-white message-content-wrapper mt-2">
+                            {message.content}
+                          </p>
+                        )}
+                      </div>
+                    ) : message.isVoiceMessage ? (
+                      // ✅ EXISTING: Voice message UI
                       <div className="flex items-center gap-3 min-w-[200px]">
                         <button className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors flex-shrink-0">
                           <FaPlay className="text-white text-sm ml-0.5" />
@@ -1108,6 +1144,7 @@ export const LiveMessageBubble = memo(
                         </span>
                       </div>
                     ) : (
+                      // ✅ EXISTING: Regular text message
                       <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-white message-content-wrapper">
                         {message.content}
                       </p>

@@ -12,9 +12,13 @@ interface RateLimitResult {
 }
 
 const LIMITS: Record<string, number> = {
-  'password:change': 5, // 5 password change attempts per minute
-  '2fa:verify': 10,     // 10 2FA verify attempts per minute
-  'login': 10,          // 10 login attempts per minute
+  'password:change': 5,     // 5 password change attempts per minute
+  '2fa:verify': 10,         // 10 2FA verify attempts per minute
+  'login': 10,              // 10 login attempts per minute
+  'checkout': 5,            // ✅ NEW: 5 checkout attempts per minute
+  'payment:create': 3,      // ✅ NEW: 3 payment creation attempts per minute
+  'webhook': 100,           // ✅ NEW: 100 webhook events per minute
+  'api:default': 60,        // ✅ NEW: Default API rate limit
   'default': DEFAULT_LIMIT
 };
 

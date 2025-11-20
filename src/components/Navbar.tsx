@@ -529,7 +529,8 @@ const CommandHeader = () => {
     {
       category: 'Quick Actions',
       items: [
-        { icon: FaPlus, label: 'Create new course', shortcut: 'C', href: '/users/management', color: 'text-red-400' },
+         { icon: FaHome, label: 'Home', shortcut: 'H', href: '/users', color: 'text-red-400' },
+        { icon: FaPlus, label: 'Create new course', shortcut: 'C', href: '/users/management', color: 'text-yellow-400' },
         { icon: FaVideo, label: 'Explore Courses', shortcut: 'E', href: '/users/courses', color: 'text-blue-400' },
         { icon: FaChartLine, label: 'Your Profile', shortcut: 'P', href: '/users/profile', color: 'text-purple-400' },
       ]

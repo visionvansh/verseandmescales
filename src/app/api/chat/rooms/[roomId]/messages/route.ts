@@ -35,6 +35,26 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
+    // ✅ FIX: Get course info to determine roles correctly
+    const chatRoom = await prisma.chatRoom.findUnique({
+      where: { id: roomId },
+      include: {
+        course: {
+          select: {
+            id: true,
+            userId: true, // ✅ Get course owner ID
+            title: true
+          }
+        }
+      }
+    });
+
+    if (!chatRoom || !chatRoom.course) {
+      return NextResponse.json({ error: 'Room or course not found' }, { status: 404 });
+    }
+
+    const courseOwnerId = chatRoom.course.userId;
+
     // Fetch messages with complete user data
     const messages = await prisma.chatMessage.findMany({
       where: {
@@ -168,13 +188,12 @@ export async function GET(
       const avatarUrl = getAvatarUrlFromUser(msg.user, 64);
       const primaryAvatar = msg.user.avatars?.find((a: any) => a.isPrimary) || msg.user.avatars?.[0] || null;
 
-      // Determine user type from goals
-      const userGoal = msg.user.UserGoals[0];
-      let userType: 'tutor' | 'learner' | 'both' = 'learner';
-      if (userGoal) {
-        if (userGoal.purpose === 'teach') userType = 'tutor';
-        else if (userGoal.purpose === 'both') userType = 'both';
-      }
+      // ✅ FIX: Determine role based on course ownership, NOT UserGoals
+      const isCourseOwner = msg.user.id === courseOwnerId;
+      const userType = isCourseOwner ? 'tutor' : 'learner';
+      const userRole = isCourseOwner ? 'mentor' : 'student';
+
+      console.log(`🔍 Message user: ${msg.user.username}, isOwner: ${isCourseOwner}, role: ${userRole}`);
 
       // Create complete user metadata object
       const userMetadata = {
@@ -187,7 +206,7 @@ export async function GET(
         img: avatarUrl,
         isOnline: true,
         type: userType,
-        role: userType === 'tutor' ? 'mentor' : 'student',
+        role: userRole, // ✅ CRITICAL: Role based on ownership
         xp: msg.user.userXP?.totalXP || 0,
         seekers: msg.user._count.followers,
         seeking: msg.user._count.following,
@@ -200,13 +219,13 @@ export async function GET(
           color: badge.color
         })),
         bio: '',
-        isPrivate: false
+        isPrivate: false,
+        isCourseOwner: isCourseOwner, // ✅ ADD THIS FLAG
       };
 
       // Transform reply user avatar if exists
       let replyToTransformed = msg.replyTo ? {
         ...msg.replyTo,
-        // ✅ FIXED: Always return ISO string for consistent parsing
         createdAt: msg.replyTo.createdAt.toISOString(),
         user: {
           ...msg.replyTo.user,
@@ -215,7 +234,6 @@ export async function GET(
         }
       } : undefined;
 
-      // ✅ FIX: Group reactions before returning
       const groupedReactions = groupReactionsByEmoji(msg.reactions);
 
       return {
@@ -223,7 +241,6 @@ export async function GET(
         content: decryptMessage(msg.encryptedContent),
         encryptedContent: undefined,
         contentHash: undefined,
-        // ✅ FIXED: Always return ISO string for consistent parsing
         createdAt: msg.createdAt.toISOString(),
         updatedAt: msg.updatedAt?.toISOString(),
         editedAt: msg.editedAt?.toISOString(),
@@ -231,13 +248,14 @@ export async function GET(
           ...msg.user,
           avatar: avatarUrl,
           avatarObject: primaryAvatar,
+          role: userRole, // ✅ CRITICAL: Add role to user object
         },
         userMetadata: userMetadata,
         userName: msg.user.name || 'User',
         userAvatar: avatarUrl,
-        userRole: userType === 'tutor' ? 'mentor' : 'student',
+        userRole: userRole, // ✅ CRITICAL: Role based on ownership
         replyTo: replyToTransformed,
-        reactions: groupedReactions, // ✅ Use grouped reactions
+        reactions: groupedReactions,
         mentions: msg.mentions.map((m: any) => m.mentionedUser.id)
       };
     });
@@ -405,6 +423,25 @@ export async function POST(
       }
     });
 
+    // ✅ FIX: Get course owner to determine role
+    const chatRoom = await prisma.chatRoom.findUnique({
+      where: { id: roomId },
+      include: {
+        course: {
+          select: {
+            userId: true
+          }
+        }
+      }
+    });
+
+    const courseOwnerId = chatRoom?.course?.userId;
+    const isCourseOwner = message.user.id === courseOwnerId;
+    const userType = isCourseOwner ? 'tutor' : 'learner';
+    const userRole = isCourseOwner ? 'mentor' : 'student';
+
+    console.log(`📤 Sending message - User: ${message.user.username}, isOwner: ${isCourseOwner}, role: ${userRole}`);
+
     // ✅ FIX: Helper function to group reactions
     const groupReactionsByEmoji = (reactions: any[]) => {
       const reactionMap = new Map<string, { emoji: string; count: number; users: string[] }>();
@@ -435,13 +472,7 @@ export async function POST(
     const avatarUrl = getAvatarUrlFromUser(message.user, 64);
     const primaryAvatar = message.user.avatars?.find((a: any) => a.isPrimary) || message.user.avatars?.[0] || null;
 
-    const userGoal = message.user.UserGoals[0];
-    let userType: 'tutor' | 'learner' | 'both' = 'learner';
-    if (userGoal) {
-      if (userGoal.purpose === 'teach') userType = 'tutor';
-      else if (userGoal.purpose === 'both') userType = 'both';
-    }
-
+    // Update userMetadata creation:
     const userMetadata = {
       id: message.user.id,
       username: message.user.username,
@@ -452,7 +483,8 @@ export async function POST(
       img: avatarUrl,
       isOnline: true,
       type: userType,
-      role: userType === 'tutor' ? 'mentor' : 'student',
+      role: userRole, // ✅ Based on ownership
+      // ... rest of fields
       xp: message.user.userXP?.totalXP || 0,
       seekers: message.user._count.followers,
       seeking: message.user._count.following,
@@ -465,7 +497,8 @@ export async function POST(
         color: badge.color
       })),
       bio: '',
-      isPrivate: false
+      isPrivate: false,
+      isCourseOwner: isCourseOwner,
     };
 
     // ✅ FIX: Group reactions before returning
@@ -488,7 +521,7 @@ export async function POST(
       userMetadata: userMetadata,
       userName: message.user.name || 'User',
       userAvatar: avatarUrl,
-      userRole: userType === 'tutor' ? 'mentor' : 'student',
+      userRole: userRole,
       replyTo: message.replyTo ? {
         ...message.replyTo,
         createdAt: message.replyTo.createdAt.toISOString(), // ✅ Add this

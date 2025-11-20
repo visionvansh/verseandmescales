@@ -69,6 +69,76 @@ interface Module {
 }
 
 // ============================================
+// NOT ENROLLED PAGE COMPONENT
+// ============================================
+
+const NotEnrolledPage = memo(({ courseId }: { courseId: string }) => {
+  const router = useRouter();
+  
+  return (
+    <div className="relative w-full min-h-screen overflow-x-hidden mt-20">
+      <div className="relative z-10">
+        <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-8 sm:py-12 md:py-16">
+          <div className="max-w-2xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="relative"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 rounded-2xl border border-red-500/30 backdrop-blur-2xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-2xl" />
+              
+              <div className="relative p-8 sm:p-12 md:p-16 text-center">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring" }}
+                  className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-6 sm:mb-8 rounded-full bg-gradient-to-br from-red-600/20 to-red-800/20 border-2 border-red-500/30 flex items-center justify-center"
+                >
+                  <FaExclamationTriangle className="text-4xl sm:text-5xl text-red-400" />
+                </motion.div>
+
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
+                  You Are Not Enrolled
+                </h2>
+                <p className="text-base sm:text-lg text-gray-400 mb-8 max-w-md mx-auto">
+                  You need to enroll in this course to access the learning materials and modules
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
+                  <button
+                    onClick={() => router.push(`/users/courses/${courseId}`)}
+                    className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl font-semibold hover:scale-105 transition-transform text-base"
+                  >
+                    View Course Details
+                  </button>
+                  <button
+                    onClick={() => router.push('/users/courses')}
+                    className="w-full sm:w-auto px-8 py-3 bg-gray-800/50 border border-gray-700 text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors text-base"
+                  >
+                    Browse Courses
+                  </button>
+                </div>
+
+                <div className="mt-8 pt-8 border-t border-red-500/20">
+                  <button
+                    onClick={() => router.back()}
+                    className="text-gray-400 hover:text-white transition-colors text-sm"
+                  >
+                    ← Go Back
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+NotEnrolledPage.displayName = 'NotEnrolledPage';
+
+// ============================================
 // UTILITY FUNCTIONS
 // ============================================
 
@@ -789,65 +859,20 @@ export default function LearningPage() {
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const fetchModuleData = useCallback(
-    async (showRefreshIndicator = false) => {
-      if (!moduleId) {
-        setError("No module ID provided");
-        setLoading(false);
-        return;
-      }
+  // ✅ ADD THIS STATE
+  const [enrollmentStatus, setEnrollmentStatus] = useState<{
+    checked: boolean;
+    enrolled: boolean;
+    isOwner: boolean;
+    courseId: string | null;
+  }>({
+    checked: false,
+    enrolled: false,
+    isOwner: false,
+    courseId: null,
+  });
 
-      try {
-        if (showRefreshIndicator) {
-          setIsRefreshing(true);
-        } else {
-          setLoading(true);
-        }
-        setError(null);
-
-        const response = await fetch(
-          `/api/course/learning?moduleId=${moduleId}`
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch module data");
-        }
-
-        const data = await response.json();
-
-        console.log("📚 Module data fetched:", {
-          moduleId: data.id,
-          moduleTitle: data.title,
-          progress: data.progress,
-          completedLessons: data.completedLessons,
-          totalLessons: data.totalLessons,
-          totalWatchTime: data.totalWatchTime,
-          lessonsWithProgress: data.lessons.filter(
-            (l: Lesson) => l.watchTime && l.watchTime > 0
-          ).length,
-          lessons: data.lessons.map((l: Lesson) => ({
-            id: l.id,
-            title: l.title,
-            duration: l.duration,
-            watchTime: l.watchTime,
-            progressPercent: l.progressPercent,
-            lastPosition: l.lastPosition,
-            isCompleted: l.isCompleted,
-          })),
-        });
-
-        setModuleData(data);
-      } catch (err) {
-        console.error("❌ Error fetching module:", err);
-        setError("Failed to load module data");
-      } finally {
-        setLoading(false);
-        setIsRefreshing(false);
-      }
-    },
-    [moduleId]
-  );
-
+  // ✅ MODIFIED: Don't redirect, just set state
   const checkEnrollmentAccess = useCallback(async (courseId: string) => {
     try {
       const response = await fetch(`/api/course/check-enrollment?courseId=${courseId}`, {
@@ -855,24 +880,37 @@ export default function LearningPage() {
       });
 
       if (!response.ok) {
-        router.push(`/users/courses/${courseId}`);
+        setEnrollmentStatus({ 
+          checked: true, 
+          enrolled: false, 
+          isOwner: false,
+          courseId 
+        });
         return false;
       }
 
       const data = await response.json();
+      
+      const hasAccess = data.enrolled || data.isOwner;
+      setEnrollmentStatus({
+        checked: true,
+        enrolled: data.enrolled || false,
+        isOwner: data.isOwner || false,
+        courseId
+      });
 
-      if (!data.enrolled && !data.isOwner) {
-        router.push(`/users/courses/${courseId}`);
-        return false;
-      }
-
-      return true;
+      return hasAccess;
     } catch (error) {
       console.error('Enrollment check failed:', error);
-      router.push('/users/courses');
+      setEnrollmentStatus({ 
+        checked: true, 
+        enrolled: false, 
+        isOwner: false,
+        courseId 
+      });
       return false;
     }
-  }, [router]);
+  }, []);
 
   const fetchModuleDataUpdated = useCallback(
     async (showRefreshIndicator = false) => {
@@ -900,24 +938,13 @@ export default function LearningPage() {
 
         const data = await response.json();
 
-        console.log("📚 Module data fetched:", {
-          moduleId: data.id,
-          moduleTitle: data.title,
-          courseId: data.course?.id, // ✅ Added
-          progress: data.progress,
-          completedLessons: data.completedLessons,
-          totalLessons: data.totalLessons,
-          totalWatchTime: data.totalWatchTime,
-          lessonsWithProgress: data.lessons.filter(
-            (l: Lesson) => l.watchTime && l.watchTime > 0
-          ).length,
-        });
-
-        // ✅ NEW: Check enrollment after getting module data
+        // ✅ MODIFIED: Check enrollment after getting module data
         if (data.course?.id) {
           const hasAccess = await checkEnrollmentAccess(data.course.id);
           if (!hasAccess) {
-            return; // Stop processing if no access
+            setLoading(false);
+            setIsRefreshing(false);
+            return; // Don't set module data
           }
         }
 
@@ -930,8 +957,10 @@ export default function LearningPage() {
         setIsRefreshing(false);
       }
     },
-    [moduleId, checkEnrollmentAccess] // ✅ Add to dependencies
+    [moduleId, checkEnrollmentAccess]
   );
+
+  // ... rest of existing useEffects ...
 
   useEffect(() => {
     fetchModuleDataUpdated(false);
@@ -1034,6 +1063,11 @@ export default function LearningPage() {
         !lesson.progressPercent
     ).length;
   }, [moduleData]);
+
+  // ✅ ADD THIS: Show not enrolled page
+  if (enrollmentStatus.checked && !enrollmentStatus.enrolled && !enrollmentStatus.isOwner && enrollmentStatus.courseId) {
+    return <NotEnrolledPage courseId={enrollmentStatus.courseId} />;
+  }
 
   if (loading && !isRefreshing) {
     return <LoadingSkeletonView viewMode={viewMode} />;

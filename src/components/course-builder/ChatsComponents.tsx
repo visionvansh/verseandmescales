@@ -36,6 +36,11 @@ import {
   UserProfileModal,
 } from "@/components/course-builder/chats/ChatQuestionComponents";
 import {
+  MediaUploadModal,
+  MediaData,
+} from "@/components/course-builder/chats/MediaUploadMedia";
+import { MediaDisplay } from "@/components/course-builder/chats/MediaDisplay";
+import {
   User,
   LiveMessage,
   Question,
@@ -439,6 +444,10 @@ export const ChatRoom = memo(
     >(null);
     const [viewMode, setViewMode] = useState<ViewMode>("live-chat");
 
+    // Media upload state
+    const [showMediaUpload, setShowMediaUpload] = useState(false);
+    const [uploadingMedia, setUploadingMedia] = useState(false);
+
     // Refs
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -637,10 +646,28 @@ export const ChatRoom = memo(
 
     // WebSocket handlers
     const handleNewMessage = useCallback((newMessage: any) => {
+      console.log('📨 New message received:', {
+        id: newMessage.id,
+        hasMediaUrl: !!newMessage.mediaUrl,
+        mediaType: newMessage.mediaType,
+        mediaUrl: newMessage.mediaUrl?.substring(0, 50),
+      });
+
       setLiveMessages((prev) => {
         const exists = prev.find((m) => m.id === newMessage.id);
-        if (exists) return prev;
-        return [...prev, transformMessage(newMessage)];
+        if (exists) {
+          console.log('⚠️ Message already exists, skipping');
+          return prev;
+        }
+        
+        const transformed = transformMessage(newMessage);
+        console.log('✅ Transformed message:', {
+          id: transformed.id,
+          hasMediaUrl: !!transformed.mediaUrl,
+          mediaType: transformed.mediaType,
+        });
+        
+        return [...prev, transformed];
       });
     }, []);
 
@@ -1048,6 +1075,13 @@ export const ChatRoom = memo(
     };
 
     const transformMessage = (dbMessage: any): LiveMessage => {
+      console.log('🔄 Transforming message:', {
+        id: dbMessage.id,
+        hasMediaUrl: !!dbMessage.mediaUrl,
+        mediaType: dbMessage.mediaType,
+        mediaUrl: dbMessage.mediaUrl?.substring(0, 50),
+      });
+
       const parseTimestamp = (msg: any): Date => {
         const timestamp = msg.timestamp || msg.createdAt;
 
@@ -1161,14 +1195,24 @@ export const ChatRoom = memo(
         reactions: transformReactions(dbMessage.reactions),
         mentions: dbMessage.mentions?.map((m: any) => m.mentionedUserId) || [],
         readBy: dbMessage.readReceipts?.map((rr: any) => rr.userId) || [],
-        replyTo: dbMessage.replyTo
-          ? transformMessage(dbMessage.replyTo)
-          : undefined,
-        isVoiceMessage: dbMessage.messageType === "voice",
+        replyTo: dbMessage.replyTo ? transformMessage(dbMessage.replyTo) : undefined,
+        isVoiceMessage: dbMessage.messageType === 'voice',
         voiceDuration: dbMessage.voiceDuration?.toString(),
         edited: dbMessage.isEdited || dbMessage.edited || false,
         isDeleted: dbMessage.isDeleted || false,
         userMetadata: userData.metadata || undefined,
+        
+        // ✅ CRITICAL: Include ALL media fields
+        messageType: dbMessage.messageType || 'text',
+        mediaUrl: dbMessage.mediaUrl,
+        mediaType: dbMessage.mediaType,
+        mediaFileName: dbMessage.mediaFileName,
+        mediaFileSize: dbMessage.mediaFileSize,
+        mediaPublicId: dbMessage.mediaPublicId,
+        mediaWidth: dbMessage.mediaWidth,
+        mediaHeight: dbMessage.mediaHeight,
+        mediaDuration: dbMessage.mediaDuration,
+        mediaThumbnail: dbMessage.mediaThumbnail,
       };
     };
 
@@ -2307,10 +2351,12 @@ export const ChatRoom = memo(
                                 <FaSmile className="text-gray-400 text-sm sm:text-base" />
                               </button>
                               <button
-                                className="hidden sm:block p-2 hover:bg-gray-800 rounded-lg transition-colors active:scale-95"
-                                disabled={!isConnected}
+                                onClick={() => setShowMediaUpload(true)}
+                                className="p-1.5 sm:p-2 hover:bg-gray-800 rounded-lg transition-colors active:scale-95"
+                                disabled={!isConnected || uploadingMedia}
+                                style={{ minHeight: "36px", minWidth: "36px" }}
                               >
-                                <FaImage className="text-gray-400" />
+                                <FaPaperclip className="text-gray-400 text-sm sm:text-base" />
                               </button>
                               <button
                                 onClick={() => setIsRecording(!isRecording)}
@@ -2387,7 +2433,8 @@ export const ChatRoom = memo(
                   </div>
 
                   {/* ✅ MOBILE/TABLET ONLY: Questions Tab Content */}
-                 {((isMobile && activeTab === "questions") || (!isMobile && viewMode === "ask-question")) && (
+                  {((isMobile && activeTab === "questions") ||
+                    (!isMobile && viewMode === "ask-question")) && (
                     <m.div
                       key="questions"
                       initial={{ opacity: 0, y: 20 }}
@@ -2587,6 +2634,48 @@ export const ChatRoom = memo(
               />
             )}
           </AnimatePresence>
+
+          {/* Media Upload Modal */}
+          <MediaUploadModal
+            isOpen={showMediaUpload}
+            onClose={() => setShowMediaUpload(false)}
+            onUploadComplete={async (mediaData: MediaData) => {
+              try {
+                setUploadingMedia(true);
+                
+                console.log('📤 SENDING MEDIA MESSAGE:', {
+                  url: mediaData.url,
+                  type: mediaData.type,
+                  fileName: mediaData.fileName,
+                  fileSize: mediaData.fileSize
+                });
+                
+                // ✅ Send with ALL fields
+                await wsSendMessage({
+                  content: '', // ✅ Empty string for media-only
+                  messageType: mediaData.type,
+                  mediaUrl: mediaData.url,
+                  mediaType: mediaData.type,
+                  mediaFileName: mediaData.fileName,
+                  mediaFileSize: mediaData.fileSize,
+                  mediaPublicId: mediaData.publicId,
+                  mediaWidth: mediaData.width,
+                  mediaHeight: mediaData.height,
+                  mediaDuration: mediaData.duration,
+                  mediaThumbnail: mediaData.thumbnail,
+                });
+
+                setUploadingMedia(false);
+                setShowMediaUpload(false);
+                toast.success('Media sent successfully! 🎉');
+              } catch (error: any) {
+                console.error('❌ Failed to send media:', error);
+                setUploadingMedia(false);
+                toast.error(error.message || 'Failed to send media');
+              }
+            }}
+            roomId={roomId || ''}
+          />
         </div>
       </LazyMotion>
     );

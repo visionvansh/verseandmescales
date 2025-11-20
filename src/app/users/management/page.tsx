@@ -4,6 +4,8 @@
 import React, { useState, useEffect } from "react";
 import { LazyMotion, domAnimation, m } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext"; // ✅ ADDED
 import {
   FaPlus,
   FaEdit,
@@ -17,6 +19,8 @@ import {
   FaSpinner,
   FaHourglassHalf,
   FaChevronRight,
+  FaLock, // ✅ ADDED
+  FaGraduationCap, // ✅ ADDED
 } from "react-icons/fa";
 
 interface Course {
@@ -32,8 +36,8 @@ interface Course {
   submittedAt?: string;
   completionPercentage: number;
   lastEditedSection?: string;
-  homepageType?: string; // ✅ ADDED
-  customHomepageFile?: string; // ✅ ADDED
+  homepageType?: string;
+  customHomepageFile?: string;
   homepage?: {
     mainTitleLine1: string;
     videoUrl: string;
@@ -48,6 +52,116 @@ interface Course {
   createdAt: string;
   updatedAt: string;
 }
+
+// ✅ NEW: Unauthenticated UI Component
+const UnauthenticatedManagementUI = () => {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4 py-12">
+      <m.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-2xl"
+      >
+        <div className="relative rounded-2xl overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
+          <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent" />
+          <div className="absolute inset-0 border border-red-500/30 rounded-2xl" />
+
+          <div className="relative p-8 sm:p-12 text-center">
+            {/* Lock Icon */}
+            <m.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+              className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-red-600/20 to-red-800/20 border-2 border-red-500/30 flex items-center justify-center"
+            >
+              <FaLock className="text-4xl sm:text-5xl text-red-400" />
+            </m.div>
+
+            {/* Title */}
+            <m.h1
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-3xl sm:text-4xl font-black text-white mb-4"
+            >
+              Course Management
+            </m.h1>
+
+            {/* Description */}
+            <m.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="text-base sm:text-lg text-gray-400 mb-8 max-w-md mx-auto"
+            >
+              Sign in to create, manage, and publish your courses. Share your knowledge with students worldwide.
+            </m.p>
+
+            {/* Features */}
+            <m.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 max-w-2xl mx-auto"
+            >
+              {[
+                { icon: FaPlus, label: "Create Courses" },
+                { icon: FaGraduationCap, label: "Manage Content" },
+                { icon: FaRocket, label: "Publish & Earn" },
+              ].map((feature, index) => (
+                <m.div
+                  key={index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 + index * 0.1 }}
+                  className="p-4 rounded-xl bg-gray-900/50 border border-gray-800"
+                >
+                  <feature.icon className="text-2xl text-red-400 mb-2 mx-auto" />
+                  <p className="text-sm text-gray-300">{feature.label}</p>
+                </m.div>
+              ))}
+            </m.div>
+
+            {/* Action Buttons */}
+            <m.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            >
+              <Link
+                href="/auth/signin"
+                className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl font-semibold hover:scale-105 transition-transform text-base shadow-lg shadow-red-500/25"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/auth/signup"
+                className="w-full sm:w-auto px-8 py-3.5 bg-gray-800/50 border border-gray-700 text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors text-base"
+              >
+                Create Account
+              </Link>
+            </m.div>
+
+            {/* Additional Info */}
+            <m.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1 }}
+              className="mt-8 text-sm text-gray-500"
+            >
+              Already have an account?{" "}
+              <Link href="/auth/signin" className="text-red-400 hover:text-red-300">
+                Sign in here
+              </Link>
+            </m.p>
+          </div>
+        </div>
+      </m.div>
+    </div>
+  );
+};
 
 const CoursesManagementSkeleton = () => {
   return (
@@ -105,16 +219,22 @@ const CoursesManagementSkeleton = () => {
 const CoursesManagementPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, authChecked } = useAuth(); // ✅ ADDED
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"ALL" | "DRAFT" | "PENDING" | "PUBLISHED">("ALL");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [showSubmitSuccess, setShowSubmitSuccess] = useState(false);
-  const [continuingId, setContinuingId] = useState<string | null>(null); // ✅ ADDED
+  const [continuingId, setContinuingId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadCourses();
+    // ✅ Only load courses if user is authenticated
+    if (user && authChecked) {
+      loadCourses();
+    } else if (authChecked) {
+      setLoading(false);
+    }
     
     if (searchParams.get('submitted') === 'true') {
       setShowSubmitSuccess(true);
@@ -124,7 +244,7 @@ const CoursesManagementPage = () => {
       url.searchParams.delete('submitted');
       window.history.replaceState({}, '', url.toString());
     }
-  }, [filter]);
+  }, [filter, user, authChecked]);
 
   const loadCourses = async () => {
     try {
@@ -155,7 +275,6 @@ const CoursesManagementPage = () => {
 
       if (response.ok) {
         const course = await response.json();
-        // Start with card customization
         router.push(`/users/card-customisation?courseId=${course.id}`);
       }
     } catch (error) {
@@ -203,32 +322,25 @@ const CoursesManagementPage = () => {
     }
   };
 
-  // ✅ UPDATED: Continue editing with API check
   const continueEditing = async (course: Course) => {
     try {
       setContinuingId(course.id);
       
-      // Fetch full course details to check homepageType
       const response = await fetch(`/api/course?id=${course.id}`);
       
       if (response.ok) {
         const courseData = await response.json();
         
-        // Check if course was created with a pre-made theme (custom homepage)
         if (courseData.homepageType === 'custom' && courseData.customHomepageFile) {
-          // Redirect to studio card customization for custom-themed courses
           router.push(`/users/studio/card-customisation?courseId=${course.id}`);
         } else {
-          // Normal course - redirect to regular card customization
           router.push(`/users/card-customisation?courseId=${course.id}`);
         }
       } else {
-        // Fallback if API fails - assume normal course
         router.push(`/users/card-customisation?courseId=${course.id}`);
       }
     } catch (error) {
       console.error("Error determining course type:", error);
-      // Fallback to regular card customization on error
       router.push(`/users/card-customisation?courseId=${course.id}`);
     } finally {
       setContinuingId(null);
@@ -275,6 +387,27 @@ const CoursesManagementPage = () => {
         };
     }
   };
+
+  // ✅ ADDED: Show unauthenticated UI if user is not logged in
+  if (!authChecked) {
+    return (
+      <LazyMotion features={domAnimation}>
+        <div className="relative z-10 mt-20">
+          <CoursesManagementSkeleton />
+        </div>
+      </LazyMotion>
+    );
+  }
+
+  if (!user) {
+    return (
+      <LazyMotion features={domAnimation}>
+        <div className="relative z-10 mt-20">
+          <UnauthenticatedManagementUI />
+        </div>
+      </LazyMotion>
+    );
+  }
 
   return (
     <LazyMotion features={domAnimation}>
@@ -493,7 +626,6 @@ const CoursesManagementPage = () => {
                             )}
 
                             <div className="flex items-center gap-2">
-                              {/* ✅ UPDATED: Continue button with loading state */}
                               <m.button
                                 onClick={() => continueEditing(course)}
                                 disabled={continuingId === course.id}

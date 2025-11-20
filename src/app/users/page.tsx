@@ -5,6 +5,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence, LazyMotion, domAnimation, m } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 
 import {
   FaChevronRight,
@@ -54,7 +55,11 @@ import {
   FaPlay,
   FaCircle,
   FaStarHalfAlt,
+  FaLock,
+  FaUserCircle,
 } from "react-icons/fa";
+
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Question {
   id: string;
@@ -88,8 +93,32 @@ interface EnrolledCourseData {
   onlineUsers: number;
   lastAccessedAt: string;
   enrolledAt: string;
-  averageRating: number; // ✅ ADDED: Course's average rating
-  totalRatings: number;  // ✅ ADDED: Total number of ratings
+  averageRating: number;
+  totalRatings: number;
+}
+
+// ============================================
+// NEW: Published Course Data Interface
+// ============================================
+interface RecentBuyer {
+  id: string;
+  username: string;
+  name: string | null;
+  img: string | null;
+  purchasedAt: string;
+}
+
+interface PublishedCourseData {
+  id: string;
+  title: string;
+  thumbnail: string | null;
+  averageRating: number;
+  totalPurchases: number;
+  totalRevenue: string;
+  recentBuyers: RecentBuyer[];
+  totalModules: number;
+  publishedAt: string | null;
+  status: string;
 }
 
 // ============================================
@@ -181,6 +210,118 @@ const RatingStars = ({
 };
 
 // ============================================
+// ✅ NEW: UNAUTHENTICATED USER MESSAGE
+// ============================================
+const UnauthenticatedMessage = () => {
+  return (
+    <div className="relative min-h-screen flex items-center justify-center px-4 py-20">
+      <div className="w-full max-w-md">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="relative rounded-2xl sm:rounded-3xl overflow-hidden"
+        >
+          {/* Background with gradient */}
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-900/95 to-black/98 backdrop-blur-3xl" />
+          <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent" />
+          <div className="absolute inset-0 border border-red-500/30 rounded-2xl sm:rounded-3xl" />
+
+          <div className="relative p-8 sm:p-10 text-center">
+            {/* Lock Icon */}
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.2, type: "spring" }}
+              className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-red-600/20 to-red-800/20 border-2 border-red-500/30 flex items-center justify-center"
+            >
+              <FaLock className="text-4xl sm:text-5xl text-red-400" />
+            </motion.div>
+
+            {/* Title */}
+            <motion.h2
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent mb-3"
+            >
+              Sign In Required
+            </motion.h2>
+
+            {/* Description */}
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="text-gray-400 text-sm sm:text-base mb-8 leading-relaxed"
+            >
+              Create an account or sign in to access your personalized dashboard, courses, and learning journey.
+            </motion.p>
+
+            {/* Action Buttons */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="space-y-3"
+            >
+              <Link
+                href="/auth/signin"
+                className="block w-full px-6 py-3.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl font-bold hover:scale-105 transition-transform shadow-lg shadow-red-500/30"
+              >
+                Sign In to Continue
+              </Link>
+              
+              <Link
+                href="/auth/signup"
+                className="block w-full px-6 py-3.5 bg-gray-800/50 border border-gray-700 text-white rounded-xl font-bold hover:bg-gray-800 transition-colors"
+              >
+                Create New Account
+              </Link>
+
+              <Link
+                href="/"
+                className="block text-sm text-gray-500 hover:text-red-400 transition-colors pt-2"
+              >
+                ← Back to Home
+              </Link>
+            </motion.div>
+
+            {/* Features Preview */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+              className="mt-8 pt-8 border-t border-gray-800"
+            >
+              <p className="text-xs text-gray-500 mb-4">What you'll get access to:</p>
+              <div className="grid grid-cols-2 gap-3 text-left">
+                {[
+                  { icon: FaBookOpen, label: 'Browse Courses' },
+                  { icon: FaChartLine, label: 'Track Progress' },
+                  { icon: FaTrophy, label: 'Earn Badges' },
+                  { icon: FaUserFriends, label: 'Join Community' },
+                ].map((feature, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.7 + i * 0.1 }}
+                    className="flex items-center gap-2 p-2 rounded-lg bg-gray-900/30 border border-gray-800"
+                  >
+                    <feature.icon className="text-red-400 text-sm flex-shrink-0" />
+                    <span className="text-xs text-gray-400">{feature.label}</span>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
 // ✅ COMPLETELY REDESIGNED: CAROUSEL WITH VISIBLE BLUR CARDS
 // ============================================
 const EnrolledCoursesArea = ({ courses }: { courses: EnrolledCourseData[] }) => {
@@ -237,13 +378,13 @@ const EnrolledCoursesArea = ({ courses }: { courses: EnrolledCourseData[] }) => 
       <div className="container mx-auto px-3 xs:px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20">
         <div className="max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto">
           
-          {/* Header */}
+          {/* Header - REDUCED MARGIN */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-6 sm:mb-8 md:mb-10"
+            className="text-center mb-4 sm:mb-6 md:mb-8"
           >
-            <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-black text-white leading-tight">
+            <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-black text-white leading-tight mt-20 lg:mt-0">
               <span className="bg-gradient-to-r from-red-400 via-red-500 to-red-600 bg-clip-text text-transparent">
                 YOUR LEARNING
               </span>{" "}
@@ -251,7 +392,7 @@ const EnrolledCoursesArea = ({ courses }: { courses: EnrolledCourseData[] }) => 
             </h1>
           </motion.div>
 
-          {/* ✅ IMPROVED: Sliding Cards with LESS BLUR & VISIBLE on ALL DEVICES */}
+          {/* Sliding Cards with LESS BLUR & VISIBLE on ALL DEVICES */}
           <div className="relative mb-8 sm:mb-10 md:mb-12">
             {/* Desktop Navigation Buttons */}
             {hasMultipleCourses && (
@@ -272,7 +413,7 @@ const EnrolledCoursesArea = ({ courses }: { courses: EnrolledCourseData[] }) => 
               </div>
             )}
 
-            {/* ✅ IMPROVED: Carousel with VISIBLE Blur Cards on ALL Devices */}
+            {/* Carousel with VISIBLE Blur Cards on ALL Devices */}
             <div 
               className="relative overflow-visible"
               onTouchStart={handleTouchStart}
@@ -351,7 +492,7 @@ const EnrolledCoursesArea = ({ courses }: { courses: EnrolledCourseData[] }) => 
         </div>
       </div>
 
-      {/* ✅ Rating Modal */}
+      {/* Rating Modal */}
       <AnimatePresence>
         {showRatingModal && selectedCourseForRating && (
           <RatingModal
@@ -372,7 +513,374 @@ const EnrolledCoursesArea = ({ courses }: { courses: EnrolledCourseData[] }) => 
 };
 
 // ============================================
-// ✅ IMPROVED: MODERN CARD WITH EVERYTHING INSIDE
+// ✅ NEW: PUBLISHED COURSES CAROUSEL
+// ============================================
+const PublishedCoursesArea = ({ courses }: { courses: PublishedCourseData[] }) => {
+  const router = useRouter();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [touchStart, setTouchStart] = useState(0);
+  const [touchEnd, setTouchEnd] = useState(0);
+
+  const currentCourse = courses[currentIndex];
+  const hasMultipleCourses = courses.length > 1;
+
+  // Swipe handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+
+    if (isLeftSwipe && hasMultipleCourses) {
+      handleNext();
+    }
+    if (isRightSwipe && hasMultipleCourses) {
+      handlePrev();
+    }
+
+    setTouchStart(0);
+    setTouchEnd(0);
+  };
+
+  const handleNext = () => {
+    setCurrentIndex((prev) => (prev + 1) % courses.length);
+  };
+
+  const handlePrev = () => {
+    setCurrentIndex((prev) => (prev - 1 + courses.length) % courses.length);
+  };
+
+  const getPrevIndex = () => (currentIndex - 1 + courses.length) % courses.length;
+  const getNextIndex = () => (currentIndex + 1) % courses.length;
+
+  return (
+    <div className="relative min-h-screen py-6 sm:py-8 md:py-10">
+      <div className="container mx-auto px-3 xs:px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20">
+        <div className="max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto">
+          
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-4 sm:mb-6 md:mb-8"
+          >
+            <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-black text-white leading-tight">
+              <span className="bg-gradient-to-r from-red-400 via-red-500 to-red-600 bg-clip-text text-transparent">
+                YOUR PUBLISHING
+              </span>{" "}
+              <span className="block sm:inline">JOURNEY</span>
+            </h1>
+          </motion.div>
+
+          {/* Sliding Cards */}
+          <div className="relative mb-8 sm:mb-10 md:mb-12">
+            {/* Desktop Navigation Buttons */}
+            {hasMultipleCourses && (
+              <div className="hidden md:block">
+                <button
+                  onClick={handlePrev}
+                  className="absolute -left-6 lg:-left-8 top-1/2 -translate-y-1/2 z-20 bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 backdrop-blur-2xl p-3 sm:p-4 rounded-full transition-all duration-300 hover:scale-110 hover:border-red-500/50 group shadow-xl"
+                >
+                  <FaChevronLeft className="text-white text-lg sm:text-xl group-hover:text-red-400 transition-colors" />
+                </button>
+
+                <button
+                  onClick={handleNext}
+                  className="absolute -right-6 lg:-right-8 top-1/2 -translate-y-1/2 z-20 bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 backdrop-blur-2xl p-3 sm:p-4 rounded-full transition-all duration-300 hover:scale-110 hover:border-red-500/50 group shadow-xl"
+                >
+                  <FaChevronRight className="text-white text-lg sm:text-xl group-hover:text-red-400 transition-colors" />
+                </button>
+              </div>
+            )}
+
+            {/* Carousel */}
+            <div 
+              className="relative overflow-visible"
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              {hasMultipleCourses ? (
+                <div className="relative flex items-center justify-center">
+                  {/* Previous Card */}
+                  <div className="absolute left-0 w-[75%] sm:w-[70%] md:w-[65%] lg:w-[60%] opacity-60 sm:opacity-70 blur-[2px] scale-[0.85] sm:scale-90 transform -translate-x-[55%] sm:-translate-x-[60%] z-0 pointer-events-none">
+                    <PublishedCourseCard course={courses[getPrevIndex()]} isBlurred />
+                  </div>
+
+                  {/* Current Card */}
+                  <div className="relative z-10 w-full">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={currentIndex}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <PublishedCourseCard course={currentCourse} router={router} />
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Next Card */}
+                  <div className="absolute right-0 w-[75%] sm:w-[70%] md:w-[65%] lg:w-[60%] opacity-60 sm:opacity-70 blur-[2px] scale-[0.85] sm:scale-90 transform translate-x-[55%] sm:translate-x-[60%] z-0 pointer-events-none">
+                    <PublishedCourseCard course={courses[getNextIndex()]} isBlurred />
+                  </div>
+                </div>
+              ) : (
+                <PublishedCourseCard course={currentCourse} router={router} />
+              )}
+            </div>
+
+            {/* Progress Indicators */}
+            {hasMultipleCourses && (
+              <div className="flex justify-center gap-2 mt-6">
+                {courses.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentIndex(index)}
+                    className="relative group"
+                  >
+                    <div
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        index === currentIndex
+                          ? 'w-12 bg-gradient-to-r from-red-600 to-red-500'
+                          : 'w-2 bg-gray-600 group-hover:bg-gray-500'
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// ✅ PUBLISHED COURSE CARD
+// ============================================
+const PublishedCourseCard = ({ 
+  course, 
+  isBlurred = false,
+  router
+}: { 
+  course: PublishedCourseData; 
+  isBlurred?: boolean;
+  router?: any;
+}) => {
+  const [imageError, setImageError] = useState(false);
+
+  return (
+    <div className={`relative w-full ${isBlurred ? 'pointer-events-none select-none' : ''}`}>
+      <div className="relative bg-gradient-to-br from-gray-900/90 to-black/95 rounded-xl sm:rounded-2xl lg:rounded-3xl border border-red-500/30 backdrop-blur-2xl overflow-hidden shadow-2xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-xl sm:rounded-2xl lg:rounded-3xl" />
+        
+        <div className="relative grid grid-cols-1 lg:grid-cols-[45%_55%] gap-0">
+          
+          {/* LEFT: Thumbnail + Stats */}
+          <div className="relative">
+            {/* Thumbnail */}
+            <div className="relative w-full aspect-video overflow-hidden group">
+              {course.thumbnail && !imageError ? (
+                <Image
+                  src={course.thumbnail}
+                  alt={course.title}
+                  fill
+                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  onError={() => setImageError(true)}
+                  sizes="(max-width: 1024px) 100vw, 45vw"
+                  priority
+                  unoptimized
+                />
+              ) : (
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-black flex items-center justify-center">
+                  <FaBook className="text-red-400 text-4xl sm:text-5xl lg:text-6xl xl:text-7xl opacity-30" />
+                </div>
+              )}
+              
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+              
+              {/* Status Badge */}
+              <div className="absolute top-2 right-2 sm:top-3 sm:right-3 lg:top-4 lg:right-4 z-10">
+                <div className="bg-green-600/80 backdrop-blur-sm px-2.5 py-1.5 sm:px-3 sm:py-2 lg:px-4 lg:py-2 rounded-full border border-green-500/30">
+                  <span className="text-white font-bold text-sm sm:text-base lg:text-lg">Published</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="p-2 sm:p-3 lg:p-4 bg-black/20 border-t border-red-500/10">
+              <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-1.5 sm:gap-2 lg:gap-3">
+                <StatCardCompact
+                  icon={FaStar}
+                  label="Rating"
+                  value={course.averageRating > 0 ? course.averageRating.toFixed(1) : 'No ratings'}
+                  color="from-yellow-600 to-yellow-700"
+                />
+                
+                <StatCardCompact
+                  icon={FaUsers}
+                  label="Purchases"
+                  value={course.totalPurchases.toString()}
+                  color="from-blue-600 to-blue-700"
+                />
+                
+                <StatCardCompact
+                  icon={FaDollarSign}
+                  label="Revenue"
+                  value={`$${course.totalRevenue}`}
+                  color="from-green-600 to-green-700"
+                />
+                
+                <StatCardCompact
+                  icon={FaBook}
+                  label="Modules"
+                  value={course.totalModules.toString()}
+                  color="from-purple-600 to-purple-700"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT: Content Section */}
+          <div className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 space-y-3 sm:space-y-4 lg:space-y-6">
+            {/* Title */}
+            <div>
+              <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-black text-white line-clamp-2 mb-2 sm:mb-2.5 lg:mb-3">
+                {course.title}
+              </h2>
+              
+              {/* Course Rating */}
+              <div className="flex items-center gap-2 sm:gap-3">
+                {course.averageRating > 0 ? (
+                  <RatingStars 
+                    rating={course.averageRating} 
+                    size="sm"
+                    showNumber={true}
+                  />
+                ) : (
+                  <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500 text-xs sm:text-sm">
+                    <FaStar className="text-gray-600" />
+                    <span>No ratings yet</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Published Date */}
+              {course.publishedAt && (
+                <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-gray-400 mt-1.5 sm:mt-2">
+                  <FaClock className="text-red-400 text-xs sm:text-sm" />
+                  <span>Published: {new Date(course.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Revenue & Purchases Bar */}
+            <div className="bg-black/30 rounded-lg sm:rounded-xl p-2.5 sm:p-3 lg:p-4 border border-red-500/20">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:gap-4">
+                <div className="text-center">
+                  <p className="text-gray-400 text-[9px] sm:text-[10px] lg:text-xs mb-0.5 sm:mb-1">Total Revenue</p>
+                  <p className="text-base sm:text-lg lg:text-xl font-black text-green-400">
+                    ${course.totalRevenue}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-gray-400 text-[9px] sm:text-[10px] lg:text-xs mb-0.5 sm:mb-1">Total Purchases</p>
+                  <p className="text-base sm:text-lg lg:text-xl font-black text-white">
+                    {course.totalPurchases}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Buyers Section */}
+            {course.recentBuyers.length > 0 && (
+              <div className="bg-black/30 rounded-lg sm:rounded-xl p-2.5 sm:p-3 lg:p-4 border border-red-500/20">
+                <p className="text-gray-400 text-[10px] sm:text-xs lg:text-sm font-semibold mb-2 sm:mb-3">
+                  Recent Buyers ({course.totalPurchases} total)
+                </p>
+                
+                {/* Scrollable buyer list */}
+                <div className={`space-y-2 ${course.recentBuyers.length > 5 ? 'max-h-[200px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-red-600 scrollbar-track-gray-800' : ''}`}>
+                  {course.recentBuyers.map((buyer) => (
+                    <div key={buyer.id} className="flex items-center gap-2 sm:gap-3 p-2 rounded-lg bg-gray-900/40 hover:bg-gray-900/60 transition-colors">
+                      <div className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden bg-gradient-to-br from-red-600 to-red-800 flex-shrink-0">
+                        {buyer.img ? (
+                          <Image
+                            src={buyer.img}
+                            alt={buyer.username}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <FaUserCircle className="w-full h-full text-white p-1" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-xs sm:text-sm font-semibold truncate">
+                          {buyer.name || buyer.username}
+                        </p>
+                        <p className="text-gray-500 text-[10px] sm:text-xs truncate">
+                          {new Date(buyer.purchasedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            {!isBlurred && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 lg:gap-4 pt-1 sm:pt-2">
+                <button
+                  onClick={() => router?.push(`/users/courses-management`)}
+                  className="relative overflow-hidden group"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-700 rounded-lg sm:rounded-xl" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-700 to-red-800 rounded-lg sm:rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  
+                  <div className="relative px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3.5 flex items-center justify-center gap-1.5 sm:gap-2 lg:gap-3">
+                    <FaEdit className="text-white text-xs sm:text-sm lg:text-base" />
+                    <span className="text-white font-bold text-xs sm:text-sm lg:text-base">Manage Course</span>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => router?.push(`/users/courses/${course.id}`)}
+                  className="relative overflow-hidden group"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 rounded-lg sm:rounded-xl border border-red-500/30 backdrop-blur-2xl" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-lg sm:rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  
+                  <div className="relative px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3.5 flex items-center justify-center gap-1.5 sm:gap-2 lg:gap-3">
+                    <FaEye className="text-red-400 text-xs sm:text-sm lg:text-base group-hover:text-red-300 transition-colors" />
+                    <span className="text-white font-bold text-xs sm:text-sm lg:text-base">View Page</span>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// ✅ MOBILE RESPONSIVE CARD - REMOVED mt-20
 // ============================================
 const CourseCarouselCard = ({ 
   course, 
@@ -389,107 +897,146 @@ const CourseCarouselCard = ({
 
   return (
     <div className={`relative w-full ${isBlurred ? 'pointer-events-none select-none' : ''}`}>
-      {/* ✅ Card Container with Optimized Height */}
-      <div className="relative bg-gradient-to-br from-gray-900/90 to-black/95 rounded-2xl sm:rounded-3xl border border-red-500/30 backdrop-blur-2xl overflow-hidden shadow-2xl">
-        <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-2xl sm:rounded-3xl" />
+      {/* Card Container - Mobile Optimized */}
+      <div className="relative bg-gradient-to-br from-gray-900/90 to-black/95 rounded-xl sm:rounded-2xl lg:rounded-3xl border border-red-500/30 backdrop-blur-2xl overflow-hidden shadow-2xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-xl sm:rounded-2xl lg:rounded-3xl" />
         
-        {/* ✅ IMPROVED: Two Column Layout on Desktop */}
-        <div className="relative grid grid-cols-1 lg:grid-cols-[40%_60%] gap-0">
+        {/* Stack on Mobile, Two Columns on Desktop */}
+        <div className="relative grid grid-cols-1 lg:grid-cols-[45%_55%] gap-0">
           
-          {/* LEFT: Thumbnail Section */}
-          <div className="relative w-full aspect-video lg:aspect-[3/4] rounded-t-2xl sm:rounded-t-3xl lg:rounded-l-3xl lg:rounded-tr-none overflow-hidden group">
-            {course.thumbnail && !imageError ? (
-              <Image
-                src={course.thumbnail}
-                alt={course.title}
-                fill
-                className="object-cover transition-transform duration-500 group-hover:scale-105"
-                onError={() => setImageError(true)}
-                sizes="(max-width: 1024px) 100vw, 40vw"
-                priority
-                unoptimized
-              />
-            ) : (
-              <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-black flex items-center justify-center">
-                <FaBook className="text-red-400 text-5xl sm:text-6xl md:text-7xl opacity-30" />
-              </div>
-            )}
-            
-            {/* Overlay Gradient */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
-            
-            {/* Progress Badge */}
-            <div className="absolute top-4 right-4 z-10">
-              <div className="bg-black/80 backdrop-blur-sm px-4 py-2 rounded-full border border-red-500/30">
-                <span className="text-red-400 font-bold text-lg">{course.progress}%</span>
-              </div>
-            </div>
-
-            {/* Play Overlay */}
-            {!isBlurred && (
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-                <div className="bg-red-600 p-6 rounded-full shadow-2xl">
-                  <FaPlay className="text-white text-3xl ml-1" />
+          {/* LEFT: Thumbnail + Stats Section */}
+          <div className="relative">
+            {/* Thumbnail - FIXED TO 16:9 */}
+            <div className="relative w-full aspect-video overflow-hidden group">
+              {course.thumbnail && !imageError ? (
+                <Image
+                  src={course.thumbnail}
+                  alt={course.title}
+                  fill
+                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  onError={() => setImageError(true)}
+                  sizes="(max-width: 1024px) 100vw, 45vw"
+                  priority
+                  unoptimized
+                />
+              ) : (
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-black flex items-center justify-center">
+                  <FaBook className="text-red-400 text-4xl sm:text-5xl lg:text-6xl xl:text-7xl opacity-30" />
+                </div>
+              )}
+              
+              {/* Overlay Gradient */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+              
+              {/* Progress Badge - Mobile Optimized */}
+              <div className="absolute top-2 right-2 sm:top-3 sm:right-3 lg:top-4 lg:right-4 z-10">
+                <div className="bg-black/80 backdrop-blur-sm px-2.5 py-1.5 sm:px-3 sm:py-2 lg:px-4 lg:py-2 rounded-full border border-red-500/30">
+                  <span className="text-red-400 font-bold text-sm sm:text-base lg:text-lg">{course.progress}%</span>
                 </div>
               </div>
-            )}
+
+              {/* Play Overlay - Desktop Only */}
+              {!isBlurred && (
+                <div className="absolute inset-0 hidden lg:flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+                  <div className="bg-red-600 p-6 rounded-full shadow-2xl">
+                    <FaPlay className="text-white text-3xl ml-1" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Stats Grid - Mobile Optimized (2 cols on mobile, 4 on desktop) */}
+            <div className="p-2 sm:p-3 lg:p-4 bg-black/20 border-t border-red-500/10">
+              <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-1.5 sm:gap-2 lg:gap-3">
+                <StatCardCompact
+                  icon={FaStar}
+                  label="Your Rating"
+                  value={course.rating ? `${course.rating}.0` : 'Not rated'}
+                  color="from-yellow-600 to-yellow-700"
+                />
+                
+                <StatCardCompact
+                  icon={FaComment}
+                  label="Messages"
+                  value={course.unreadMessages.toString()}
+                  color="from-purple-600 to-purple-700"
+                  badge={course.unreadMessages}
+                />
+                
+                <StatCardCompact
+                  icon={FaQuestion}
+                  label="Questions"
+                  value={course.newQuestions.toString()}
+                  color="from-orange-600 to-orange-700"
+                  badge={course.newQuestions}
+                />
+                
+                <StatCardCompact
+                  icon={FaUsers}
+                  label="Online"
+                  value={course.onlineUsers.toString()}
+                  color="from-green-600 to-green-700"
+                  showPulse
+                />
+              </div>
+            </div>
           </div>
 
-          {/* RIGHT: Content Section */}
-          <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
-            {/* Title & Rating */}
+          {/* RIGHT: Content Section - Mobile Optimized Padding */}
+          <div className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 space-y-3 sm:space-y-4 lg:space-y-6">
+            {/* Title & Rating - Mobile Optimized */}
             <div>
-              <h2 className="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-black text-white line-clamp-2 mb-3">
+              <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-black text-white line-clamp-2 mb-2 sm:mb-2.5 lg:mb-3">
                 {course.title}
               </h2>
               
-              {/* ✅ Course Rating & Quick Rate */}
-              <div className="flex items-center justify-between flex-wrap gap-3">
+              {/* Course Rating & Quick Rate - Mobile Optimized */}
+              <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-3">
                 <div>
                   {course.averageRating > 0 ? (
                     <RatingStars 
                       rating={course.averageRating} 
-                      size="md"
+                      size="sm"
                       showNumber={true}
                       totalRatings={course.totalRatings}
                     />
                   ) : (
-                    <div className="flex items-center gap-2 text-gray-500 text-sm">
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500 text-xs sm:text-sm">
                       <FaStar className="text-gray-600" />
                       <span>No ratings yet</span>
                     </div>
                   )}
                 </div>
 
-                {/* ✅ Quick Rate Button */}
+                {/* Quick Rate Button - Mobile Optimized */}
                 {!isBlurred && (
                   <button
                     onClick={() => onRateClick?.(course.id)}
-                    className="group flex items-center gap-2 px-3 py-1.5 bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-500/30 hover:border-yellow-500/50 rounded-lg transition-all"
+                    className="group flex items-center gap-1.5 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-500/30 hover:border-yellow-500/50 rounded-md sm:rounded-lg transition-all"
                   >
-                    <FaStar className="text-yellow-500 group-hover:scale-110 transition-transform" />
-                    <span className="text-xs font-bold text-yellow-400">
-                      {course.rating ? 'Update Rating' : 'Rate Course'}
+                    <FaStar className="text-yellow-500 text-xs sm:text-sm group-hover:scale-110 transition-transform" />
+                    <span className="text-[10px] sm:text-xs font-bold text-yellow-400">
+                      {course.rating ? 'Update' : 'Rate'}
                     </span>
                   </button>
                 )}
               </div>
 
-              {/* Last Accessed */}
-              <div className="flex items-center gap-2 text-xs text-gray-400 mt-2">
-                <FaClock className="text-red-400" />
-                <span>Last accessed: {new Date(course.lastAccessedAt).toLocaleDateString()}</span>
+              {/* Last Accessed - Mobile Optimized */}
+              <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-gray-400 mt-1.5 sm:mt-2">
+                <FaClock className="text-red-400 text-xs sm:text-sm" />
+                <span>Last: {new Date(course.lastAccessedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
               </div>
             </div>
 
-            {/* ✅ Progress Bar */}
-            <div className="bg-black/30 rounded-xl p-3 sm:p-4 border border-red-500/20">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-400 text-xs sm:text-sm font-semibold">Course Progress</span>
-                <span className="text-white font-bold text-base sm:text-lg">{course.progress}%</span>
+            {/* Progress Bar - Mobile Optimized */}
+            <div className="bg-black/30 rounded-lg sm:rounded-xl p-2.5 sm:p-3 lg:p-4 border border-red-500/20">
+              <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                <span className="text-gray-400 text-[10px] sm:text-xs lg:text-sm font-semibold">Course Progress</span>
+                <span className="text-white font-bold text-sm sm:text-base lg:text-lg">{course.progress}%</span>
               </div>
               
-              <div className="relative h-2.5 sm:h-3 bg-gray-800/50 rounded-full overflow-hidden">
+              <div className="relative h-2 sm:h-2.5 lg:h-3 bg-gray-800/50 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${course.progress}%` }}
@@ -498,69 +1045,35 @@ const CourseCarouselCard = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-3">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:gap-4 mt-2 sm:mt-2.5 lg:mt-3">
                 <div className="text-center">
-                  <p className="text-gray-400 text-[10px] sm:text-xs mb-1">Modules</p>
-                  <p className="text-lg sm:text-xl font-black text-white">
+                  <p className="text-gray-400 text-[9px] sm:text-[10px] lg:text-xs mb-0.5 sm:mb-1">Modules</p>
+                  <p className="text-base sm:text-lg lg:text-xl font-black text-white">
                     {course.completedModules}/{course.totalModules}
                   </p>
                 </div>
                 <div className="text-center">
-                  <p className="text-gray-400 text-[10px] sm:text-xs mb-1">Lessons</p>
-                  <p className="text-lg sm:text-xl font-black text-white">
+                  <p className="text-gray-400 text-[9px] sm:text-[10px] lg:text-xs mb-0.5 sm:mb-1">Lessons</p>
+                  <p className="text-base sm:text-lg lg:text-xl font-black text-white">
                     {course.completedLessons}/{course.totalLessons}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* ✅ Stats Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-              <StatCardCompact
-                icon={FaStar}
-                label="Your Rating"
-                value={course.rating ? `${course.rating}.0` : 'Not rated'}
-                color="from-yellow-600 to-yellow-700"
-              />
-              
-              <StatCardCompact
-                icon={FaComment}
-                label="Messages"
-                value={course.unreadMessages.toString()}
-                color="from-purple-600 to-purple-700"
-                badge={course.unreadMessages}
-              />
-              
-              <StatCardCompact
-                icon={FaQuestion}
-                label="Questions"
-                value={course.newQuestions.toString()}
-                color="from-orange-600 to-orange-700"
-                badge={course.newQuestions}
-              />
-              
-              <StatCardCompact
-                icon={FaUsers}
-                label="Online"
-                value={course.onlineUsers.toString()}
-                color="from-green-600 to-green-700"
-                showPulse
-              />
-            </div>
-
-            {/* ✅ MOVED: Action Buttons INSIDE Card */}
+            {/* Action Buttons - Mobile Optimized */}
             {!isBlurred && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 lg:gap-4 pt-1 sm:pt-2">
                 <button
                   onClick={() => router?.push(`/users/courseinside?courseId=${course.id}`)}
                   className="relative overflow-hidden group"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-700 rounded-xl" />
-                  <div className="absolute inset-0 bg-gradient-to-r from-red-700 to-red-800 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-700 rounded-lg sm:rounded-xl" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-700 to-red-800 rounded-lg sm:rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   
-                  <div className="relative px-4 sm:px-6 py-3 sm:py-3.5 flex items-center justify-center gap-2 sm:gap-3">
-                    <FaPlay className="text-white text-sm sm:text-base" />
-                    <span className="text-white font-bold text-sm sm:text-base">Continue Learning</span>
+                  <div className="relative px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3.5 flex items-center justify-center gap-1.5 sm:gap-2 lg:gap-3">
+                    <FaPlay className="text-white text-xs sm:text-sm lg:text-base" />
+                    <span className="text-white font-bold text-xs sm:text-sm lg:text-base">Continue Learning</span>
                   </div>
                 </button>
                 
@@ -568,12 +1081,12 @@ const CourseCarouselCard = ({
                   onClick={() => router?.push(`/users/courses/${course.id}`)}
                   className="relative overflow-hidden group"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 rounded-xl border border-red-500/30 backdrop-blur-2xl" />
-                  <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 rounded-lg sm:rounded-xl border border-red-500/30 backdrop-blur-2xl" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-lg sm:rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   
-                  <div className="relative px-4 sm:px-6 py-3 sm:py-3.5 flex items-center justify-center gap-2 sm:gap-3">
-                    <FaEye className="text-red-400 text-sm sm:text-base group-hover:text-red-300 transition-colors" />
-                    <span className="text-white font-bold text-sm sm:text-base">View Details</span>
+                  <div className="relative px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3.5 flex items-center justify-center gap-1.5 sm:gap-2 lg:gap-3">
+                    <FaEye className="text-red-400 text-xs sm:text-sm lg:text-base group-hover:text-red-300 transition-colors" />
+                    <span className="text-white font-bold text-xs sm:text-sm lg:text-base">View Details</span>
                   </div>
                 </button>
               </div>
@@ -586,7 +1099,7 @@ const CourseCarouselCard = ({
 };
 
 // ============================================
-// ✅ COMPACT STAT CARD
+// ✅ MOBILE OPTIMIZED COMPACT STAT CARD
 // ============================================
 const StatCardCompact = ({ 
   icon: Icon, 
@@ -596,20 +1109,20 @@ const StatCardCompact = ({
   badge, 
   showPulse = false
 }: any) => (
-  <div className="relative bg-black/30 rounded-lg p-2 sm:p-3 border border-red-500/20">
-    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center mb-1.5 sm:mb-2 relative`}>
-      <Icon className="text-white text-xs sm:text-sm" />
+  <div className="relative bg-black/30 rounded-md sm:rounded-lg p-1.5 sm:p-2 lg:p-3 border border-red-500/20">
+    <div className={`w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 rounded-md sm:rounded-lg bg-gradient-to-br ${color} flex items-center justify-center mb-1 sm:mb-1.5 lg:mb-2 relative`}>
+      <Icon className="text-white text-[10px] sm:text-xs lg:text-sm" />
       {badge !== undefined && badge > 0 && (
-        <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">
+        <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 bg-red-600 text-white text-[8px] sm:text-[9px] w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full flex items-center justify-center font-bold">
           {badge > 9 ? '9+' : badge}
         </span>
       )}
       {showPulse && (
-        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
+        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-green-500 rounded-full animate-pulse" />
       )}
     </div>
-    <p className="text-gray-400 text-[9px] sm:text-[10px] font-semibold mb-0.5 sm:mb-1">{label}</p>
-    <p className="text-white text-xs sm:text-sm font-bold truncate">{value}</p>
+    <p className="text-gray-400 text-[8px] sm:text-[9px] lg:text-[10px] font-semibold mb-0.5 truncate">{label}</p>
+    <p className="text-white text-[10px] sm:text-xs lg:text-sm font-bold truncate">{value}</p>
   </div>
 );
 
@@ -792,35 +1305,12 @@ const RatingModal = ({
   );
 };
 
-// Optimized Skeleton Loader Component
+// ============================================
+// ✅ UNIVERSAL SKELETON LOADER COMPONENT
+// ============================================
 const UsersSkeleton = () => {
   return (
     <div className="relative mt-12 xs:mt-16 sm:mt-20">
-      {/* Navbar Skeleton - Enhanced Responsive */}
-      <nav className="relative z-50">
-        <div className="relative container mx-auto px-3 xs:px-4 sm:px-6 md:px-8">
-          <div className="flex items-center justify-between h-14 xs:h-16 sm:h-18 md:h-20 lg:h-22">
-            <div className="flex items-center gap-2 xs:gap-2.5 sm:gap-3 md:gap-4">
-              <div className="w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 md:w-11 md:h-11 lg:w-12 lg:h-12 rounded-lg sm:rounded-xl bg-gray-800/40 animate-pulse" />
-              <div className="space-y-1.5 xs:space-y-2">
-                <div className="h-4 xs:h-4.5 sm:h-5 md:h-5.5 lg:h-6 w-24 xs:w-28 sm:w-32 md:w-36 lg:w-40 bg-gray-800/40 rounded animate-pulse" />
-                <div className="h-2.5 xs:h-3 sm:h-3 md:h-3.5 w-16 xs:w-18 sm:w-20 md:w-24 bg-gray-800/40 rounded animate-pulse hidden xs:block" />
-              </div>
-            </div>
-            <div className="hidden lg:flex items-center gap-3 xl:gap-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="h-9 w-20 xl:h-10 xl:w-24 bg-gray-800/40 rounded-lg animate-pulse"
-                  style={{ animationDelay: `${i * 80}ms` }}
-                />
-              ))}
-            </div>
-            <div className="lg:hidden w-9 h-9 xs:w-10 xs:h-10 sm:w-10 sm:h-10 bg-gray-800/40 rounded-lg animate-pulse" />
-          </div>
-        </div>
-      </nav>
-
       {/* Main Content Skeleton - Enhanced Responsive */}
       <div className="relative min-h-[calc(100vh-64px)] xs:min-h-[calc(100vh-72px)] sm:min-h-[calc(100vh-80px)] flex items-center justify-center px-3 xs:px-4 sm:px-6 md:px-8 py-6 xs:py-8 sm:py-10 md:py-12">
         <div className="w-full max-w-sm xs:max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-3xl xl:max-w-4xl">
@@ -1103,7 +1593,7 @@ const PlatformPreview = ({ answers }: { answers: Record<string, string> }) => {
             >
               <p className="text-gray-300 text-xs xs:text-sm sm:text-base md:text-lg lg:text-xl font-medium mb-2">
                 {sections[activeSection].description}
-              </p>
+                            </p>
             </motion.div>
           </motion.div>
         </AnimatePresence>
@@ -1373,8 +1863,11 @@ const ManagementPreview = () => {
   );
 };
 
-// Main Users Component
+// ============================================
+// ✅ MAIN USERS COMPONENT WITH UNIVERSAL LOADING
+// ============================================
 const Users = () => {
+  const { user, isLoading: authLoading, authChecked } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1382,17 +1875,32 @@ const Users = () => {
   const [showPreview, setShowPreview] = useState(false);
   
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
-  // ✅ NEW: Enrolled courses state
+  // Enrolled courses state
   const [enrolledCourses, setEnrolledCourses] = useState<EnrolledCourseData[]>([]);
   const [hasEnrollments, setHasEnrollments] = useState(false);
 
+  // Published courses state
+  const [publishedCourses, setPublishedCourses] = useState<PublishedCourseData[]>([]);
+  const [hasPublishedCourses, setHasPublishedCourses] = useState(false);
+
   useEffect(() => {
     async function checkOnboardingAndEnrollments() {
+      if (!authChecked) {
+        return;
+      }
+
+      if (!user) {
+        setIsLoadingData(false);
+        return;
+      }
+
       try {
         // Check onboarding status
-        const goalsResponse = await fetch('/api/user/goals');
+        const goalsResponse = await fetch('/api/user/goals', {
+          credentials: 'include',
+        });
         
         if (!goalsResponse.ok) {
           throw new Error('Failed to fetch goals');
@@ -1412,8 +1920,10 @@ const Users = () => {
           setHasCompletedOnboarding(false);
         }
 
-        // ✅ NEW: Check for course enrollments
-        const enrollmentsResponse = await fetch('/api/user/enrolled-courses');
+        // Check for course enrollments
+        const enrollmentsResponse = await fetch('/api/user/enrolled-courses', {
+          credentials: 'include',
+        });
         
         if (enrollmentsResponse.ok) {
           const enrollmentsData = await enrollmentsResponse.json();
@@ -1423,16 +1933,30 @@ const Users = () => {
             setHasEnrollments(true);
           }
         }
+
+        // ✅ NEW: Check for published courses
+        const publishedResponse = await fetch('/api/user/published-courses', {
+          credentials: 'include',
+        });
+        
+        if (publishedResponse.ok) {
+          const publishedData = await publishedResponse.json();
+          
+          if (publishedData.courses && publishedData.courses.length > 0) {
+            setPublishedCourses(publishedData.courses);
+            setHasPublishedCourses(true);
+          }
+        }
       } catch (error) {
         console.error('Failed to check onboarding status:', error);
         setHasCompletedOnboarding(false);
       } finally {
-        setIsLoading(false);
+        setIsLoadingData(false);
       }
     }
 
     checkOnboardingAndEnrollments();
-  }, []);
+  }, [user, authChecked]);
 
   const questions: Question[] = useMemo(() => {
     const purpose = answers.purpose;
@@ -1522,6 +2046,7 @@ const Users = () => {
       const response = await fetch("/api/user/goals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(answers),
       });
 
@@ -1546,7 +2071,9 @@ const Users = () => {
     setShowPreview(true);
   };
 
-  if (isLoading) {
+  // ✅ UNIVERSAL SKELETON LOADING
+  // Show skeleton while auth is being checked OR while user data is being loaded
+  if (!authChecked || authLoading || isLoadingData) {
     return (
       <LazyMotion features={domAnimation}>
         <UsersSkeleton />
@@ -1554,13 +2081,31 @@ const Users = () => {
     );
   }
 
-  // ✅ NEW: Show Enrolled Area if user has purchased courses
-  if (hasEnrollments && enrolledCourses.length > 0) {
+  // ✅ Show unauthenticated message if user is not logged in
+  if (!user) {
     return (
       <LazyMotion features={domAnimation}>
-        {/* ✅ ADDED: 20px margin from top on mobile */}
+        <div className="relative mt-12 xs:mt-16 sm:mt-20">
+          <UnauthenticatedMessage />
+        </div>
+      </LazyMotion>
+    );
+  }
+
+  // ✅ Show both enrolled AND published courses
+  if ((hasEnrollments && enrolledCourses.length > 0) || (hasPublishedCourses && publishedCourses.length > 0)) {
+    return (
+      <LazyMotion features={domAnimation}>
         <div className="relative mt-5 sm:mt-12 xs:mt-16 md:mt-20">
-          <EnrolledCoursesArea courses={enrolledCourses} />
+          {/* Show Enrolled Courses if user has any */}
+          {hasEnrollments && enrolledCourses.length > 0 && (
+            <EnrolledCoursesArea courses={enrolledCourses} />
+          )}
+          
+          {/* Show Published Courses if user has any */}
+          {hasPublishedCourses && publishedCourses.length > 0 && (
+            <PublishedCoursesArea courses={publishedCourses} />
+          )}
         </div>
       </LazyMotion>
     );

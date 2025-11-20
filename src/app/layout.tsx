@@ -11,6 +11,10 @@ export const metadata: Metadata = {
   title: "Verseandme Scales",
   description: "Platform build for selling",
   icons: { icon: "/logomake2.JPG" },
+  // ✅ FIX: Add permissions policy to prevent PayPal geolocation errors
+  other: {
+    'permissions-policy': 'geolocation=(), microphone=(), camera=()',
+  },
 };
 
 export const dynamic = 'force-dynamic';
@@ -42,6 +46,11 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <head>
         <link rel="icon" href="/logomake2.JPG" type="image/JPG" />
+        {/* ✅ FIX: Additional meta tag for PayPal permissions */}
+        <meta 
+          httpEquiv="Permissions-Policy" 
+          content="geolocation=(), microphone=(), camera=()" 
+        />
       </head>
       <body className={`${inter.className} min-h-screen`}>
         <AuthProvider>

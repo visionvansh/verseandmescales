@@ -492,41 +492,52 @@ const getAuthToken = useCallback(async () => {
   }, [enabled, roomId]); // ✅ Only depend on enabled and roomId
 
   // ✅ WebSocket methods with better error handling
-  const sendMessage = useCallback(
-    async (data: {
-      content: string;
-      replyToId?: string;
-      messageType?: string;
-    }) => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        throw new Error("Not connected to server");
-      }
+const sendMessage = useCallback(
+  async (data: {
+    content: string;
+    replyToId?: string;
+    messageType?: string;
+    // ✅ ADD MEDIA FIELDS
+    mediaUrl?: string;
+    mediaType?: string;
+    mediaFileName?: string;
+    mediaFileSize?: number;
+    mediaPublicId?: string;
+    mediaWidth?: number;
+    mediaHeight?: number;
+    mediaDuration?: number;
+    mediaThumbnail?: string;
+  }) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      throw new Error("Not connected to server");
+    }
 
-      if (!isRoomJoined) {
-        if (messageQueueRef.current.length < WEBSOCKET_CONFIG.queue.maxSize) {
-          console.log("⏳ WS: Queuing message (room not joined yet)");
-          messageQueueRef.current.push(data);
-          setError("Connecting...");
-          return;
-        }
-        throw new Error("Message queue full. Please try again.");
+    if (!isRoomJoined) {
+      if (messageQueueRef.current.length < WEBSOCKET_CONFIG.queue.maxSize) {
+        console.log("⏳ WS: Queuing message (room not joined yet)");
+        messageQueueRef.current.push(data);
+        setError("Connecting...");
+        return;
       }
+      throw new Error("Message queue full. Please try again.");
+    }
 
-      try {
-        wsRef.current.send(
-          JSON.stringify({
-            event: "send_message",
-            data,
-          })
-        );
-        setError(null);
-      } catch (err) {
-        console.error("Failed to send message:", err);
-        throw new Error("Failed to send message");
-      }
-    },
-    [isRoomJoined]
-  );
+    try {
+      wsRef.current.send(
+        JSON.stringify({
+          event: "send_message",
+          data, // ✅ This now includes all media fields
+        })
+      );
+      setError(null);
+      console.log("✅ WS: Message sent", data.mediaUrl ? "with media" : "text only");
+    } catch (err) {
+      console.error("Failed to send message:", err);
+      throw new Error("Failed to send message");
+    }
+  },
+  [isRoomJoined]
+);
 
   const editMessage = useCallback(
     async (messageId: string, content: string) => {
