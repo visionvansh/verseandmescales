@@ -8,7 +8,7 @@ import {
   FaVideo,
   FaClock,
   FaFire,
-  FaPlay,
+  FaPlay, 
   FaChevronDown,
   FaChevronRight,
   FaStar,
