@@ -21,7 +21,8 @@ const ALLOWED_TYPES = {
 const MAX_FILE_SIZE = {
   image: 10 * 1024 * 1024,  // 10 MB
   video: 100 * 1024 * 1024, // 100 MB
-  pdf: 20 * 1024 * 1024,    // 20 MB
+  pdf: 100 * 1024 * 1024,   // 100 MB
+
 } as const;
 
 type FileCategory = keyof typeof ALLOWED_TYPES;
