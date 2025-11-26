@@ -1,12 +1,14 @@
-// src/lib/loaders/checkout-loader.ts
 import prisma from '@/lib/prisma';
 import { createPayPalOrder, calculatePlatformFee, calculateSellerAmount } from '@/lib/paypal';
+import { stripe } from '@/lib/stripe';
 
 interface AtomicCheckoutData {
   course: any;
   owner: any;
   currentUserAvatars: any[];
   paypalOrderId: string;
+  stripeClientSecret: string;
+  stripePaymentIntentId: string;
   timestamp: number;
 }
 
@@ -34,7 +36,11 @@ export async function loadCompleteCheckoutData(
       },
     });
 
-    const paymentData = await createPayPalOrderForCourse(courseId, userId, courseDetail.course);
+    // Create both PayPal and Stripe payment intents
+    const [paypalData, stripeData] = await Promise.all([
+      createPayPalOrderForCourse(courseId, userId, courseDetail.course),
+      createStripePaymentIntent(courseId, userId, courseDetail.course),
+    ]);
 
     const totalTime = Date.now() - startTime;
     console.log(`⚡ Checkout data loaded in ${totalTime}ms`);
@@ -42,7 +48,8 @@ export async function loadCompleteCheckoutData(
     return {
       ...courseDetail,
       currentUserAvatars,
-      ...paymentData,
+      ...paypalData,
+      ...stripeData,
       timestamp: Date.now(),
     };
   } catch (error) {
@@ -155,12 +162,6 @@ async function createPayPalOrderForCourse(courseId: string, userId: string, cour
     throw new Error('You cannot purchase your own course');
   }
 
-  console.log('[Checkout Loader] ✅ Creating PayPal order:', {
-    courseId,
-    buyerId: userId,
-    sellerId,
-  });
-
   const buyer = await prisma.student.findUnique({
     where: { id: userId },
     select: {
@@ -194,13 +195,111 @@ async function createPayPalOrderForCourse(courseId: string, userId: string, cour
     description: `Purchase: ${course.title}`,
   });
 
+  console.log('✅ PayPal order created successfully:', orderId);
+
+  return {
+    paypalOrderId: orderId,
+  };
+}
+
+async function createStripePaymentIntent(courseId: string, userId: string, course: any) {
+  const sellerId = course.userId;
+
+  if (!sellerId) {
+    throw new Error('Invalid course: seller information missing');
+  }
+
+  const buyer = await prisma.student.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      stripeCustomerId: true,
+    },
+  });
+
+  if (!buyer) {
+    throw new Error('User not found');
+  }
+
+  const price = parseFloat(course.salePrice || course.price || '0');
+  
+  if (price <= 0) {
+    throw new Error('Invalid course price');
+  }
+
+  const amountInCents = Math.round(price * 100);
+  const platformFee = calculatePlatformFee(amountInCents);
+  const sellerAmount = calculateSellerAmount(amountInCents);
+
+  // Create or retrieve Stripe customer
+  let customerId = buyer.stripeCustomerId;
+  
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email: buyer.email,
+      name: buyer.name || undefined,
+      metadata: {
+        userId: buyer.id,
+      },
+    });
+    
+    customerId = customer.id;
+    
+    await prisma.student.update({
+      where: { id: userId },
+      data: { stripeCustomerId: customerId },
+    });
+  }
+
+  // ✅ UPDATED: Create Payment Intent with ALL payment methods
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: amountInCents,
+    currency: 'usd',
+    customer: customerId,
+    
+    // ✅ Option 1: Automatic payment methods (RECOMMENDED)
+    automatic_payment_methods: {
+      enabled: true,
+      // Remove or change allow_redirects to allow more payment methods
+      // allow_redirects: 'always', // Allows all methods including redirects
+    },
+
+    // ✅ Option 2: Explicit payment method types (if you want more control)
+    // Comment out automatic_payment_methods above and use this instead:
+    // payment_method_types: [
+    //   'card',
+    //   'cashapp',
+    //   'link',
+    //   'affirm',
+    //   'us_bank_account',
+    // ],
+
+    metadata: {
+      courseId,
+      buyerId: userId,
+      sellerId,
+      courseTitle: course.title,
+      platformFee: (platformFee / 100).toString(),
+      sellerAmount: (sellerAmount / 100).toString(),
+    },
+    description: `Purchase: ${course.title}`,
+    receipt_email: buyer.email,
+    
+    // ✅ Optional: Add statement descriptor for better UX
+    statement_descriptor: 'Course Purchase',
+    statement_descriptor_suffix: course.title.substring(0, 22), // Max 22 chars
+  });
+
   // Create payment record
   await prisma.payment.create({
     data: {
-      stripePaymentId: orderId, // Reusing this field for PayPal order ID
+      stripePaymentId: paymentIntent.id,
       amount: price,
       currency: 'USD',
       status: 'pending',
+      paymentMethod: 'stripe',
       course: {
         connect: { id: courseId }
       },
@@ -216,15 +315,13 @@ async function createPayPalOrderForCourse(courseId: string, userId: string, cour
     },
   });
 
-  console.log('✅ PayPal order created successfully:', {
-    orderId,
-    courseId,
-    buyerId: userId,
-    sellerId: sellerId,
-    amount: price,
+  console.log('✅ Stripe payment intent created with payment methods:', {
+    id: paymentIntent.id,
+    available_methods: paymentIntent.payment_method_types,
   });
 
   return {
-    paypalOrderId: orderId,
+    stripeClientSecret: paymentIntent.client_secret!,
+    stripePaymentIntentId: paymentIntent.id,
   };
 }

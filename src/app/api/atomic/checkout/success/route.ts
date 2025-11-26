@@ -1,4 +1,4 @@
-// src/app/api/checkout/atomic/success/route.ts
+//Volumes/vision/codes/course/my-app/src/app/api/atomic/checkout/success/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import { loadCheckoutSuccessData } from '@/lib/loaders/checkout-success-loader';
@@ -11,7 +11,6 @@ export async function POST(request: NextRequest) {
     console.log('⚡ Atomic success API called');
     const startTime = Date.now();
 
-    // Get authenticated user
     const user = await getAuthUser(request);
 
     if (!user) {
@@ -21,17 +20,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { paypalOrderId } = await request.json();
+    const body = await request.json();
+    const { paypalOrderId, stripePaymentIntentId, paymentMethod } = body;
 
-    if (!paypalOrderId) {
+    if (!paypalOrderId && !stripePaymentIntentId) {
       return NextResponse.json(
-        { error: 'PayPal Order ID is required' },
+        { error: 'Payment ID is required' },
         { status: 400 }
       );
     }
 
-    // ✅ Load ALL success data atomically
-    const atomicData = await loadCheckoutSuccessData(paypalOrderId, user.id);
+    // Load success data based on payment method
+    const atomicData = await loadCheckoutSuccessData(
+      paypalOrderId || stripePaymentIntentId,
+      user.id,
+      paymentMethod || (paypalOrderId ? 'paypal' : 'stripe')
+    );
 
     const totalTime = Date.now() - startTime;
     console.log(`⚡ Atomic success API completed in ${totalTime}ms`);

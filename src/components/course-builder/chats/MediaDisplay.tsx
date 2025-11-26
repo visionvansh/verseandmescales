@@ -3,12 +3,14 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaTimes, FaDownload, FaExpand, FaFilePdf } from 'react-icons/fa';
+import { FaTimes, FaDownload, FaExpand, FaFile } from 'react-icons/fa';
+import { PdfDisplay } from './PdfDisplay';
 
 interface MediaDisplayProps {
   url: string;
-  type: 'image' | 'video' | 'pdf';
+  type: 'image' | 'video' | 'pdf' | string;
   fileName?: string;
+  fileSize?: number;
   thumbnail?: string;
   width?: number;
   height?: number;
@@ -18,6 +20,7 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({
   url,
   type,
   fileName,
+  fileSize,
   thumbnail,
   width,
   height,
@@ -30,13 +33,7 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({
     return null;
   }
 
-  // ✅ VALIDATE TYPE
-  if (!['image', 'video', 'pdf'].includes(type)) {
-    console.error('❌ MediaDisplay: Invalid type:', type);
-    return null;
-  }
-
-  console.log('✅ MediaDisplay rendering:', { url, type, fileName });
+  console.log('✅ MediaDisplay rendering:', { url, type, fileName, fileSize });
 
   const handleDownload = async () => {
     try {
@@ -52,40 +49,52 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({
       window.URL.revokeObjectURL(downloadUrl);
     } catch (error) {
       console.error('Download failed:', error);
+      window.open(url, '_blank');
     }
   };
 
-  if (type === 'image') {
+  // ✅ IMAGE DISPLAY
+  if (type === 'image' || type.startsWith('image/')) {
     return (
       <>
-        <div className="relative group">
+        <div className="media-image-container group">
           <img
             src={url}
-            alt={fileName}
-            className="max-w-full max-h-96 rounded-xl cursor-pointer"
+            alt={fileName || 'Image'}
+            className="media-image"
             onClick={() => setIsFullscreen(true)}
+            loading="lazy"
           />
+          
+          {/* Hover Overlay */}
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-3">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               onClick={() => setIsFullscreen(true)}
               className="p-3 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-colors"
             >
               <FaExpand className="text-white" />
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               onClick={handleDownload}
               className="p-3 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-colors"
             >
               <FaDownload className="text-white" />
-            </button>
+            </motion.button>
           </div>
         </div>
 
         {/* Fullscreen Modal */}
         <AnimatePresence>
           {isFullscreen && (
-            <div
-              className="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4"
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="media-fullscreen-overlay"
               onClick={() => setIsFullscreen(false)}
             >
               <motion.div
@@ -93,69 +102,91 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                className="relative max-w-7xl max-h-[90vh]"
+                className="media-fullscreen-container"
               >
-                <img src={url} alt={fileName} className="max-w-full max-h-[90vh] object-contain" />
-                <button
+                <img 
+                  src={url} 
+                  alt={fileName || 'Image'} 
+                  className="media-fullscreen-image" 
+                />
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
                   onClick={() => setIsFullscreen(false)}
-                  className="absolute top-4 right-4 p-3 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-colors"
+                  className="media-fullscreen-close"
                 >
-                  <FaTimes className="text-white text-xl" />
-                </button>
+                  <FaTimes className="text-xl" />
+                </motion.button>
               </motion.div>
-            </div>
+            </motion.div>
           )}
         </AnimatePresence>
       </>
     );
   }
 
-  if (type === 'video') {
+  // ✅ VIDEO DISPLAY
+  if (type === 'video' || type.startsWith('video/')) {
     return (
-      <div className="relative group">
+      <div className="media-video-container group relative">
         <video
           src={url}
           controls
           poster={thumbnail}
-          className="max-w-full max-h-96 rounded-xl"
-        />
-        <button
+          className="media-video"
+          preload="metadata"
+        >
+          Your browser does not support video playback.
+        </video>
+        
+        {/* Download Button Overlay */}
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={handleDownload}
           className="absolute top-4 right-4 p-3 bg-black/50 backdrop-blur-sm rounded-lg hover:bg-black/70 transition-colors opacity-0 group-hover:opacity-100"
         >
           <FaDownload className="text-white" />
-        </button>
+        </motion.button>
       </div>
     );
   }
 
-  if (type === 'pdf') {
+  // ✅ PDF DISPLAY - USE NEW COMPONENT
+  if (type === 'pdf' || type === 'application/pdf') {
     return (
-      <div className="bg-gray-800 rounded-xl p-4 flex items-center gap-4">
-        <FaFilePdf className="text-4xl text-red-500 flex-shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-semibold truncate">{fileName}</p>
-          <p className="text-gray-400 text-sm">PDF Document</p>
-        </div>
-        <div className="flex gap-2">
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
-          >
-            View
-          </a>
-          <button
-            onClick={handleDownload}
-            className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-          >
-            <FaDownload className="text-white" />
-          </button>
-        </div>
-      </div>
+      <PdfDisplay
+        url={url}
+        fileName={fileName}
+        fileSize={fileSize}
+        thumbnail={thumbnail}
+      />
     );
   }
 
-  return null;
+  // ✅ GENERIC FILE DISPLAY (for other file types)
+  return (
+    <div className="media-file-card">
+      <div className="media-file-icon">
+        <FaFile />
+      </div>
+      <div className="media-file-info">
+        <div className="media-file-name">{fileName || 'File'}</div>
+        {fileSize && (
+          <div className="media-file-size">
+            {(fileSize / 1024).toFixed(2)} KB
+          </div>
+        )}
+      </div>
+      <a
+        href={url}
+        download={fileName}
+        className="media-file-download"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <FaDownload />
+      </a>
+    </div>
+  );
 };

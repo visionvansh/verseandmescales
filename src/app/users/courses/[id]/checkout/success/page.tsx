@@ -106,8 +106,11 @@ export default function CheckoutSuccess() {
   const searchParams = useSearchParams();
   const { user, logout, checkAuthStatus } = useAuth();
   
-  // PayPal returns 'token' parameter with order ID
+  // ✅ Get BOTH payment IDs
   const paypalOrderId = searchParams.get('token');
+  const stripePaymentIntent = searchParams.get('payment_intent');
+  const paymentMethod = searchParams.get('method');
+  
   const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -196,15 +199,29 @@ export default function CheckoutSuccess() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ✅ FOURTH: Verify payment after auth is checked
+  // ✅ FIXED: Verify payment after auth is checked
   useEffect(() => {
-    if (authChecked && paypalOrderId) {
+    if (!authChecked) return;
+    
+    // Check if we have EITHER PayPal or Stripe payment ID
+    const hasPaymentId = paypalOrderId || stripePaymentIntent;
+    
+    console.log('[Success] 🔍 Payment verification check:', {
+      authChecked,
+      hasPaymentId,
+      paypalOrderId: paypalOrderId ? '✓' : '✗',
+      stripePaymentIntent: stripePaymentIntent ? '✓' : '✗',
+      method: paymentMethod,
+    });
+    
+    if (hasPaymentId) {
       verifyPaymentAndEnrollment();
-    } else if (authChecked && !paypalOrderId) {
-      setError('Invalid payment session');
+    } else {
+      console.error('[Success] ❌ No payment ID found in URL');
+      setError('Invalid payment session - no payment ID provided');
       setLoading(false);
     }
-  }, [authChecked, paypalOrderId]);
+  }, [authChecked, paypalOrderId, stripePaymentIntent]);
 
   // ✅ Close dropdown on outside click
   useEffect(() => {
@@ -225,13 +242,23 @@ export default function CheckoutSuccess() {
     try {
       setLoading(true);
       
-      console.log('[Success] 🔍 Verifying PayPal order:', paypalOrderId);
+      const method = paymentMethod || (paypalOrderId ? 'paypal' : 'stripe');
+      
+      console.log('[Success] 🔍 Verifying payment:', { 
+        method, 
+        paypalToken: paypalOrderId,
+        stripePaymentIntent: stripePaymentIntent,
+      });
       
       const response = await fetch('/api/atomic/checkout/success', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ paypalOrderId }),
+        body: JSON.stringify({ 
+          paypalOrderId: paypalOrderId,
+          stripePaymentIntentId: stripePaymentIntent,
+          paymentMethod: method,
+        }),
       });
 
       if (!response.ok) {

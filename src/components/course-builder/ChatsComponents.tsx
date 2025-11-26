@@ -1503,305 +1503,841 @@ export const ChatRoom = memo(
     return (
       <LazyMotion features={domAnimation}>
         {/* ✅ ADVANCED RESPONSIVE STYLES */}
-        <style jsx global>{`
-          /* ============================================
-             CRITICAL: MESSAGE OVERFLOW FIX
-             ============================================ */
-          .message-content-wrapper {
-            word-wrap: break-word;
-            word-break: break-word;
-            overflow-wrap: break-word;
-            hyphens: auto;
-            max-width: 100%;
-            overflow: hidden;
-          }
+<style jsx global>{`
+  /* ============================================
+     CRITICAL: MESSAGE OVERFLOW FIX
+     ============================================ */
+  .message-content-wrapper {
+    word-wrap: break-word;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    max-width: 100%;
+    overflow: hidden;
+  }
 
-          /* Mobile message bubble constraints */
-          @media (max-width: 640px) {
-            .message-bubble {
-              max-width: calc(
-                100vw - 80px
-              ) !important; /* Account for avatar + padding */
-              min-width: 0;
-            }
+  /* Mobile message bubble constraints */
+  @media (max-width: 640px) {
+    .message-bubble {
+      max-width: calc(100vw - 80px) !important;
+      min-width: 0;
+    }
 
-            .message-bubble-own {
-              max-width: calc(
-                100vw - 60px
-              ) !important; /* Less space needed without avatar */
-            }
+    .message-bubble-own {
+      max-width: calc(100vw - 60px) !important;
+    }
 
-            .message-content-wrapper {
-              max-width: 100%;
-              font-size: 14px;
-              line-height: 1.5;
-            }
+    .message-content-wrapper {
+      max-width: 100%;
+      font-size: 14px;
+      line-height: 1.5;
+    }
 
-            .message-content-wrapper pre,
-            .message-content-wrapper code {
-              max-width: 100%;
-              overflow-x: auto;
-              font-size: 12px;
-            }
+    .message-content-wrapper pre,
+    .message-content-wrapper code {
+      max-width: 100%;
+      overflow-x: auto;
+      font-size: 12px;
+    }
 
-            .message-content-wrapper img {
-              max-width: 100%;
-              height: auto;
-            }
-          }
+    .message-content-wrapper img {
+      max-width: 100%;
+      height: auto;
+    }
+  }
 
-          /* Tablet constraints */
-          @media (min-width: 641px) and (max-width: 1023px) {
-            .message-bubble {
-              max-width: 70% !important;
-            }
+  /* Tablet constraints */
+  @media (min-width: 641px) and (max-width: 1023px) {
+    .message-bubble {
+      max-width: 70% !important;
+    }
 
-            .message-content-wrapper {
-              font-size: 15px;
-            }
-          }
+    .message-content-wrapper {
+      font-size: 15px;
+    }
+  }
 
-          /* Desktop constraints */
-          @media (min-width: 1024px) {
-            .message-bubble {
-              max-width: 600px !important;
-            }
-          }
+  /* Desktop constraints */
+  @media (min-width: 1024px) {
+    .message-bubble {
+      max-width: 600px !important;
+    }
+  }
 
-          /* ============================================
-             RESPONSIVE HEIGHT SYSTEM
-             ============================================ */
-          .chat-container-responsive {
-            height: calc(100dvh - 140px);
-            max-height: calc(100dvh - 140px);
-            min-height: 400px;
-          }
+  /* ============================================
+     MODERN PDF DISPLAY - MATCHES MESSAGE BUBBLES
+     ============================================ */
 
-          @media (min-width: 640px) {
-            .chat-container-responsive {
-              height: calc(100vh - 140px);
-              max-height: calc(100vh - 140px);
-            }
-          }
+  .pdf-display-wrapper {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(17, 24, 39, 0.98) 0%, rgba(0, 0, 0, 0.98) 100%);
+    border-radius: 16px;
+    border: 2px solid rgba(239, 68, 68, 0.2);
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(20px);
+  }
 
-          @media (min-width: 1024px) {
-            .chat-container-responsive {
-              height: calc(100vh - 120px);
-              max-height: calc(100vh - 120px);
-            }
-          }
+  .pdf-display-wrapper:hover {
+    border-color: rgba(239, 68, 68, 0.4);
+    box-shadow: 0 20px 25px -5px rgba(239, 68, 68, 0.15), 0 10px 10px -5px rgba(239, 68, 68, 0.1);
+    transform: translateY(-2px);
+  }
 
-          /* Support for iOS Safari */
-          @supports (-webkit-touch-callout: none) {
-            .chat-container-responsive {
-              height: -webkit-fill-available;
-              max-height: -webkit-fill-available;
-            }
-          }
+  /* Header */
+  .pdf-header-modern {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border-bottom: 1px solid rgba(239, 68, 68, 0.1);
+    background: linear-gradient(to right, rgba(239, 68, 68, 0.08), transparent);
+  }
 
-          /* ============================================
-             SCROLLBAR REMOVAL - ALL BROWSERS
-             ============================================ */
+  @media (max-width: 640px) {
+    .pdf-header-modern {
+      padding: 12px;
+      gap: 10px;
+    }
+  }
 
-          .no-scrollbar::-webkit-scrollbar,
-          .hide-scrollbar::-webkit-scrollbar,
-          .scrollbar-hide::-webkit-scrollbar {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-          }
+  /* Icon */
+  .pdf-icon-modern {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
 
-          .no-scrollbar,
-          .hide-scrollbar,
-          .scrollbar-hide {
-            -ms-overflow-style: none !important;
-            scrollbar-width: none !important;
-            scroll-behavior: smooth;
-            -webkit-overflow-scrolling: touch;
-          }
-          /* Fix for inline actions overflow */
-          .message-bubble-container {
-            position: relative;
-            /* Don't clip the inline actions */
-            overflow: visible !important;
-          }
+  .pdf-icon-bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(220, 38, 38, 0.4));
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
 
-          /* Ensure parent containers don't clip */
-          .messages-container {
-            overflow-y: auto !important;
-            overflow-x: visible !important;
-          }
+  @keyframes pulse-glow {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
 
-          /* Prevent inline actions from being cut off */
-          @media (min-width: 1024px) {
-            .message-bubble-container {
-              /* Add padding to accommodate inline actions */
-              padding-left: 60px;
-              padding-right: 60px;
-            }
-          }
+  .pdf-icon-svg {
+    position: relative;
+    z-index: 1;
+    font-size: 24px;
+    color: #ef4444;
+  }
 
-          /* Mobile: No extra padding needed */
-          @media (max-width: 1023px) {
-            .message-bubble-container {
-              padding-left: 0.5rem;
-              padding-right: 0.5rem;
-            }
-          }
-          /* Messages container */
-          .messages-container {
-            position: relative;
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-            overscroll-behavior: contain;
-          }
+  @media (max-width: 640px) {
+    .pdf-icon-modern {
+      width: 40px;
+      height: 40px;
+      min-width: 40px;
+    }
+    
+    .pdf-icon-svg {
+      font-size: 20px;
+    }
+  }
 
-          .messages-container::-webkit-scrollbar {
-            display: none !important;
-          }
+  /* Info */
+  .pdf-info-modern {
+    flex: 1;
+    min-width: 0;
+  }
 
-          /* ============================================
-             MOBILE OPTIMIZATIONS
-             ============================================ */
-          @media (max-width: 1023px) {
-            /* Prevent zoom on input focus */
-            input[type="text"],
-            input[type="search"],
-            textarea,
-            select {
-              font-size: 16px !important;
-            }
+  .pdf-filename-modern {
+    font-size: 15px;
+    font-weight: 600;
+    color: white;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+  }
 
-            /* Touch targets */
-            button,
-            a,
-            [role="button"] {
-              min-height: 44px;
-              min-width: 44px;
-            }
+  @media (max-width: 640px) {
+    .pdf-filename-modern {
+      font-size: 14px;
+    }
+  }
 
-            /* Mobile safe areas */
-            .mobile-safe-bottom {
-              padding-bottom: max(env(safe-area-inset-bottom), 16px);
-            }
+  .pdf-meta-modern {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
-            /* Improve tap response */
-            * {
-              -webkit-tap-highlight-color: transparent;
-              touch-action: manipulation;
-            }
+  .pdf-badge {
+    padding: 2px 8px;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
 
-            /* Fix mobile keyboard overlapping */
-            .chat-input-container {
-              position: sticky;
-              bottom: 0;
-              z-index: 100;
-            }
-          }
+  .pdf-size {
+    font-size: 12px;
+    color: rgba(156, 163, 175, 1);
+    font-weight: 500;
+  }
 
-          /* ============================================
-             SMOOTH ANIMATIONS
-             ============================================ */
-          * {
-            -webkit-overflow-scrolling: touch;
-          }
+  @media (max-width: 640px) {
+    .pdf-size {
+      font-size: 11px;
+    }
+  }
 
-          @media (prefers-reduced-motion: reduce) {
-            *,
-            *::before,
-            *::after {
-              animation-duration: 0.01ms !important;
-              animation-iteration-count: 1 !important;
-              transition-duration: 0.01ms !important;
-            }
-          }
+  /* Preview Area */
+  .pdf-preview-modern {
+    position: relative;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+  }
 
-          /* ============================================
-             LOADING STATES
-             ============================================ */
-          @keyframes shimmer {
-            0% {
-              background-position: -1000px 0;
-            }
-            100% {
-              background-position: 1000px 0;
-            }
-          }
+  /* Mobile Preview */
+  .pdf-mobile-preview {
+    position: relative;
+    width: 100%;
+    height: 240px;
+    display: block;
+  }
 
-          .animate-shimmer {
-            animation: shimmer 2s infinite linear;
-            background: linear-gradient(
-              to right,
-              #1f2937 0%,
-              #374151 20%,
-              #1f2937 40%,
-              #1f2937 100%
-            );
-            background-size: 1000px 100%;
-          }
+  @media (min-width: 769px) {
+    .pdf-mobile-preview {
+      display: none;
+    }
+  }
 
-          /* ============================================
-             MODAL OVERLAY
-             ============================================ */
-          .modal-overlay {
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior: contain;
-          }
+  .pdf-thumbnail-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+  }
 
-          .modal-overlay::-webkit-scrollbar {
-            display: none !important;
-          }
+  .pdf-thumbnail-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(17, 24, 39, 0.8);
+  }
 
-          /* ============================================
-             GRID SYSTEM FIX
-             ============================================ */
-          .responsive-grid {
-            display: grid;
-            gap: 1rem;
-            width: 100%;
-          }
+  .pdf-fallback-icon {
+    font-size: 48px;
+    color: #ef4444;
+    margin-bottom: 12px;
+  }
 
-          @media (max-width: 1023px) {
-            .responsive-grid {
-              grid-template-columns: 1fr;
-            }
-          }
+  .pdf-fallback-text {
+    color: rgba(156, 163, 175, 1);
+    font-size: 14px;
+    font-weight: 500;
+  }
 
-          @media (min-width: 1024px) {
-            .responsive-grid {
-              grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr) minmax(
-                  200px,
-                  1fr
-                );
-              gap: 1.5rem;
-            }
-          }
+  .pdf-thumbnail-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.8) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
 
-          /* ============================================
-             PREVENT LAYOUT SHIFT
-             ============================================ */
-          .prevent-layout-shift {
-            contain: layout style paint;
-          }
+  .pdf-mobile-preview:hover .pdf-thumbnail-overlay {
+    opacity: 1;
+  }
 
-          /* ============================================
-             PERFORMANCE OPTIMIZATIONS
-             ============================================ */
-          .will-change-transform {
-            will-change: transform;
-          }
+  .pdf-view-button {
+    padding: 14px 28px;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95));
+    border-radius: 24px;
+    color: white;
+    font-weight: 700;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
 
-          .will-change-opacity {
-            will-change: opacity;
-          }
+  .pdf-view-button:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    box-shadow: 0 15px 20px -5px rgba(0, 0, 0, 0.6);
+  }
 
-          /* GPU acceleration */
-          .gpu-accelerate {
-            transform: translateZ(0);
-            backface-visibility: hidden;
-            perspective: 1000px;
-          }
-        `}</style>
+  /* Desktop iframe */
+  .pdf-iframe-modern {
+    width: 100%;
+    height: 500px;
+    border: none;
+    display: none;
+  }
+
+  @media (min-width: 769px) {
+    .pdf-iframe-modern {
+      display: block;
+    }
+    
+    .pdf-preview-modern {
+      height: 500px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .pdf-iframe-modern {
+      height: 600px;
+    }
+    
+    .pdf-preview-modern {
+      height: 600px;
+    }
+  }
+
+  /* Actions */
+  .pdf-actions-modern {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(17, 24, 39, 0.6);
+    backdrop-filter: blur(10px);
+  }
+
+  @media (max-width: 640px) {
+    .pdf-actions-modern {
+      padding: 10px 12px;
+      gap: 6px;
+    }
+  }
+
+  .pdf-action-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    min-height: 44px;
+  }
+
+  .pdf-btn-primary {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+
+  .pdf-btn-primary:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    box-shadow: 0 10px 15px -3px rgba(239, 68, 68, 0.4);
+    transform: translateY(-1px);
+  }
+
+  .pdf-btn-secondary {
+    background: rgba(55, 65, 81, 0.6);
+    color: rgba(229, 231, 235, 1);
+    border-color: rgba(75, 85, 99, 0.5);
+  }
+
+  .pdf-btn-secondary:hover {
+    background: rgba(75, 85, 99, 0.9);
+    border-color: rgba(107, 114, 128, 0.8);
+  }
+
+  @media (max-width: 640px) {
+    .pdf-action-btn {
+      padding: 10px 16px;
+      font-size: 13px;
+      gap: 6px;
+    }
+
+    .pdf-action-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  /* ============================================
+     IMAGE & VIDEO MEDIA DISPLAY
+     ============================================ */
+
+  .media-image-container {
+    position: relative;
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .media-image {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: 500px;
+    object-fit: contain;
+    display: block;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+  }
+
+  .media-image:hover {
+    transform: scale(1.02);
+  }
+
+  @media (max-width: 640px) {
+    .media-image {
+      max-height: 300px;
+      border-radius: 8px;
+    }
+  }
+
+  .media-video-container {
+    position: relative;
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .media-video {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: 500px;
+    display: block;
+    border-radius: 12px;
+  }
+
+  @media (max-width: 640px) {
+    .media-video {
+      max-height: 300px;
+      border-radius: 8px;
+    }
+  }
+
+  /* Generic File Display */
+  .media-file-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: rgba(17, 24, 39, 0.8);
+    border: 2px solid rgba(75, 85, 99, 0.5);
+    border-radius: 12px;
+    transition: all 0.3s ease;
+  }
+
+  .media-file-card:hover {
+    border-color: rgba(239, 68, 68, 0.5);
+    background: rgba(17, 24, 39, 0.95);
+  }
+
+  @media (max-width: 640px) {
+    .media-file-card {
+      padding: 12px;
+      gap: 10px;
+    }
+  }
+
+  .media-file-icon {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 8px;
+    color: #ef4444;
+    font-size: 20px;
+  }
+
+  @media (max-width: 640px) {
+    .media-file-icon {
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      font-size: 16px;
+    }
+  }
+
+  .media-file-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .media-file-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 2px;
+  }
+
+  @media (max-width: 640px) {
+    .media-file-name {
+      font-size: 13px;
+    }
+  }
+
+  .media-file-size {
+    font-size: 12px;
+    color: rgba(156, 163, 175, 1);
+  }
+
+  @media (max-width: 640px) {
+    .media-file-size {
+      font-size: 11px;
+    }
+  }
+
+  .media-file-download {
+    padding: 10px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 8px;
+    color: #ef4444;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .media-file-download:hover {
+    background: rgba(239, 68, 68, 0.2);
+    transform: scale(1.1);
+  }
+
+  @media (max-width: 640px) {
+    .media-file-download {
+      min-width: 36px;
+      min-height: 36px;
+      padding: 8px;
+    }
+  }
+
+  /* Fullscreen Modal for Images */
+  .media-fullscreen-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .media-fullscreen-container {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+  }
+
+  .media-fullscreen-image {
+    max-width: 100%;
+    max-height: 90vh;
+    object-fit: contain;
+    border-radius: 8px;
+  }
+
+  .media-fullscreen-close {
+    position: absolute;
+    top: -50px;
+    right: 0;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .media-fullscreen-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
+  }
+
+  /* ============================================
+     RESPONSIVE HEIGHT SYSTEM
+     ============================================ */
+  .chat-container-responsive {
+    height: calc(100dvh - 140px);
+    max-height: calc(100dvh - 140px);
+    min-height: 400px;
+  }
+
+  @media (min-width: 640px) {
+    .chat-container-responsive {
+      height: calc(100vh - 140px);
+      max-height: calc(100vh - 140px);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .chat-container-responsive {
+      height: calc(100vh - 120px);
+      max-height: calc(100vh - 120px);
+    }
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    .chat-container-responsive {
+      height: -webkit-fill-available;
+      max-height: -webkit-fill-available;
+    }
+  }
+
+  /* ============================================
+     SCROLLBAR REMOVAL - ALL BROWSERS
+     ============================================ */
+  .no-scrollbar::-webkit-scrollbar,
+  .hide-scrollbar::-webkit-scrollbar,
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  .no-scrollbar,
+  .hide-scrollbar,
+  .scrollbar-hide {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .message-bubble-container {
+    position: relative;
+    overflow: visible !important;
+  }
+
+  .messages-container {
+    overflow-y: auto !important;
+    overflow-x: visible !important;
+  }
+
+  @media (min-width: 1024px) {
+    .message-bubble-container {
+      padding-left: 60px;
+      padding-right: 60px;
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .message-bubble-container {
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+  }
+
+  .messages-container {
+    position: relative;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain;
+  }
+
+  .messages-container::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  /* ============================================
+     MOBILE OPTIMIZATIONS
+     ============================================ */
+  @media (max-width: 1023px) {
+    input[type="text"],
+    input[type="search"],
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+
+    button,
+    a,
+    [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    .mobile-safe-bottom {
+      padding-bottom: max(env(safe-area-inset-bottom), 16px);
+    }
+
+    * {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    .chat-input-container {
+      position: sticky;
+      bottom: 0;
+      z-index: 100;
+    }
+  }
+
+  /* ============================================
+     SMOOTH ANIMATIONS
+     ============================================ */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* ============================================
+     LOADING STATES
+     ============================================ */
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s infinite linear;
+    background: linear-gradient(
+      to right,
+      #1f2937 0%,
+      #374151 20%,
+      #1f2937 40%,
+      #1f2937 100%
+    );
+    background-size: 1000px 100%;
+  }
+
+  .modal-overlay {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .modal-overlay::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  /* ============================================
+     GRID SYSTEM FIX
+     ============================================ */
+  .responsive-grid {
+    display: grid;
+    gap: 1rem;
+    width: 100%;
+  }
+
+  @media (max-width: 1023px) {
+    .responsive-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .responsive-grid {
+      grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr) minmax(200px, 1fr);
+      gap: 1.5rem;
+    }
+  }
+
+  .prevent-layout-shift {
+    contain: layout style paint;
+  }
+
+  .will-change-transform {
+    will-change: transform;
+  }
+
+  .will-change-opacity {
+    will-change: opacity;
+  }
+
+  .gpu-accelerate {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
+
+  /* ============================================
+     MEDIA DISPLAY CONTAINER
+     ============================================ */
+  .media-display-container {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .media-display-container img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    display: block;
+  }
+
+  @media (max-width: 640px) {
+    .media-display-container img {
+      border-radius: 8px;
+    }
+  }
+
+  .media-display-container video {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+  }
+
+  @media (max-width: 640px) {
+    .media-display-container video {
+      border-radius: 8px;
+      max-height: 300px;
+    }
+  }
+`}</style>
 
         <div className="w-full responsive-grid">
           {/* LEFT SIDEBAR - Desktop Only, Mobile Drawer */}

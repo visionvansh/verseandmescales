@@ -1,6 +1,6 @@
-// src/lib/loaders/checkout-success-loader.ts
 import prisma from '@/lib/prisma';
 import { getPayPalOrderDetails, capturePayPalOrder } from '@/lib/paypal';
+import { stripe } from '@/lib/stripe';
 
 interface AtomicSuccessData {
   course: any;
@@ -8,54 +8,84 @@ interface AtomicSuccessData {
   timestamp: number;
 }
 
-/**
- * ✅ ATOMIC LOADER: Verifies PayPal payment and loads success data
- */
 export async function loadCheckoutSuccessData(
-  paypalOrderId: string,
-  userId: string
+  paymentId: string,
+  userId: string,
+  paymentMethod: 'stripe' | 'paypal'
 ): Promise<AtomicSuccessData> {
   const startTime = Date.now();
-  console.log('⚡ Starting ATOMIC success load for PayPal order:', paypalOrderId);
+  console.log(`⚡ Starting ATOMIC success load for ${paymentMethod}:`, paymentId);
 
   try {
-    // ✅ Get PayPal order details
-    const orderDetails = await getPayPalOrderDetails(paypalOrderId);
+    let courseId: string;
+    let sellerId: string;
+    let amount: number;
 
-    if (!orderDetails) {
-      throw new Error('Invalid PayPal order');
-    }
+    if (paymentMethod === 'paypal') {
+      // Handle PayPal verification
+      const orderDetails = await getPayPalOrderDetails(paymentId);
 
-    // ✅ Check if order is approved but not yet captured
-    if (orderDetails.status === 'APPROVED') {
-      console.log('📦 Capturing PayPal payment...');
-      const captureResult = await capturePayPalOrder(paypalOrderId);
-      
-      if (captureResult.status !== 'COMPLETED') {
-        throw new Error(`Payment capture failed: ${captureResult.status}`);
+      if (!orderDetails) {
+        throw new Error('Invalid PayPal order');
       }
-      
-      // Update order details with captured status
-      orderDetails.status = captureResult.status;
-    }
 
-    if (orderDetails.status !== 'COMPLETED') {
-      throw new Error(`Payment not completed: ${orderDetails.status}`);
-    }
+      if (orderDetails.status === 'APPROVED') {
+        console.log('📦 Capturing PayPal payment...');
+        const captureResult = await capturePayPalOrder(paymentId);
+        
+        if (captureResult.status !== 'COMPLETED') {
+          throw new Error(`Payment capture failed: ${captureResult.status}`);
+        }
+        
+        orderDetails.status = captureResult.status;
+      }
 
-    // ✅ Extract metadata from custom_id
-    const customData = JSON.parse(orderDetails.purchase_units[0].custom_id || '{}');
-    const courseId = customData.courseId || orderDetails.purchase_units[0].reference_id;
+      if (orderDetails.status !== 'COMPLETED') {
+        throw new Error(`Payment not completed: ${orderDetails.status}`);
+      }
+
+      const customData = JSON.parse(orderDetails.purchase_units[0].custom_id || '{}');
+      courseId = customData.courseId || orderDetails.purchase_units[0].reference_id;
+      sellerId = customData.sellerId;
+      amount = parseFloat(orderDetails.purchase_units[0].amount.value);
+
+      if (customData.buyerId !== userId) {
+        throw new Error('Unauthorized access');
+      }
+
+      // Update payment record
+      await prisma.payment.updateMany({
+        where: { stripePaymentId: paymentId },
+        data: { status: 'succeeded' },
+      });
+    } else {
+      // Handle Stripe verification
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentId);
+
+      if (paymentIntent.status !== 'succeeded') {
+        throw new Error(`Payment not succeeded: ${paymentIntent.status}`);
+      }
+
+      courseId = paymentIntent.metadata.courseId;
+      sellerId = paymentIntent.metadata.sellerId;
+      amount = paymentIntent.amount / 100;
+
+      if (paymentIntent.metadata.buyerId !== userId) {
+        throw new Error('Unauthorized access');
+      }
+
+      // Update payment record
+      await prisma.payment.updateMany({
+        where: { stripePaymentId: paymentId },
+        data: { status: 'succeeded' },
+      });
+    }
 
     if (!courseId) {
       throw new Error('Invalid course data');
     }
 
-    if (customData.buyerId !== userId) {
-      throw new Error('Unauthorized access');
-    }
-
-    // ✅ Check/create enrollment
+    // Check/create enrollment
     let enrollment = await prisma.courseEnrollment.findUnique({
       where: {
         courseId_userId: {
@@ -94,39 +124,6 @@ export async function loadCheckoutSuccessData(
           },
         },
       });
-
-      // ✅ Update payment record to succeeded
-      const payment = await prisma.payment.findFirst({
-        where: { stripePaymentId: paypalOrderId }, // Using this field for PayPal order ID
-      });
-
-      if (payment) {
-        await prisma.payment.update({
-          where: { id: payment.id },
-          data: { status: 'succeeded' },
-        });
-      } else {
-        // Create payment record if it doesn't exist
-        const amount = parseFloat(orderDetails.purchase_units[0].amount.value);
-        const platformFee = parseFloat(customData.platformFee || '0');
-        const sellerAmount = parseFloat(customData.sellerAmount || '0');
-
-        await prisma.payment.create({
-          data: {
-            stripePaymentId: paypalOrderId,
-            amount,
-            currency: orderDetails.purchase_units[0].amount.currency_code,
-            status: 'succeeded',
-            courseId,
-            buyerId: userId,
-            sellerId: customData.sellerId || '',
-            platformFee,
-            sellerAmount,
-            customerEmail: orderDetails.payer?.email_address || '',
-            paymentMethod: 'paypal',
-          },
-        });
-      }
     }
 
     // Update last accessed
@@ -142,7 +139,7 @@ export async function loadCheckoutSuccessData(
       },
     });
 
-    // ✅ Invalidate ALL related caches
+    // Invalidate caches
     const { invalidateCourseCache, invalidateUserCache, courseCacheKeys } = await import('@/lib/cache/course-cache');
     const { redis } = await import('@/lib/redis');
     

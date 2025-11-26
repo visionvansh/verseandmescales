@@ -1032,7 +1032,7 @@ const CourseCarouselCard = ({
             {/* Progress Bar - Mobile Optimized */}
             <div className="bg-black/30 rounded-lg sm:rounded-xl p-2.5 sm:p-3 lg:p-4 border border-red-500/20">
               <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-                <span className="text-gray-400 text-[10px] sm:text-xs lg:text-sm font-semibold">Course Progress</span>
+                <span className="text-gray-400 text-[10px] sm:text-xs lg:text-sm font-semibold">Progress</span>
                 <span className="text-white font-bold text-sm sm:text-base lg:text-lg">{course.progress}%</span>
               </div>
               

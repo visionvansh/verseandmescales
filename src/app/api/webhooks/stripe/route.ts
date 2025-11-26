@@ -1,9 +1,8 @@
-// src/app/api/webhooks/stripe/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import Stripe from 'stripe';
-import prisma from '@/lib/prisma';
 import { stripe } from '@/lib/stripe';
+import prisma from '@/lib/prisma';
+import Stripe from 'stripe';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -14,238 +13,226 @@ export async function POST(request: NextRequest) {
     const signature = headersList.get('stripe-signature');
 
     if (!signature) {
-      return NextResponse.json({ error: 'No signature' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'No signature found' },
+        { status: 400 }
+      );
     }
 
     let event: Stripe.Event;
 
     try {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error('❌ Webhook signature verification failed:', errorMessage);
-      return NextResponse.json({ error: `Webhook Error: ${errorMessage}` }, { status: 400 });
+      event = stripe.webhooks.constructEvent(
+        body,
+        signature,
+        webhookSecret
+      );
+    } catch (err: any) {
+      console.error('⚠️ Webhook signature verification failed:', err.message);
+      return NextResponse.json(
+        { error: `Webhook Error: ${err.message}` },
+        { status: 400 }
+      );
     }
 
-    console.log(`✅ Webhook received: ${event.type}`);
+    console.log('✅ Stripe webhook received:', event.type);
 
+    // Handle different event types
     switch (event.type) {
       case 'payment_intent.succeeded':
-        await handlePaymentSucceeded(event.data.object as Stripe.PaymentIntent);
+        await handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent);
         break;
 
       case 'payment_intent.payment_failed':
-        await handlePaymentFailed(event.data.object as Stripe.PaymentIntent);
+        await handlePaymentIntentFailed(event.data.object as Stripe.PaymentIntent);
+        break;
+
+      case 'payment_intent.canceled':
+        await handlePaymentIntentCanceled(event.data.object as Stripe.PaymentIntent);
         break;
 
       case 'charge.refunded':
-        await handleRefund(event.data.object as Stripe.Charge);
+        await handleChargeRefunded(event.data.object as Stripe.Charge);
         break;
 
-      case 'account.updated':
-        await handleAccountUpdated(event.data.object as Stripe.Account);
-        break;
-
-      case 'payout.paid':
-        await handlePayoutPaid(event.data.object as Stripe.Payout);
-        break;
-
-      case 'payout.failed':
-        await handlePayoutFailed(event.data.object as Stripe.Payout);
+      case 'customer.created':
+        console.log('Customer created:', event.data.object.id);
         break;
 
       default:
-        console.log(`ℹ️ Unhandled event type: ${event.type}`);
+        console.log(`Unhandled event type: ${event.type}`);
     }
 
     return NextResponse.json({ received: true });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('❌ Webhook error:', error);
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  } catch (error: any) {
+    console.error('❌ Webhook handler error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Webhook processing failed' },
+      { status: 500 }
+    );
   }
 }
 
-// Type definitions for Prisma transaction
-type PrismaTx = Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
-
-async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
-  const { courseId, buyerId, sellerId, platformFee, sellerAmount } = paymentIntent.metadata;
+async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+  console.log('💰 Payment succeeded:', paymentIntent.id);
 
   try {
-    await prisma.$transaction(async (tx: PrismaTx) => {
-      // Update payment status
-      await tx.payment.updateMany({
-        where: { stripePaymentId: paymentIntent.id },
-        data: { status: 'succeeded' },
-      });
+    const { courseId, buyerId, sellerId } = paymentIntent.metadata;
 
-      // Create enrollment
-      await tx.courseEnrollment.upsert({
-        where: {
-          courseId_userId: {
-            courseId,
-            userId: buyerId,
-          },
+    if (!courseId || !buyerId || !sellerId) {
+      console.error('Missing metadata in payment intent');
+      return;
+    }
+
+    // Update payment record
+    await prisma.payment.updateMany({
+      where: { stripePaymentId: paymentIntent.id },
+      data: { 
+        status: 'succeeded',
+        updatedAt: new Date(),
+      },
+    });
+
+    // Check if enrollment already exists
+    const existingEnrollment = await prisma.courseEnrollment.findUnique({
+      where: {
+        courseId_userId: {
+          courseId,
+          userId: buyerId,
         },
-        create: {
+      },
+    });
+
+    if (!existingEnrollment) {
+      // Create enrollment
+      await prisma.courseEnrollment.create({
+        data: {
           courseId,
           userId: buyerId,
           status: 'active',
           progress: 0,
         },
-        update: {
-          status: 'active',
-          lastAccessedAt: new Date(),
-        },
       });
 
-      // Update seller earnings
-      const sellerAmountDecimal = parseFloat(sellerAmount) / 100;
-
-      await tx.earnings.upsert({
-        where: { userId: sellerId },
-        create: {
-          userId: sellerId,
-          totalEarned: sellerAmountDecimal,
-          availableBalance: sellerAmountDecimal,
-          pendingBalance: 0,
-          withdrawnAmount: 0,
-        },
-        update: {
-          totalEarned: { increment: sellerAmountDecimal },
-          availableBalance: { increment: sellerAmountDecimal },
-        },
-      });
-    });
-
-    console.log('✅ Payment processed successfully');
-  } catch (error: unknown) {
-    console.error('❌ Error processing payment:', error);
-    throw error;
-  }
-}
-
-async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
-  try {
-    await prisma.payment.updateMany({
-      where: { stripePaymentId: paymentIntent.id },
-      data: { status: 'failed' },
-    });
-    console.log('⚠️ Payment failed:', paymentIntent.id);
-  } catch (error: unknown) {
-    console.error('❌ Error handling payment failure:', error);
-  }
-}
-
-async function handleRefund(charge: Stripe.Charge) {
-  try {
-    const payment = await prisma.payment.findFirst({
-      where: { stripePaymentId: charge.payment_intent as string },
-    });
-
-    if (!payment) {
-      console.warn('⚠️ Payment not found for refund');
-      return;
+      console.log('✅ Enrollment created for user:', buyerId);
     }
 
-    await prisma.$transaction(async (tx: PrismaTx) => {
-      await tx.payment.update({
-        where: { id: payment.id },
-        data: {
-          status: 'refunded',
-          refundedAt: new Date(),
-        },
-      });
+    // Update seller earnings
+    const amount = paymentIntent.amount / 100;
+    const platformFee = parseFloat(paymentIntent.metadata.platformFee || '0');
+    const sellerAmount = parseFloat(paymentIntent.metadata.sellerAmount || '0');
 
-      await tx.courseEnrollment.updateMany({
-        where: {
-          courseId: payment.courseId,
-          userId: payment.buyerId,
-        },
-        data: { status: 'cancelled' },
-      });
-
-      await tx.earnings.update({
-        where: { userId: payment.sellerId },
-        data: {
-          availableBalance: { decrement: payment.sellerAmount },
-          totalEarned: { decrement: payment.sellerAmount },
-        },
-      });
-    });
-
-    console.log('✅ Refund processed:', charge.id);
-  } catch (error: unknown) {
-    console.error('❌ Error handling refund:', error);
-  }
-}
-
-async function handleAccountUpdated(account: Stripe.Account) {
-  try {
-    const userId = account.metadata?.userId;
-    if (!userId) return;
-
-    const status = account.charges_enabled && account.payouts_enabled ? 'active' : 'pending';
-
-    await prisma.earnings.updateMany({
-      where: { stripeAccountId: account.id },
-      data: { stripeAccountStatus: status },
-    });
-
-    console.log(`✅ Account updated: ${account.id} - Status: ${status}`);
-  } catch (error: unknown) {
-    console.error('❌ Error updating account:', error);
-  }
-}
-
-async function handlePayoutPaid(payout: Stripe.Payout) {
-  try {
-    await prisma.withdrawal.updateMany({
-      where: { stripePayoutId: payout.id },
-      data: {
-        status: 'completed',
-        completedAt: new Date(),
+    await prisma.earnings.upsert({
+      where: { userId: sellerId },
+      create: {
+        userId: sellerId,
+        totalEarned: sellerAmount,
+        availableBalance: sellerAmount,
+        pendingBalance: 0,
+        withdrawnAmount: 0,
+      },
+      update: {
+        totalEarned: { increment: sellerAmount },
+        availableBalance: { increment: sellerAmount },
       },
     });
 
-    console.log('✅ Payout completed:', payout.id);
-  } catch (error: unknown) {
-    console.error('❌ Error handling payout:', error);
+    console.log('✅ Seller earnings updated:', sellerAmount);
+
+    // Invalidate caches
+    const { invalidateCourseCache, invalidateUserCache } = await import('@/lib/cache/course-cache');
+    await invalidateCourseCache(courseId);
+    await invalidateUserCache(buyerId);
+
+  } catch (error) {
+    console.error('Error handling payment success:', error);
   }
 }
 
-async function handlePayoutFailed(payout: Stripe.Payout) {
+async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
+  console.log('❌ Payment failed:', paymentIntent.id);
+
   try {
-    const withdrawal = await prisma.withdrawal.findFirst({
-      where: { stripePayoutId: payout.id },
-      include: { earnings: true },
+    await prisma.payment.updateMany({
+      where: { stripePaymentId: paymentIntent.id },
+      data: { 
+        status: 'failed',
+        updatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error('Error handling payment failure:', error);
+  }
+}
+
+async function handlePaymentIntentCanceled(paymentIntent: Stripe.PaymentIntent) {
+  console.log('🚫 Payment canceled:', paymentIntent.id);
+
+  try {
+    await prisma.payment.updateMany({
+      where: { stripePaymentId: paymentIntent.id },
+      data: { 
+        status: 'canceled',
+        updatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error('Error handling payment cancellation:', error);
+  }
+}
+
+async function handleChargeRefunded(charge: Stripe.Charge) {
+  console.log('💸 Charge refunded:', charge.id);
+
+  try {
+    const paymentIntentId = charge.payment_intent as string;
+
+    if (!paymentIntentId) {
+      console.error('No payment intent ID in refunded charge');
+      return;
+    }
+
+    // Update payment status
+    const payment = await prisma.payment.findFirst({
+      where: { stripePaymentId: paymentIntentId },
     });
 
-    if (!withdrawal) return;
+    if (!payment) {
+      console.error('Payment not found for refund');
+      return;
+    }
 
-    await prisma.$transaction(async (tx: PrismaTx) => {
-      // Mark withdrawal as failed
-      await tx.withdrawal.update({
-        where: { id: withdrawal.id },
-        data: {
-          status: 'failed',
-          failureReason: payout.failure_message || 'Payout failed',
-        },
-      });
-
-      // Refund balance to user
-      await tx.earnings.update({
-        where: { id: withdrawal.earningsId },
-        data: {
-          availableBalance: { increment: withdrawal.amount },
-          withdrawnAmount: { decrement: withdrawal.amount },
-        },
-      });
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { 
+        status: 'refunded',
+        refundedAt: new Date(),
+        updatedAt: new Date(),
+      },
     });
 
-    console.log('⚠️ Payout failed:', payout.id);
-  } catch (error: unknown) {
-    console.error('❌ Error handling payout failure:', error);
+    // Remove enrollment
+    await prisma.courseEnrollment.deleteMany({
+      where: {
+        courseId: payment.courseId,
+        userId: payment.buyerId,
+      },
+    });
+
+    // Update seller earnings
+    const sellerAmount = parseFloat(payment.sellerAmount.toString());
+
+    await prisma.earnings.update({
+      where: { userId: payment.sellerId },
+      data: {
+        totalEarned: { decrement: sellerAmount },
+        availableBalance: { decrement: sellerAmount },
+      },
+    });
+
+    console.log('✅ Refund processed successfully');
+
+  } catch (error) {
+    console.error('Error handling refund:', error);
   }
 }

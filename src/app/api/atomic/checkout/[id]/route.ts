@@ -1,4 +1,3 @@
-// src/app/api/atomic/checkout/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/utils/auth';
 import { loadCompleteCheckoutData } from '@/lib/loaders/checkout-loader';
