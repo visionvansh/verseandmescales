@@ -50,10 +50,10 @@ export const MediaUploadModal: React.FC<MediaUploadModalProps> = ({
       return;
     }
 
-    // Validate file size
-    const maxSize = file.type.startsWith('video/') ? 100 * 1024 * 1024 : 20 * 1024 * 1024;
+    // Validate file size (100MB max)
+    const maxSize = 100 * 1024 * 1024;
     if (file.size > maxSize) {
-      toast.error(`File too large. Maximum size: ${maxSize / (1024 * 1024)}MB`);
+      toast.error(`File too large. Maximum size: 100MB`);
       return;
     }
 
@@ -80,6 +80,7 @@ export const MediaUploadModal: React.FC<MediaUploadModalProps> = ({
     if (file) handleFileSelect(file);
   }, [handleFileSelect]);
 
+  // ✅ DIRECT CLOUDINARY UPLOAD WITH PROGRESS TRACKING
   const handleUpload = async () => {
     if (!selectedFile) return;
 
@@ -87,29 +88,109 @@ export const MediaUploadModal: React.FC<MediaUploadModalProps> = ({
     setUploadProgress(0);
 
     try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('roomId', roomId);
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
-      const response = await fetch('/api/chat/upload-media', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Upload failed');
+      if (!cloudName || !uploadPreset) {
+        throw new Error('Cloudinary configuration missing. Check your environment variables.');
       }
 
-      const data = await response.json();
-      
+      // Determine file type
+      let fileType: 'image' | 'video' | 'pdf';
+      let resourceType: 'image' | 'video' | 'raw';
+
+      if (selectedFile.type.startsWith('image/')) {
+        fileType = 'image';
+        resourceType = 'image';
+      } else if (selectedFile.type.startsWith('video/')) {
+        fileType = 'video';
+        resourceType = 'video';
+      } else {
+        fileType = 'pdf';
+        resourceType = 'raw';
+      }
+
+      // ✅ Upload directly to Cloudinary with XHR for progress tracking
+      const cloudinaryData = await new Promise<any>((resolve, reject) => {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('upload_preset', uploadPreset);
+        formData.append('folder', `chat/${roomId}`);
+
+        const xhr = new XMLHttpRequest();
+
+        // Track upload progress
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            setUploadProgress(percentComplete);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200) {
+            const data = JSON.parse(xhr.responseText);
+            resolve(data);
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error during upload'));
+        });
+
+        xhr.addEventListener('abort', () => {
+          reject(new Error('Upload aborted'));
+        });
+
+        xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`);
+        xhr.send(formData);
+      });
+
+      console.log('✅ Cloudinary upload successful:', cloudinaryData);
+
+      // ✅ Generate video thumbnail if needed
+      let thumbnailUrl: string | undefined;
+      if (fileType === 'video' && cloudinaryData.public_id) {
+        thumbnailUrl = `https://res.cloudinary.com/${cloudName}/video/upload/so_0,w_400,h_300,c_fill/${cloudinaryData.public_id}.jpg`;
+      }
+
+      // ✅ Prepare media data
+      const mediaData: MediaData = {
+        url: cloudinaryData.secure_url,
+        publicId: cloudinaryData.public_id,
+        type: fileType,
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        width: cloudinaryData.width || undefined,
+        height: cloudinaryData.height || undefined,
+        duration: cloudinaryData.duration || undefined,
+        thumbnail: thumbnailUrl,
+      };
+
+      // ✅ Optional: Save metadata to your database (lightweight request)
+      try {
+        await fetch('/api/chat/save-media-metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomId,
+            ...mediaData,
+          }),
+        });
+      } catch (metadataError) {
+        console.warn('Failed to save metadata:', metadataError);
+        // Continue anyway - the upload succeeded
+      }
+
       toast.success('Upload successful! 🎉');
-      onUploadComplete(data.media);
+      onUploadComplete(mediaData);
       handleClose();
 
     } catch (error: any) {
-      console.error('Upload error:', error);
-      toast.error(error.message || 'Upload failed');
+      console.error('❌ Upload error:', error);
+      toast.error(error.message || 'Upload failed. Please try again.');
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -216,10 +297,12 @@ export const MediaUploadModal: React.FC<MediaUploadModalProps> = ({
               {/* Upload Progress */}
               {uploading && (
                 <div className="space-y-2">
-                  <div className="w-full bg-gray-800 rounded-full h-2">
-                    <div
-                      className="bg-red-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
+                  <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${uploadProgress}%` }}
+                      transition={{ duration: 0.3 }}
+                      className="bg-red-600 h-2 rounded-full"
                     />
                   </div>
                   <p className="text-center text-gray-400 text-sm">
@@ -248,7 +331,7 @@ export const MediaUploadModal: React.FC<MediaUploadModalProps> = ({
                   {uploading ? (
                     <>
                       <FaSpinner className="animate-spin" />
-                      Uploading...
+                      Uploading... {uploadProgress}%
                     </>
                   ) : (
                     <>
