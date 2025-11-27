@@ -1,14 +1,15 @@
 // components/course-builder/chats/MediaDisplay.tsx
 "use client";
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FaTimes, FaDownload, FaExpand, FaFile } from 'react-icons/fa';
-import { PdfDisplay } from './PdfDisplay';
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { FaTimes, FaDownload, FaExpand, FaFile } from "react-icons/fa";
+import { PdfDisplay } from "./PdfDisplay";
 
 interface MediaDisplayProps {
   url: string;
-  type: 'image' | 'video' | 'pdf' | string;
+  downloadUrl?: string; // ✅ NEW
+  type: "image" | "video" | "pdf" | string;
   fileName?: string;
   fileSize?: number;
   thumbnail?: string;
@@ -18,6 +19,7 @@ interface MediaDisplayProps {
 
 export const MediaDisplay: React.FC<MediaDisplayProps> = ({
   url,
+  downloadUrl, // ✅ NEW
   type,
   fileName,
   fileSize,
@@ -29,43 +31,52 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({
 
   // ✅ EARLY RETURN: If no URL, don't render anything
   if (!url) {
-    console.error('❌ MediaDisplay: No URL provided');
+    console.error("❌ MediaDisplay: No URL provided");
     return null;
   }
 
-  console.log('✅ MediaDisplay rendering:', { url, type, fileName, fileSize });
+  console.log("✅ MediaDisplay rendering:", {
+    url,
+    downloadUrl, // ✅ NEW
+    type,
+    fileName,
+    fileSize,
+  });
 
   const handleDownload = async () => {
     try {
-      const response = await fetch(url);
+      // Use downloadUrl if provided, otherwise use regular url
+      const urlToDownload = downloadUrl || url;
+      
+      const response = await fetch(urlToDownload);
       const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = fileName || 'download';
+      const downloadUrl_blob = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl_blob;
+      link.download = fileName || "download";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
+      window.URL.revokeObjectURL(downloadUrl_blob);
     } catch (error) {
-      console.error('Download failed:', error);
-      window.open(url, '_blank');
+      console.error("Download failed:", error);
+      window.open(downloadUrl || url, "_blank");
     }
   };
 
   // ✅ IMAGE DISPLAY
-  if (type === 'image' || type.startsWith('image/')) {
+  if (type === "image" || type.startsWith("image/")) {
     return (
       <>
         <div className="media-image-container group">
           <img
             src={url}
-            alt={fileName || 'Image'}
+            alt={fileName || "Image"}
             className="media-image"
             onClick={() => setIsFullscreen(true)}
             loading="lazy"
           />
-          
+
           {/* Hover Overlay */}
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-3">
             <motion.button
@@ -104,10 +115,10 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({
                 onClick={(e) => e.stopPropagation()}
                 className="media-fullscreen-container"
               >
-                <img 
-                  src={url} 
-                  alt={fileName || 'Image'} 
-                  className="media-fullscreen-image" 
+                <img
+                  src={url}
+                  alt={fileName || "Image"}
+                  className="media-fullscreen-image"
                 />
                 <motion.button
                   whileHover={{ scale: 1.1 }}
@@ -126,7 +137,7 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({
   }
 
   // ✅ VIDEO DISPLAY
-  if (type === 'video' || type.startsWith('video/')) {
+  if (type === "video" || type.startsWith("video/")) {
     return (
       <div className="media-video-container group relative">
         <video
@@ -138,7 +149,7 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({
         >
           Your browser does not support video playback.
         </video>
-        
+
         {/* Download Button Overlay */}
         <motion.button
           whileHover={{ scale: 1.1 }}
@@ -152,13 +163,13 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({
     );
   }
 
-  // ✅ PDF DISPLAY - USE NEW COMPONENT
-  if (type === 'pdf' || type === 'application/pdf') {
+  // ✅ PDF DISPLAY - USE NEW COMPONENT WITH DOWNLOAD URL
+  if (type === "pdf" || type === "application/pdf") {
     return (
       <PdfDisplay
         url={url}
+        downloadUrl={downloadUrl} // ✅ PASS DOWNLOAD URL
         fileName={fileName}
-        fileSize={fileSize}
         thumbnail={thumbnail}
       />
     );
@@ -171,7 +182,7 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({
         <FaFile />
       </div>
       <div className="media-file-info">
-        <div className="media-file-name">{fileName || 'File'}</div>
+        <div className="media-file-name">{fileName || "File"}</div>
         {fileSize && (
           <div className="media-file-size">
             {(fileSize / 1024).toFixed(2)} KB
@@ -179,7 +190,7 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({
         )}
       </div>
       <a
-        href={url}
+        href={downloadUrl || url}
         download={fileName}
         className="media-file-download"
         target="_blank"
