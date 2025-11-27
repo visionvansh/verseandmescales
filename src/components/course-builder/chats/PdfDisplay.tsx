@@ -1,8 +1,10 @@
+// components/course-builder/chats/PdfDisplay.tsx
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { FaFilePdf, FaDownload, FaExternalLinkAlt } from "react-icons/fa";
+import { FaFilePdf, FaDownload, FaSpinner } from "react-icons/fa";
+import { toast } from "react-hot-toast";
 
 interface PdfDisplayProps {
   url: string;
@@ -16,7 +18,9 @@ export const PdfDisplay: React.FC<PdfDisplayProps> = ({
   downloadUrl,
   fileName = "Document.pdf",
 }) => {
-  // ✅ Detect iOS devices (including iPad on iOS 13+)
+  const [downloading, setDownloading] = useState(false);
+
+  // ✅ Detect iOS devices
   const isIOS = () => {
     return (
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -24,86 +28,72 @@ export const PdfDisplay: React.FC<PdfDisplayProps> = ({
     );
   };
 
-  // ✅ Detect if Web Share API is supported
-  const canUseWebShare = () => {
-    return 'share' in navigator && typeof navigator.share === 'function' && isIOS();
-  };
-
-  // ✅ FIXED: iOS-compatible download handler
+  // ✅ Secure download handler - works on ALL devices
   const handleDownload = async () => {
+    if (downloading) return;
+
+    setDownloading(true);
+    
     try {
-      // Generate download URL with Cloudinary attachment flag
-      let finalDownloadUrl = downloadUrl;
-      
-      if (!finalDownloadUrl && url.includes("cloudinary.com")) {
-        // Add fl_attachment flag to force download
-        finalDownloadUrl = url.replace(
-          "/upload/",
-          `/upload/fl_attachment:${encodeURIComponent(fileName)}/`
-        );
-      } else if (!finalDownloadUrl) {
-        finalDownloadUrl = url;
-      }
+      // Use proxy API to hide Cloudinary URL and force download
+      const downloadApiUrl = `/api/download-pdf?url=${encodeURIComponent(
+        downloadUrl || url
+      )}&filename=${encodeURIComponent(fileName)}`;
 
-      // ✅ iOS: Use Web Share API with URL (not blob)
-      if (canUseWebShare()) {
-        try {
-          // iOS Safari works better with URL sharing for PDFs
-          await navigator.share({
-            title: fileName,
-            text: "Download PDF",
-            url: finalDownloadUrl, // ✅ Share URL directly instead of file blob
-          });
-          return; // Success!
-        } catch (shareError: any) {
-          console.log("Share failed:", shareError);
-          // If share is cancelled (AbortError), don't show error
-          if (shareError.name === "AbortError") {
-            return; // User cancelled, that's okay
-          }
-          // Otherwise, fall through to next method
-        }
-      }
-
-      // ✅ iOS Fallback: Open PDF in new tab (iOS will show native save/share options)
       if (isIOS()) {
-        // iOS Safari will automatically show download/share options
-        const newWindow = window.open(finalDownloadUrl, "_blank", "noopener,noreferrer");
+        // ✅ iOS-specific handling
+        const response = await fetch(downloadApiUrl);
         
-        if (!newWindow) {
-          // Pop-up blocked, try direct navigation
-          window.location.href = finalDownloadUrl;
+        if (!response.ok) {
+          throw new Error('Download failed');
         }
-        return;
+
+        const blob = await response.blob();
+        
+        // Create object URL
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Create and trigger download
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        link.style.display = 'none';
+        
+        // iOS requires the link to be in the DOM
+        document.body.appendChild(link);
+        
+        // Trigger click
+        link.click();
+        
+        // Cleanup
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+        }, 100);
+        
+        toast.success('PDF downloaded successfully!');
+      } else {
+        // ✅ Desktop/Android - direct download
+        const link = document.createElement('a');
+        link.href = downloadApiUrl;
+        link.download = fileName;
+        link.style.display = 'none';
+        
+        document.body.appendChild(link);
+        link.click();
+        
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 100);
+        
+        toast.success('PDF downloaded successfully!');
       }
-
-      // ✅ Desktop/Android: Blob download method
-      const response = await fetch(finalDownloadUrl);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      // Clean up blob URL
-      setTimeout(() => {
-        window.URL.revokeObjectURL(blobUrl);
-      }, 100);
-
     } catch (error) {
-      console.error("Download failed:", error);
-      // Final fallback: Open in new tab
-      const urlToOpen = downloadUrl || url;
-      window.open(urlToOpen, "_blank", "noopener,noreferrer");
+      console.error('Download failed:', error);
+      toast.error('Failed to download PDF. Please try again.');
+    } finally {
+      setDownloading(false);
     }
-  };
-
-  const handleOpenInNewTab = () => {
-    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -129,35 +119,38 @@ export const PdfDisplay: React.FC<PdfDisplayProps> = ({
         </div>
       </div>
 
-      {/* Action Buttons */}
+      {/* Download Button - ONLY OPTION */}
       <div className="pdf-actions-modern">
         <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={handleOpenInNewTab}
-          className="pdf-action-btn pdf-btn-primary"
-        >
-          <FaExternalLinkAlt />
-          <span>Open</span>
-        </motion.button>
-
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+          whileHover={{ scale: downloading ? 1 : 1.02 }}
+          whileTap={{ scale: downloading ? 1 : 0.98 }}
           onClick={handleDownload}
-          className="pdf-action-btn pdf-btn-secondary"
+          disabled={downloading}
+          className={`pdf-action-btn pdf-btn-primary w-full ${
+            downloading ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
-          <FaDownload />
-          <span>{isIOS() ? "Share" : "Download"}</span>
+          {downloading ? (
+            <>
+              <FaSpinner className="animate-spin" />
+              <span>Downloading...</span>
+            </>
+          ) : (
+            <>
+              <FaDownload />
+              <span>Download PDF</span>
+            </>
+          )}
         </motion.button>
       </div>
 
-      {/* iOS-specific hint */}
-      {isIOS() && (
-        <div className="text-xs text-gray-400 text-center mt-2 px-2">
-          💡 Tap "Share" to save or share this PDF
-        </div>
-      )}
+      {/* Helper text */}
+      <div className="text-xs text-gray-400 text-center mt-2 px-2">
+        {isIOS() 
+          ? '💡 Tap to download - file will be saved to your Downloads'
+          : '📥 Click to download PDF to your device'
+        }
+      </div>
     </motion.div>
   );
 };
