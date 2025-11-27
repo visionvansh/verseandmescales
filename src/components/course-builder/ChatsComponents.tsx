@@ -1516,7 +1516,6 @@ export const ChatRoom = memo(
     overflow: hidden;
   }
 
-  /* Mobile message bubble constraints */
   @media (max-width: 640px) {
     .message-bubble {
       max-width: calc(100vw - 80px) !important;
@@ -1546,7 +1545,6 @@ export const ChatRoom = memo(
     }
   }
 
-  /* Tablet constraints */
   @media (min-width: 641px) and (max-width: 1023px) {
     .message-bubble {
       max-width: 70% !important;
@@ -1557,7 +1555,6 @@ export const ChatRoom = memo(
     }
   }
 
-  /* Desktop constraints */
   @media (min-width: 1024px) {
     .message-bubble {
       max-width: 600px !important;
@@ -1565,33 +1562,30 @@ export const ChatRoom = memo(
   }
 
   /* ============================================
-     MODERN PDF DISPLAY - MATCHES MESSAGE BUBBLES
+     PDF DISPLAY - RED/WHITE/DARK THEME
      ============================================ */
 
   .pdf-display-wrapper {
     width: 100%;
     background: linear-gradient(135deg, rgba(17, 24, 39, 0.98) 0%, rgba(0, 0, 0, 0.98) 100%);
     border-radius: 16px;
-    border: 2px solid rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(75, 85, 99, 0.4);
     overflow: hidden;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     backdrop-filter: blur(20px);
   }
 
-  .pdf-display-wrapper:hover {
-    border-color: rgba(239, 68, 68, 0.4);
-    box-shadow: 0 20px 25px -5px rgba(239, 68, 68, 0.15), 0 10px 10px -5px rgba(239, 68, 68, 0.1);
-    transform: translateY(-2px);
+  @media (max-width: 640px) {
+    .pdf-display-wrapper {
+      border-radius: 12px;
+    }
   }
 
-  /* Header */
   .pdf-header-modern {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 16px;
-    border-bottom: 1px solid rgba(239, 68, 68, 0.1);
-    background: linear-gradient(to right, rgba(239, 68, 68, 0.08), transparent);
+    border-bottom: 1px solid rgba(75, 85, 99, 0.3);
   }
 
   @media (max-width: 640px) {
@@ -1601,65 +1595,60 @@ export const ChatRoom = memo(
     }
   }
 
-  /* Icon */
   .pdf-icon-modern {
     position: relative;
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
-    border-radius: 12px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
-  }
-
-  .pdf-icon-bg {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(220, 38, 38, 0.4));
-    animation: pulse-glow 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse-glow {
-    0%, 100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.7;
-    }
-  }
-
-  .pdf-icon-svg {
-    position: relative;
-    z-index: 1;
-    font-size: 24px;
-    color: #ef4444;
+    background: rgba(239, 68, 68, 0.15);
   }
 
   @media (max-width: 640px) {
     .pdf-icon-modern {
-      width: 40px;
-      height: 40px;
-      min-width: 40px;
-    }
-    
-    .pdf-icon-svg {
-      font-size: 20px;
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      border-radius: 8px;
     }
   }
 
-  /* Info */
+  .pdf-icon-bg {
+    display: none;
+  }
+
+  .pdf-icon-svg {
+    font-size: 20px;
+    color: #ef4444;
+  }
+
+  .pdf-icon-emoji {
+    font-size: 22px;
+  }
+
+  @media (max-width: 640px) {
+    .pdf-icon-svg {
+      font-size: 16px;
+    }
+
+    .pdf-icon-emoji {
+      font-size: 18px;
+    }
+  }
+
   .pdf-info-modern {
     flex: 1;
     min-width: 0;
   }
 
   .pdf-filename-modern {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     color: white;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1668,52 +1657,68 @@ export const ChatRoom = memo(
 
   @media (max-width: 640px) {
     .pdf-filename-modern {
-      font-size: 14px;
+      font-size: 13px;
     }
   }
 
   .pdf-meta-modern {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
 
   .pdf-badge {
-    padding: 2px 8px;
-    background: linear-gradient(135deg, #ef4444, #dc2626);
+    padding: 2px 6px;
+    background: #ef4444;
     color: white;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     border-radius: 4px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .pdf-size {
-    font-size: 12px;
-    color: rgba(156, 163, 175, 1);
-    font-weight: 500;
+    letter-spacing: 0.3px;
   }
 
   @media (max-width: 640px) {
-    .pdf-size {
-      font-size: 11px;
+    .pdf-badge {
+      font-size: 8px;
+      padding: 1px 5px;
     }
   }
 
-  /* Preview Area */
-  .pdf-preview-modern {
-    position: relative;
-    width: 100%;
-    background: rgba(0, 0, 0, 0.4);
+  .pdf-size {
+    font-size: 11px;
+    color: rgba(156, 163, 175, 1);
   }
 
-  /* Mobile Preview */
+  .pdf-provider {
+    font-size: 11px;
+    color: rgba(156, 163, 175, 1);
+  }
+
+  @media (max-width: 640px) {
+    .pdf-size,
+    .pdf-provider {
+      font-size: 10px;
+    }
+  }
+
+  .pdf-logo {
+    color: #ef4444;
+    font-size: 20px;
+  }
+
+  @media (max-width: 640px) {
+    .pdf-logo {
+      font-size: 16px;
+    }
+  }
+
   .pdf-mobile-preview {
     position: relative;
     width: 100%;
-    height: 240px;
+    height: 200px;
     display: block;
+    background: rgba(0, 0, 0, 0.3);
   }
 
   @media (min-width: 769px) {
@@ -1736,30 +1741,29 @@ export const ChatRoom = memo(
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: rgba(17, 24, 39, 0.8);
+    background: rgba(0, 0, 0, 0.2);
   }
 
   .pdf-fallback-icon {
-    font-size: 48px;
+    font-size: 40px;
     color: #ef4444;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
 
   .pdf-fallback-text {
     color: rgba(156, 163, 175, 1);
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 12px;
   }
 
   .pdf-thumbnail-overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.8) 100%);
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.2s ease;
   }
 
   .pdf-mobile-preview:hover .pdf-thumbnail-overlay {
@@ -1767,67 +1771,54 @@ export const ChatRoom = memo(
   }
 
   .pdf-view-button {
-    padding: 14px 28px;
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95));
-    border-radius: 24px;
+    padding: 10px 20px;
+    background: #ef4444;
+    border-radius: 8px;
     color: white;
-    font-weight: 700;
-    font-size: 15px;
+    font-weight: 600;
+    font-size: 13px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .pdf-view-button:hover {
-    background: linear-gradient(135deg, #dc2626, #b91c1c);
-    box-shadow: 0 15px 20px -5px rgba(0, 0, 0, 0.6);
-  }
-
-  /* Desktop iframe */
-  .pdf-iframe-modern {
-    width: 100%;
-    height: 500px;
+    gap: 6px;
     border: none;
+    cursor: pointer;
+  }
+
+  .pdf-desktop-preview {
     display: none;
   }
 
   @media (min-width: 769px) {
-    .pdf-iframe-modern {
+    .pdf-desktop-preview {
       display: block;
-    }
-    
-    .pdf-preview-modern {
-      height: 500px;
+      width: 100%;
+      height: 450px;
+      background: rgba(0, 0, 0, 0.3);
     }
   }
 
   @media (min-width: 1024px) {
-    .pdf-iframe-modern {
-      height: 600px;
-    }
-    
-    .pdf-preview-modern {
-      height: 600px;
+    .pdf-desktop-preview {
+      height: 550px;
     }
   }
 
-  /* Actions */
+  .pdf-iframe-modern {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+
   .pdf-actions-modern {
     display: flex;
     gap: 8px;
-    padding: 12px 16px;
-    background: rgba(17, 24, 39, 0.6);
-    backdrop-filter: blur(10px);
+    padding: 12px;
+    background: rgba(17, 24, 39, 0.5);
   }
 
   @media (max-width: 640px) {
     .pdf-actions-modern {
-      padding: 10px 12px;
+      padding: 10px;
       gap: 6px;
     }
   }
@@ -1837,52 +1828,263 @@ export const ChatRoom = memo(
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 12px 20px;
-    border-radius: 10px;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 8px;
     font-weight: 600;
-    font-size: 14px;
-    transition: all 0.2s ease;
+    font-size: 13px;
     border: 1px solid transparent;
     cursor: pointer;
     text-decoration: none;
-    min-height: 44px;
+    min-height: 40px;
+  }
+
+  @media (max-width: 640px) {
+    .pdf-action-btn {
+      padding: 8px 12px;
+      font-size: 12px;
+      gap: 4px;
+      min-height: 36px;
+      border-radius: 6px;
+    }
+
+    .pdf-action-btn svg {
+      width: 12px;
+      height: 12px;
+    }
   }
 
   .pdf-btn-primary {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
+    background: #ef4444;
     color: white;
-    border-color: rgba(239, 68, 68, 0.3);
   }
 
   .pdf-btn-primary:hover {
-    background: linear-gradient(135deg, #dc2626, #b91c1c);
-    box-shadow: 0 10px 15px -3px rgba(239, 68, 68, 0.4);
-    transform: translateY(-1px);
+    background: #dc2626;
   }
 
   .pdf-btn-secondary {
-    background: rgba(55, 65, 81, 0.6);
+    background: rgba(55, 65, 81, 0.8);
     color: rgba(229, 231, 235, 1);
     border-color: rgba(75, 85, 99, 0.5);
   }
 
   .pdf-btn-secondary:hover {
-    background: rgba(75, 85, 99, 0.9);
-    border-color: rgba(107, 114, 128, 0.8);
+    background: rgba(75, 85, 99, 1);
+  }
+
+  /* ============================================
+     GOOGLE DRIVE DISPLAY - COMPACT PROFESSIONAL
+     No preview, no animations, minimal design
+     ============================================ */
+
+  .drive-display-wrapper {
+    width: 100%;
+    background: rgba(17, 24, 39, 0.95);
+    border-radius: 12px;
+    border: 1px solid rgba(75, 85, 99, 0.4);
+    overflow: hidden;
   }
 
   @media (max-width: 640px) {
-    .pdf-action-btn {
-      padding: 10px 16px;
-      font-size: 13px;
-      gap: 6px;
+    .drive-display-wrapper {
+      border-radius: 10px;
+    }
+  }
+
+  .drive-header-modern {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  @media (max-width: 640px) {
+    .drive-header-modern {
+      padding: 10px;
+      gap: 8px;
+    }
+  }
+
+  .drive-icon-modern {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(239, 68, 68, 0.12);
+  }
+
+  @media (max-width: 640px) {
+    .drive-icon-modern {
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      border-radius: 6px;
+    }
+  }
+
+  .drive-icon-bg {
+    display: none;
+  }
+
+  .drive-icon-emoji {
+    font-size: 20px;
+  }
+
+  @media (max-width: 640px) {
+    .drive-icon-emoji {
+      font-size: 16px;
+    }
+  }
+
+  .drive-info-modern {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .drive-filename-modern {
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+  }
+
+  @media (max-width: 640px) {
+    .drive-filename-modern {
+      font-size: 12px;
+      margin-bottom: 1px;
+    }
+  }
+
+  .drive-meta-modern {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .drive-badge {
+    padding: 1px 5px;
+    background: #ef4444;
+    color: white;
+    font-size: 8px;
+    font-weight: 700;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
+  }
+
+  @media (max-width: 640px) {
+    .drive-badge {
+      font-size: 7px;
+      padding: 1px 4px;
+    }
+  }
+
+  .drive-provider {
+    font-size: 10px;
+    color: rgba(156, 163, 175, 1);
+  }
+
+  @media (max-width: 640px) {
+    .drive-provider {
+      font-size: 9px;
+    }
+  }
+
+  .drive-logo {
+    color: #ef4444;
+    font-size: 18px;
+  }
+
+  @media (max-width: 640px) {
+    .drive-logo {
+      font-size: 14px;
+    }
+  }
+
+  /* Hide ALL preview sections */
+  .drive-mobile-preview,
+  .drive-desktop-preview,
+  .drive-preview-placeholder,
+  .drive-preview-overlay,
+  .drive-preview-button,
+  .drive-preview-placeholder-desktop,
+  .drive-placeholder-icon,
+  .drive-placeholder-text,
+  .drive-placeholder-icon-desktop,
+  .drive-placeholder-text-desktop {
+    display: none !important;
+  }
+
+  .drive-actions-modern {
+    display: flex;
+    gap: 6px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid rgba(75, 85, 99, 0.3);
+  }
+
+  @media (max-width: 640px) {
+    .drive-actions-modern {
+      padding: 8px 10px;
+      gap: 4px;
+    }
+  }
+
+  .drive-action-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 12px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    min-height: 36px;
+  }
+
+  @media (max-width: 640px) {
+    .drive-action-btn {
+      padding: 6px 10px;
+      font-size: 11px;
+      gap: 4px;
+      min-height: 32px;
+      border-radius: 5px;
     }
 
-    .pdf-action-btn svg {
-      width: 14px;
-      height: 14px;
+    .drive-action-btn svg {
+      width: 11px;
+      height: 11px;
     }
+  }
+
+  .drive-btn-primary {
+    background: #ef4444;
+    color: white;
+  }
+
+  .drive-btn-primary:hover {
+    background: #dc2626;
+  }
+
+  .drive-btn-secondary {
+    background: rgba(55, 65, 81, 0.8);
+    color: rgba(209, 213, 219, 1);
+  }
+
+  .drive-btn-secondary:hover {
+    background: rgba(75, 85, 99, 1);
   }
 
   /* ============================================
@@ -1905,11 +2107,6 @@ export const ChatRoom = memo(
     display: block;
     border-radius: 12px;
     cursor: pointer;
-    transition: transform 0.3s ease;
-  }
-
-  .media-image:hover {
-    transform: scale(1.02);
   }
 
   @media (max-width: 640px) {
@@ -1943,49 +2140,44 @@ export const ChatRoom = memo(
     }
   }
 
-  /* Generic File Display */
   .media-file-card {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 16px;
+    padding: 14px;
     background: rgba(17, 24, 39, 0.8);
-    border: 2px solid rgba(75, 85, 99, 0.5);
-    border-radius: 12px;
-    transition: all 0.3s ease;
-  }
-
-  .media-file-card:hover {
-    border-color: rgba(239, 68, 68, 0.5);
-    background: rgba(17, 24, 39, 0.95);
+    border: 1px solid rgba(75, 85, 99, 0.4);
+    border-radius: 10px;
   }
 
   @media (max-width: 640px) {
     .media-file-card {
-      padding: 12px;
-      gap: 10px;
+      padding: 10px;
+      gap: 8px;
+      border-radius: 8px;
     }
   }
 
   .media-file-icon {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: rgba(239, 68, 68, 0.1);
     border-radius: 8px;
     color: #ef4444;
-    font-size: 20px;
+    font-size: 16px;
   }
 
   @media (max-width: 640px) {
     .media-file-icon {
-      width: 32px;
-      height: 32px;
-      min-width: 32px;
-      font-size: 16px;
+      width: 30px;
+      height: 30px;
+      min-width: 30px;
+      font-size: 14px;
+      border-radius: 6px;
     }
   }
 
@@ -1995,7 +2187,7 @@ export const ChatRoom = memo(
   }
 
   .media-file-name {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     color: white;
     overflow: hidden;
@@ -2006,55 +2198,51 @@ export const ChatRoom = memo(
 
   @media (max-width: 640px) {
     .media-file-name {
-      font-size: 13px;
+      font-size: 12px;
     }
   }
 
   .media-file-size {
-    font-size: 12px;
+    font-size: 11px;
     color: rgba(156, 163, 175, 1);
   }
 
   @media (max-width: 640px) {
     .media-file-size {
-      font-size: 11px;
+      font-size: 10px;
     }
   }
 
   .media-file-download {
-    padding: 10px;
+    padding: 8px;
     background: rgba(239, 68, 68, 0.1);
-    border-radius: 8px;
+    border-radius: 6px;
     color: #ef4444;
-    transition: all 0.2s ease;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 40px;
-    min-height: 40px;
+    min-width: 36px;
+    min-height: 36px;
   }
 
   .media-file-download:hover {
     background: rgba(239, 68, 68, 0.2);
-    transform: scale(1.1);
   }
 
   @media (max-width: 640px) {
     .media-file-download {
-      min-width: 36px;
-      min-height: 36px;
-      padding: 8px;
+      min-width: 32px;
+      min-height: 32px;
+      padding: 6px;
     }
   }
 
-  /* Fullscreen Modal for Images */
   .media-fullscreen-overlay {
     position: fixed;
     inset: 0;
     z-index: 300;
     background: rgba(0, 0, 0, 0.95);
-    backdrop-filter: blur(10px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2080,17 +2268,14 @@ export const ChatRoom = memo(
     right: 0;
     padding: 12px;
     background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
     border-radius: 8px;
     color: white;
     cursor: pointer;
-    transition: all 0.2s ease;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.2);
   }
 
   .media-fullscreen-close:hover {
     background: rgba(255, 255, 255, 0.2);
-    transform: scale(1.1);
   }
 
   /* ============================================
@@ -2124,7 +2309,7 @@ export const ChatRoom = memo(
   }
 
   /* ============================================
-     SCROLLBAR REMOVAL - ALL BROWSERS
+     SCROLLBAR REMOVAL
      ============================================ */
   .no-scrollbar::-webkit-scrollbar,
   .hide-scrollbar::-webkit-scrollbar,
@@ -2213,12 +2398,8 @@ export const ChatRoom = memo(
   }
 
   /* ============================================
-     SMOOTH ANIMATIONS
+     REDUCED MOTION
      ============================================ */
-  * {
-    -webkit-overflow-scrolling: touch;
-  }
-
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -2263,7 +2444,7 @@ export const ChatRoom = memo(
   }
 
   /* ============================================
-     GRID SYSTEM FIX
+     GRID SYSTEM
      ============================================ */
   .responsive-grid {
     display: grid;
@@ -2336,6 +2517,252 @@ export const ChatRoom = memo(
       border-radius: 8px;
       max-height: 300px;
     }
+  }
+
+  /* ============================================
+     EMOJI PICKER CONTAINER
+     ============================================ */
+  .emoji-picker-container {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 8px;
+    z-index: 10000;
+  }
+
+  @media (max-width: 640px) {
+    .emoji-picker-container {
+      position: fixed;
+      bottom: auto;
+      right: auto;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      margin-bottom: 0;
+    }
+  }
+
+  /* ============================================
+     QUESTION CARD STYLES
+     ============================================ */
+  .question-card {
+    background: rgba(17, 24, 39, 0.9);
+    border: 1px solid rgba(75, 85, 99, 0.3);
+    border-radius: 12px;
+    padding: 14px;
+    cursor: pointer;
+  }
+
+  .question-card:hover {
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  @media (max-width: 640px) {
+    .question-card {
+      padding: 10px;
+      border-radius: 10px;
+    }
+  }
+
+  /* ============================================
+     ANSWER STYLES
+     ============================================ */
+  .answer-card {
+    background: rgba(17, 24, 39, 0.6);
+    border: 1px solid rgba(75, 85, 99, 0.3);
+    border-radius: 10px;
+    padding: 14px;
+    margin-left: 20px;
+  }
+
+  .answer-card.mentor-answer {
+    border-color: rgba(234, 179, 8, 0.3);
+  }
+
+  .answer-card.accepted-answer {
+    border-color: rgba(34, 197, 94, 0.4);
+  }
+
+  @media (max-width: 640px) {
+    .answer-card {
+      padding: 10px;
+      margin-left: 12px;
+      border-radius: 8px;
+    }
+  }
+
+  /* ============================================
+     MODAL STYLES
+     ============================================ */
+  .modal-container {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.8);
+  }
+
+  .modal-content {
+    background: rgba(17, 24, 39, 0.98);
+    border: 1px solid rgba(75, 85, 99, 0.4);
+    border-radius: 16px;
+    max-width: 600px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-content::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (max-width: 640px) {
+    .modal-container {
+      padding: 8px;
+      align-items: flex-end;
+    }
+
+    .modal-content {
+      border-radius: 16px 16px 0 0;
+      max-height: 95vh;
+    }
+  }
+
+  /* ============================================
+     USER HOVER CARD
+     ============================================ */
+  .user-hover-card {
+    background: rgba(17, 24, 39, 0.98);
+    border: 1px solid rgba(75, 85, 99, 0.4);
+    border-radius: 12px;
+    padding: 14px;
+    min-width: 260px;
+    max-width: 300px;
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.4);
+  }
+
+  @media (max-width: 640px) {
+    .user-hover-card {
+      min-width: 240px;
+      max-width: 260px;
+      padding: 10px;
+    }
+  }
+
+  /* ============================================
+     TYPING INDICATOR
+     ============================================ */
+  .typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+  }
+
+  .typing-dot {
+    width: 6px;
+    height: 6px;
+    background: #ef4444;
+    border-radius: 50%;
+    animation: typing-bounce 1.4s ease-in-out infinite;
+  }
+
+  .typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes typing-bounce {
+    0%, 60%, 100% {
+      transform: translateY(0);
+    }
+    30% {
+      transform: translateY(-6px);
+    }
+  }
+
+  /* ============================================
+     REACTION BUTTON STYLES
+     ============================================ */
+  .reaction-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 6px;
+    border-radius: 9999px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+
+  .reaction-btn.active {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  .reaction-btn:not(.active) {
+    background: rgba(55, 65, 81, 0.4);
+    border-color: rgba(75, 85, 99, 0.4);
+  }
+
+  .reaction-btn:not(.active):hover {
+    background: rgba(55, 65, 81, 0.6);
+  }
+
+  /* ============================================
+     STATUS INDICATORS
+     ============================================ */
+  .status-online {
+    width: 10px;
+    height: 10px;
+    background: #22c55e;
+    border-radius: 50%;
+    border: 2px solid #030712;
+  }
+
+  .status-offline {
+    width: 10px;
+    height: 10px;
+    background: #6b7280;
+    border-radius: 50%;
+    border: 2px solid #030712;
+  }
+
+  /* ============================================
+     CUSTOM FOCUS STYLES
+     ============================================ */
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid #ef4444;
+    outline-offset: 2px;
+  }
+
+  /* ============================================
+     SAFE AREA INSETS (iOS)
+     ============================================ */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-area-right {
+    padding-right: env(safe-area-inset-right);
   }
 `}</style>
 

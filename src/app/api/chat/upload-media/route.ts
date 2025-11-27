@@ -81,25 +81,28 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // Upload to Cloudinary
-    const result = await new Promise<any>((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: `chat/${roomId}`,
-          resource_type: fileCategory === 'pdf' ? 'raw' : (fileCategory as 'image' | 'video'),
-          upload_preset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
-          transformation:
-            fileCategory === 'image'
-              ? [{ width: 1200, height: 1200, crop: 'limit', quality: 'auto:best' }]
-              : undefined,
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result!);
-        }
-      );
+  const result = await new Promise<any>((resolve, reject) => {
+  const uploadStream = cloudinary.uploader.upload_stream(
+    {
+      folder: `chat/${roomId}`,
+      resource_type: fileCategory === 'pdf' ? 'raw' : (fileCategory as 'image' | 'video'),
+      upload_preset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
+      // ✅ ADD THESE FOR PUBLIC ACCESS
+      type: 'upload', // Not 'authenticated' or 'private'
+      access_mode: 'public', // Make files publicly accessible
+      transformation:
+        fileCategory === 'image'
+          ? [{ width: 1200, height: 1200, crop: 'limit', quality: 'auto:best' }]
+          : undefined,
+    },
+    (error, result) => {
+      if (error) reject(error);
+      else resolve(result!);
+    }
+  );
 
-      uploadStream.end(buffer);
-    });
+  uploadStream.end(buffer);
+});
 
     // Generate video thumbnail if needed
     const thumbnailUrl =

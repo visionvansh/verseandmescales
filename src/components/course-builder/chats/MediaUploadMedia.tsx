@@ -81,122 +81,165 @@ export const MediaUploadModal: React.FC<MediaUploadModalProps> = ({
   }, [handleFileSelect]);
 
   // ✅ DIRECT CLOUDINARY UPLOAD WITH PROGRESS TRACKING
-  const handleUpload = async () => {
-    if (!selectedFile) return;
+const handleUpload = async () => {
+  if (!selectedFile) return;
 
-    setUploading(true);
-    setUploadProgress(0);
+  setUploading(true);
+  setUploadProgress(0);
 
-    try {
-      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-      const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+  try {
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
-      if (!cloudName || !uploadPreset) {
-        throw new Error('Cloudinary configuration missing. Check your environment variables.');
+    if (!cloudName || !uploadPreset) {
+      throw new Error('Cloudinary configuration missing. Check your environment variables.');
+    }
+
+    // Determine file type
+    let fileType: 'image' | 'video' | 'pdf';
+    let resourceType: 'image' | 'video' | 'raw';
+
+    if (selectedFile.type.startsWith('image/')) {
+      fileType = 'image';
+      resourceType = 'image';
+    } else if (selectedFile.type.startsWith('video/')) {
+      fileType = 'video';
+      resourceType = 'video';
+    } else {
+      fileType = 'pdf';
+      resourceType = 'raw';
+    }
+
+    console.log('📤 Starting upload:', {
+      fileName: selectedFile.name,
+      fileType,
+      resourceType,
+      size: selectedFile.size
+    });
+
+    // ✅ Upload directly to Cloudinary with forced public access
+    const cloudinaryData = await new Promise<any>((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('upload_preset', uploadPreset);
+      formData.append('folder', `chat/${roomId}`);
+      
+      // ✅ CRITICAL: Force public access for untrusted accounts
+      formData.append('type', 'upload'); // Not 'authenticated'
+      formData.append('access_mode', 'public'); // Make publicly accessible
+      
+      // ✅ For PDFs specifically, add these flags
+      if (resourceType === 'raw') {
+        formData.append('resource_type', 'raw');
+        formData.append('flags', 'attachment'); // Allow downloads
       }
 
-      // Determine file type
-      let fileType: 'image' | 'video' | 'pdf';
-      let resourceType: 'image' | 'video' | 'raw';
+      const xhr = new XMLHttpRequest();
 
-      if (selectedFile.type.startsWith('image/')) {
-        fileType = 'image';
-        resourceType = 'image';
-      } else if (selectedFile.type.startsWith('video/')) {
-        fileType = 'video';
-        resourceType = 'video';
-      } else {
-        fileType = 'pdf';
-        resourceType = 'raw';
-      }
-
-      // ✅ Upload directly to Cloudinary with XHR for progress tracking
-      const cloudinaryData = await new Promise<any>((resolve, reject) => {
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-        formData.append('upload_preset', uploadPreset);
-        formData.append('folder', `chat/${roomId}`);
-
-        const xhr = new XMLHttpRequest();
-
-        // Track upload progress
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percentComplete = Math.round((e.loaded / e.total) * 100);
-            setUploadProgress(percentComplete);
-          }
-        });
-
-        xhr.addEventListener('load', () => {
-          if (xhr.status === 200) {
-            const data = JSON.parse(xhr.responseText);
-            resolve(data);
-          } else {
-            reject(new Error(`Upload failed with status ${xhr.status}`));
-          }
-        });
-
-        xhr.addEventListener('error', () => {
-          reject(new Error('Network error during upload'));
-        });
-
-        xhr.addEventListener('abort', () => {
-          reject(new Error('Upload aborted'));
-        });
-
-        xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`);
-        xhr.send(formData);
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress(percentComplete);
+        }
       });
 
-      console.log('✅ Cloudinary upload successful:', cloudinaryData);
+      xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+          const data = JSON.parse(xhr.responseText);
+          console.log('✅ Cloudinary upload response:', data);
+          resolve(data);
+        } else {
+          const errorText = xhr.responseText;
+          console.error('❌ Upload failed:', xhr.status, errorText);
+          
+          // Parse error for better messaging
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.error?.message?.includes('untrusted')) {
+              reject(new Error(
+                'Your Cloudinary account needs verification. Please add payment info in Cloudinary dashboard.'
+              ));
+            } else {
+              reject(new Error(errorData.error?.message || `Upload failed: ${xhr.status}`));
+            }
+          } catch {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        }
+      });
 
-      // ✅ Generate video thumbnail if needed
-      let thumbnailUrl: string | undefined;
-      if (fileType === 'video' && cloudinaryData.public_id) {
-        thumbnailUrl = `https://res.cloudinary.com/${cloudName}/video/upload/so_0,w_400,h_300,c_fill/${cloudinaryData.public_id}.jpg`;
-      }
+      xhr.addEventListener('error', () => {
+        reject(new Error('Network error during upload'));
+      });
 
-      // ✅ Prepare media data
-      const mediaData: MediaData = {
-        url: cloudinaryData.secure_url,
-        publicId: cloudinaryData.public_id,
-        type: fileType,
-        fileName: selectedFile.name,
-        fileSize: selectedFile.size,
-        width: cloudinaryData.width || undefined,
-        height: cloudinaryData.height || undefined,
-        duration: cloudinaryData.duration || undefined,
-        thumbnail: thumbnailUrl,
-      };
+      xhr.addEventListener('abort', () => {
+        reject(new Error('Upload aborted'));
+      });
 
-      // ✅ Optional: Save metadata to your database (lightweight request)
-      try {
-        await fetch('/api/chat/save-media-metadata', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            roomId,
-            ...mediaData,
-          }),
-        });
-      } catch (metadataError) {
-        console.warn('Failed to save metadata:', metadataError);
-        // Continue anyway - the upload succeeded
-      }
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`);
+      xhr.send(formData);
+    });
 
-      toast.success('Upload successful! 🎉');
-      onUploadComplete(mediaData);
-      handleClose();
+    console.log('✅ Upload complete:', cloudinaryData);
 
-    } catch (error: any) {
-      console.error('❌ Upload error:', error);
-      toast.error(error.message || 'Upload failed. Please try again.');
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
+    // ✅ Generate video thumbnail if needed
+    let thumbnailUrl: string | undefined;
+    if (fileType === 'video' && cloudinaryData.public_id) {
+      thumbnailUrl = `https://res.cloudinary.com/${cloudName}/video/upload/so_0,w_400,h_300,c_fill/${cloudinaryData.public_id}.jpg`;
     }
-  };
 
+    // ✅ Prepare media data
+    const mediaData: MediaData = {
+      url: cloudinaryData.secure_url,
+      publicId: cloudinaryData.public_id,
+      type: fileType,
+      fileName: selectedFile.name,
+      fileSize: selectedFile.size,
+      width: cloudinaryData.width || undefined,
+      height: cloudinaryData.height || undefined,
+      duration: cloudinaryData.duration || undefined,
+      thumbnail: thumbnailUrl,
+    };
+
+    console.log('📦 Media data prepared:', mediaData);
+
+    // ✅ Optional: Save metadata to your database (lightweight request)
+    try {
+      await fetch('/api/chat/save-media-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId,
+          ...mediaData,
+        }),
+      });
+    } catch (metadataError) {
+      console.warn('⚠️ Failed to save metadata:', metadataError);
+      // Continue anyway - the upload succeeded
+    }
+
+    toast.success('Upload successful! 🎉');
+    onUploadComplete(mediaData);
+    handleClose();
+
+  } catch (error: any) {
+    console.error('❌ Upload error:', error);
+    
+    // Show user-friendly error
+    if (error.message.includes('untrusted') || error.message.includes('verification')) {
+      toast.error(
+        'Account verification required. Please add payment info to your Cloudinary account.',
+        { duration: 6000 }
+      );
+    } else {
+      toast.error(error.message || 'Upload failed. Please try again.');
+    }
+  } finally {
+    setUploading(false);
+    setUploadProgress(0);
+  }
+};
   const handleClose = () => {
     setSelectedFile(null);
     setPreview(null);

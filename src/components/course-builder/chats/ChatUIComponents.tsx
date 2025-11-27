@@ -1,4 +1,3 @@
-///Volumes/vision/codes/course/my-app/src/components/course-builder/chats/ChatUIComponents.tsx
 "use client";
 
 import React, {
@@ -101,6 +100,8 @@ import {
 import { QuestionAPI } from "@/lib/api/questions";
 import toast from "react-hot-toast";
 import { format } from "date-fns";
+import { detectDriveLinks, removeDriveLinksFromText } from '@/utils/driveUtils';
+import { DriveDisplay } from './DriveDisplay';
 
 // ============================================
 // ENHANCED EMOJI PICKER WITH CATEGORIES
@@ -952,6 +953,21 @@ export const LiveMessageBubble = memo(
       toast.success("Message copied!");
     }, [message.content]);
 
+    // ✅ DETECT DRIVE LINKS IN TEXT CONTENT
+    const driveLinksInText = useMemo(() => {
+      if (!message.content || message.mediaUrl) return null;
+      
+      const links = detectDriveLinks(message.content);
+      if (links.length === 0) return null;
+      
+      const cleanedText = removeDriveLinksFromText(message.content, links);
+      
+      return {
+        links,
+        cleanedText: cleanedText.trim(),
+      };
+    }, [message.content, message.mediaUrl]);
+
     if (message.isDeleted) {
       return (
         <div className="flex items-center gap-2 px-3 sm:px-4 py-2 text-gray-500 text-sm italic opacity-50">
@@ -1096,14 +1112,33 @@ export const LiveMessageBubble = memo(
                   whileHover={{ scale: 1.01 }}
                   transition={{ duration: 0.2 }}
                 >
+           
                   {/* Shimmer effect */}
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
 
                   {/* Content */}
                   <div className="relative z-10">
-                    {/* ✅ CRITICAL FIX: Check for media FIRST */}
-                    {message.mediaUrl && message.mediaType ? (
-                      // ✅ NEW: Media attachments (images, videos, PDFs)
+                    {/* ✅ DRIVE LINKS FROM TEXT */}
+                    {driveLinksInText && driveLinksInText.links.length > 0 ? (
+                      <div className="space-y-3">
+                        {/* Render Drive previews */}
+                        {driveLinksInText.links.map((link, index) => (
+                          <DriveDisplay
+                            key={index}
+                            url={link.url}
+                            fileName={`Google ${link.type.charAt(0).toUpperCase() + link.type.slice(1)}`}
+                          />
+                        ))}
+                        
+                        {/* Render remaining text if any */}
+                        {driveLinksInText.cleanedText && (
+                          <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-white message-content-wrapper mt-2">
+                            {driveLinksInText.cleanedText}
+                          </p>
+                        )}
+                      </div>
+                    ) : message.mediaUrl && message.mediaType ? (
+                      // ✅ UPLOADED MEDIA (images, videos, PDFs, Drive uploads)
                       <div className="space-y-2 media-display-container">
                         <MediaDisplay
                           url={message.mediaUrl}
@@ -1113,7 +1148,6 @@ export const LiveMessageBubble = memo(
                           width={message.mediaWidth}
                           height={message.mediaHeight}
                         />
-                        {/* Optional caption text */}
                         {message.content && message.content !== message.mediaFileName && (
                           <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-white message-content-wrapper mt-2">
                             {message.content}
@@ -1121,7 +1155,7 @@ export const LiveMessageBubble = memo(
                         )}
                       </div>
                     ) : message.isVoiceMessage ? (
-                      // ✅ EXISTING: Voice message UI
+                      // ✅ VOICE MESSAGE
                       <div className="flex items-center gap-3 min-w-[200px]">
                         <button className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors flex-shrink-0">
                           <FaPlay className="text-white text-sm ml-0.5" />
@@ -1144,7 +1178,7 @@ export const LiveMessageBubble = memo(
                         </span>
                       </div>
                     ) : (
-                      // ✅ EXISTING: Regular text message
+                      // ✅ REGULAR TEXT
                       <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-white message-content-wrapper">
                         {message.content}
                       </p>

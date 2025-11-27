@@ -1,134 +1,82 @@
-// components/course-builder/chats/MediaDisplay.tsx
 "use client";
 
-import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { FaTimes, FaDownload, FaExpand, FaFile } from "react-icons/fa";
-import { PdfDisplay } from "./PdfDisplay";
+import React, { useState } from 'react';
+import { FaFilePdf, FaDownload, FaExternalLinkAlt, FaTimes, FaFileAlt } from 'react-icons/fa';
+import { motion, AnimatePresence } from 'framer-motion';
+import { DriveDisplay } from './DriveDisplay';
 
 interface MediaDisplayProps {
   url: string;
-  downloadUrl?: string; // ✅ NEW
-  type: "image" | "video" | "pdf" | string;
+  type: string;
   fileName?: string;
-  fileSize?: number;
   thumbnail?: string;
   width?: number;
   height?: number;
 }
 
+// ✅ ADD DRIVE LINK DETECTION
+function isDriveLink(url: string): boolean {
+  const drivePatterns = [
+    /drive\.google\.com\/file\/d\//,
+    /drive\.google\.com\/open\?id=/,
+    /docs\.google\.com\/(document|spreadsheets|presentation|forms)\/d\//,
+  ];
+  
+  return drivePatterns.some(pattern => pattern.test(url));
+}
+
 export const MediaDisplay: React.FC<MediaDisplayProps> = ({
   url,
-  downloadUrl, // ✅ NEW
   type,
   fileName,
-  fileSize,
   thumbnail,
   width,
   height,
 }) => {
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
 
-  // ✅ EARLY RETURN: If no URL, don't render anything
-  if (!url) {
-    console.error("❌ MediaDisplay: No URL provided");
-    return null;
+  // ✅ CHECK FOR DRIVE LINK FIRST
+  if (isDriveLink(url)) {
+    return <DriveDisplay url={url} fileName={fileName} />;
   }
 
-  console.log("✅ MediaDisplay rendering:", {
-    url,
-    downloadUrl, // ✅ NEW
-    type,
-    fileName,
-    fileSize,
-  });
-
-  const handleDownload = async () => {
-    try {
-      // Use downloadUrl if provided, otherwise use regular url
-      const urlToDownload = downloadUrl || url;
-      
-      const response = await fetch(urlToDownload);
-      const blob = await response.blob();
-      const downloadUrl_blob = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = downloadUrl_blob;
-      link.download = fileName || "download";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl_blob);
-    } catch (error) {
-      console.error("Download failed:", error);
-      window.open(downloadUrl || url, "_blank");
-    }
-  };
-
-  // ✅ IMAGE DISPLAY
-  if (type === "image" || type.startsWith("image/")) {
+  // Existing media type handling...
+  if (type === 'image') {
     return (
       <>
-        <div className="media-image-container group">
+        <div className="media-image-container">
           <img
             src={url}
-            alt={fileName || "Image"}
+            alt={fileName || 'Image'}
             className="media-image"
-            onClick={() => setIsFullscreen(true)}
+            onClick={() => setFullscreen(true)}
             loading="lazy"
           />
-
-          {/* Hover Overlay */}
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-3">
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setIsFullscreen(true)}
-              className="p-3 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-colors"
-            >
-              <FaExpand className="text-white" />
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={handleDownload}
-              className="p-3 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-colors"
-            >
-              <FaDownload className="text-white" />
-            </motion.button>
-          </div>
         </div>
 
-        {/* Fullscreen Modal */}
         <AnimatePresence>
-          {isFullscreen && (
+          {fullscreen && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="media-fullscreen-overlay"
-              onClick={() => setIsFullscreen(false)}
+              onClick={() => setFullscreen(false)}
             >
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="media-fullscreen-container"
-              >
+              <div className="media-fullscreen-container">
                 <img
                   src={url}
-                  alt={fileName || "Image"}
+                  alt={fileName || 'Image'}
                   className="media-fullscreen-image"
+                  onClick={(e) => e.stopPropagation()}
                 />
-                <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setIsFullscreen(false)}
+                <button
+                  onClick={() => setFullscreen(false)}
                   className="media-fullscreen-close"
                 >
-                  <FaTimes className="text-xl" />
-                </motion.button>
-              </motion.div>
+                  <FaTimes />
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -136,65 +84,119 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({
     );
   }
 
-  // ✅ VIDEO DISPLAY
-  if (type === "video" || type.startsWith("video/")) {
+  if (type === 'video') {
     return (
-      <div className="media-video-container group relative">
+      <div className="media-video-container">
         <video
           src={url}
           controls
-          poster={thumbnail}
           className="media-video"
           preload="metadata"
         >
-          Your browser does not support video playback.
+          Your browser does not support the video tag.
         </video>
-
-        {/* Download Button Overlay */}
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={handleDownload}
-          className="absolute top-4 right-4 p-3 bg-black/50 backdrop-blur-sm rounded-lg hover:bg-black/70 transition-colors opacity-0 group-hover:opacity-100"
-        >
-          <FaDownload className="text-white" />
-        </motion.button>
       </div>
     );
   }
 
-  // ✅ PDF DISPLAY - USE NEW COMPONENT WITH DOWNLOAD URL
-  if (type === "pdf" || type === "application/pdf") {
+  if (type === 'application' || type === 'pdf') {
     return (
-      <PdfDisplay
-        url={url}
-        downloadUrl={downloadUrl} // ✅ PASS DOWNLOAD URL
-        fileName={fileName}
-        thumbnail={thumbnail}
-      />
+      <div className="pdf-display-wrapper">
+        {/* PDF Header */}
+        <div className="pdf-header-modern">
+          <div className="pdf-icon-modern">
+            <div className="pdf-icon-bg" />
+            <FaFilePdf className="pdf-icon-svg" />
+          </div>
+
+          <div className="pdf-info-modern">
+            <div className="pdf-filename-modern">
+              {fileName || 'Document.pdf'}
+            </div>
+            <div className="pdf-meta-modern">
+              <span className="pdf-badge">PDF</span>
+              <span className="pdf-size">Document</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Preview */}
+        <div className="pdf-mobile-preview">
+          {thumbnail ? (
+            <>
+              <img
+                src={thumbnail}
+                alt="PDF Thumbnail"
+                className="pdf-thumbnail-img"
+              />
+              <div className="pdf-thumbnail-overlay">
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="pdf-view-button"
+                >
+                  <FaExternalLinkAlt />
+                  <span>View PDF</span>
+                </a>
+              </div>
+            </>
+          ) : (
+            <div className="pdf-thumbnail-fallback">
+              <FaFilePdf className="pdf-fallback-icon" />
+              <span className="pdf-fallback-text">PDF Document</span>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop iframe */}
+        <div className="pdf-preview-modern">
+          <iframe
+            src={`${url}#toolbar=0`}
+            className="pdf-iframe-modern"
+            title="PDF Preview"
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="pdf-actions-modern">
+          <a
+            href={url}
+            download={fileName}
+            className="pdf-action-btn pdf-btn-primary"
+          >
+            <FaDownload />
+            <span>Download Now</span>
+          </a>
+
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="pdf-action-btn pdf-btn-secondary"
+          >
+            <FaExternalLinkAlt />
+            <span>Open</span>
+          </a>
+        </div>
+      </div>
     );
   }
 
-  // ✅ GENERIC FILE DISPLAY (for other file types)
+  // Generic file fallback
   return (
     <div className="media-file-card">
       <div className="media-file-icon">
-        <FaFile />
+        <FaFileAlt />
       </div>
       <div className="media-file-info">
-        <div className="media-file-name">{fileName || "File"}</div>
-        {fileSize && (
-          <div className="media-file-size">
-            {(fileSize / 1024).toFixed(2)} KB
-          </div>
-        )}
+        <div className="media-file-name">{fileName || 'File'}</div>
+        <div className="media-file-size">{type}</div>
       </div>
       <a
-        href={downloadUrl || url}
+        href={url}
         download={fileName}
         className="media-file-download"
-        target="_blank"
-        rel="noopener noreferrer"
       >
         <FaDownload />
       </a>
