@@ -29,13 +29,6 @@ export const PdfDisplay: React.FC<PdfDisplayProps> = ({
     return 'share' in navigator && typeof navigator.share === 'function' && isIOS();
   };
 
-  // ✅ Format file size
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return "Unknown size";
-    const mb = bytes / (1024 * 1024);
-    return mb >= 1 ? `${mb.toFixed(2)} MB` : `${(bytes / 1024).toFixed(2)} KB`;
-  };
-
   // ✅ FIXED: iOS-compatible download handler
   const handleDownload = async () => {
     try {
@@ -52,63 +45,60 @@ export const PdfDisplay: React.FC<PdfDisplayProps> = ({
         finalDownloadUrl = url;
       }
 
-      // ✅ iOS Native Share (Best UX)
+      // ✅ iOS: Use Web Share API with URL (not blob)
       if (canUseWebShare()) {
         try {
-          const response = await fetch(url);
-          const blob = await response.blob();
-          const file = new File([blob], fileName, { type: "application/pdf" });
-
+          // iOS Safari works better with URL sharing for PDFs
           await navigator.share({
             title: fileName,
             text: "Download PDF",
-            files: [file],
+            url: finalDownloadUrl, // ✅ Share URL directly instead of file blob
           });
-          return;
+          return; // Success!
         } catch (shareError: any) {
-          // If share is cancelled or fails, fall through to next method
-          if (shareError.name !== "AbortError") {
-            console.log("Share failed, trying alternative method:", shareError);
+          console.log("Share failed:", shareError);
+          // If share is cancelled (AbortError), don't show error
+          if (shareError.name === "AbortError") {
+            return; // User cancelled, that's okay
           }
+          // Otherwise, fall through to next method
         }
       }
 
-      // ✅ iOS Fallback: Direct link with download attribute
+      // ✅ iOS Fallback: Open PDF in new tab (iOS will show native save/share options)
       if (isIOS()) {
-        const link = document.createElement("a");
-        link.href = finalDownloadUrl;
-        link.download = fileName;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
+        // iOS Safari will automatically show download/share options
+        const newWindow = window.open(finalDownloadUrl, "_blank", "noopener,noreferrer");
         
-        // iOS requires link to be in DOM
-        document.body.appendChild(link);
-        link.click();
-        
-        // Clean up
-        setTimeout(() => {
-          document.body.removeChild(link);
-        }, 100);
-      } else {
-        // ✅ Desktop/Android: Blob method
-        const response = await fetch(url);
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-
-        const link = document.createElement("a");
-        link.href = blobUrl;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        // Clean up blob URL
-        window.URL.revokeObjectURL(blobUrl);
+        if (!newWindow) {
+          // Pop-up blocked, try direct navigation
+          window.location.href = finalDownloadUrl;
+        }
+        return;
       }
+
+      // ✅ Desktop/Android: Blob download method
+      const response = await fetch(finalDownloadUrl);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up blob URL
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+
     } catch (error) {
       console.error("Download failed:", error);
       // Final fallback: Open in new tab
-      window.open(url, "_blank", "noopener,noreferrer");
+      const urlToOpen = downloadUrl || url;
+      window.open(urlToOpen, "_blank", "noopener,noreferrer");
     }
   };
 
@@ -158,14 +148,14 @@ export const PdfDisplay: React.FC<PdfDisplayProps> = ({
           className="pdf-action-btn pdf-btn-secondary"
         >
           <FaDownload />
-          <span>{isIOS() ? "Save" : "Download"}</span>
+          <span>{isIOS() ? "Share" : "Download"}</span>
         </motion.button>
       </div>
 
       {/* iOS-specific hint */}
       {isIOS() && (
         <div className="text-xs text-gray-400 text-center mt-2 px-2">
-          💡 Tap "Save" to download or share this PDF
+          💡 Tap "Share" to save or share this PDF
         </div>
       )}
     </motion.div>
