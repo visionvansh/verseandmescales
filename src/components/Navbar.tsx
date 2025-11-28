@@ -16,8 +16,6 @@ import {
 import { IconType } from "react-icons";
 import AvatarGenerator from "@/components/settings/AvatarGenerator";
 
-// ✅ REMOVED: isCoursesPublicRoute helper - no longer needed
-
 // Define proper types for command items
 interface BaseCommandItem {
   icon: IconType;
@@ -160,7 +158,7 @@ const LockedCommandPalette = ({ onClose }: { onClose: () => void }) => {
           initial={{ opacity: 0, y: -20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -20, scale: 0.95 }}
-          className="w-full max-w-2xl rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl relative"
+          className="w-full max-w-2xl rounded-xl sm:rounded-2xl overflow-hidden relative"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-3xl" />
           <div className="absolute inset-0 border border-red-500/30 rounded-xl sm:rounded-2xl" />
@@ -224,7 +222,7 @@ const LockedProfileDropdown = ({ onClose }: { onClose: () => void }) => {
         initial={{ opacity: 0, y: 10, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-        className="absolute right-0 mt-2 w-72 rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl z-[100001]"
+        className="absolute right-0 mt-2 w-72 rounded-xl sm:rounded-2xl overflow-hidden z-[100001]"
         style={{ top: 'calc(100% + 0.5rem)' }}
       >
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
@@ -286,7 +284,6 @@ const NavbarSkeleton = () => {
           <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 backdrop-blur-2xl rounded-xl sm:rounded-2xl" />
           <div className="absolute inset-0 bg-gradient-to-br from-red-600/5 to-transparent rounded-xl sm:rounded-2xl" />
           <div className="absolute inset-0 border border-red-500/20 rounded-xl sm:rounded-2xl" />
-          <div className="absolute inset-0 shadow-2xl shadow-red-500/5 rounded-xl sm:rounded-2xl" />
 
           <div className="relative px-3 sm:px-4 md:px-6 py-2 sm:py-3">
             <div className="hidden md:grid md:grid-cols-[auto_1fr_auto] items-center gap-4">
@@ -396,10 +393,8 @@ const CommandHeader = () => {
   const { user, logout, isLoading: authLoading, authChecked } = useAuth();
   const pathname = usePathname();
   
-  // ✅ ALWAYS call hooks in the same order - no conditional hooks
   const { navbarUser, userGoals, primaryAvatar, sessions, loading: navbarLoading } = useAtomicNavbarData();
   
-  // ✅ ALL useState hooks MUST be called before any conditional returns
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -408,10 +403,8 @@ const CommandHeader = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
 
-  // ✅ UPDATED: Lock features for ALL pages when user is not authenticated
   const shouldLockFeatures = !user && authChecked;
 
-  // ✅ ALL useCallback hooks
   const handleLogout = useCallback(async () => {
     try {
       await logout();
@@ -437,7 +430,6 @@ const CommandHeader = () => {
     }
   }, []);
 
-  // ✅ ALL useEffect hooks MUST be called in the same order every render
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -454,7 +446,6 @@ const CommandHeader = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // ✅ Only allow Cmd+K if user is authenticated
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setIsCommandOpen(true);
@@ -501,11 +492,9 @@ const CommandHeader = () => {
     };
   }, []);
 
-  // ✅ Determine loading state (after all hooks)
   const isLoading = authLoading || navbarLoading || !authChecked;
   const displayUser = user || navbarUser;
 
-  // ✅ NOW we can do conditional rendering (after all hooks are called)
   if (!isMounted) {
     return <NavbarSkeleton />;
   }
@@ -521,7 +510,7 @@ const CommandHeader = () => {
     hasDisplayUser: !!displayUser,
     userRole: userRole(),
     isLoading,
-    shouldLockFeatures, // ✅ Log lock status
+    shouldLockFeatures,
   });
 
   // Command Palette Items
@@ -529,7 +518,7 @@ const CommandHeader = () => {
     {
       category: 'Quick Actions',
       items: [
-         { icon: FaHome, label: 'Home', shortcut: 'H', href: '/users', color: 'text-red-400' },
+        { icon: FaHome, label: 'Home', shortcut: 'H', href: '/users', color: 'text-red-400' },
         { icon: FaPlus, label: 'Create new course', shortcut: 'C', href: '/users/management', color: 'text-yellow-400' },
         { icon: FaVideo, label: 'Explore Courses', shortcut: 'E', href: '/users/courses', color: 'text-blue-400' },
         { icon: FaChartLine, label: 'Your Profile', shortcut: 'P', href: '/users/profile', color: 'text-purple-400' },
@@ -561,10 +550,10 @@ const CommandHeader = () => {
       >
         <div className="max-w-[1800px] mx-auto">
           <div className="relative rounded-xl sm:rounded-2xl overflow-visible">
+            {/* ✅ REMOVED: shadow-2xl shadow-red-500/5 */}
             <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 backdrop-blur-2xl rounded-xl sm:rounded-2xl" />
             <div className="absolute inset-0 bg-gradient-to-br from-red-600/5 to-transparent rounded-xl sm:rounded-2xl" />
             <div className="absolute inset-0 border border-red-500/20 rounded-xl sm:rounded-2xl" />
-            <div className="absolute inset-0 shadow-2xl shadow-red-500/5 rounded-xl sm:rounded-2xl" />
 
             <div className="relative px-3 sm:px-4 md:px-6 py-2 sm:py-3">
               {/* Desktop Layout */}
@@ -578,7 +567,8 @@ const CommandHeader = () => {
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                     >
-                      <div className="absolute inset-0 bg-gradient-to-br from-red-600 to-red-800 rounded-xl shadow-lg shadow-red-500/30" />
+                      {/* ✅ REMOVED: shadow-lg shadow-red-500/30 */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-red-600 to-red-800 rounded-xl" />
                       <div className="absolute inset-0 border border-red-500/30 rounded-xl" />
                       <div className="relative z-10 text-white font-bold text-xs">VS</div>
                     </motion.div>
@@ -678,7 +668,7 @@ const CommandHeader = () => {
                                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                className="absolute right-0 mt-2 w-96 rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl z-[100001]"
+                                className="absolute right-0 mt-2 w-96 rounded-xl sm:rounded-2xl overflow-hidden z-[100001]"
                                 style={{ top: 'calc(100% + 0.5rem)' }}
                               >
                                 <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
@@ -693,7 +683,8 @@ const CommandHeader = () => {
                                       </button>
                                     </div>
                                   </div>
-                                  <div className="max-h-[60vh] sm:max-h-96 overflow-y-auto">
+                                  {/* ✅ ADDED: scrollbar-hide class */}
+                                  <div className="max-h-[60vh] sm:max-h-96 overflow-y-auto scrollbar-hide">
                                     {notifications.map((notification, index) => (
                                       <motion.div
                                         key={notification.id}
@@ -776,7 +767,7 @@ const CommandHeader = () => {
                                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                className="absolute right-0 mt-2 w-72 rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl z-[100001]"
+                                className="absolute right-0 mt-2 w-72 rounded-xl sm:rounded-2xl overflow-hidden z-[100001]"
                                 style={{ top: 'calc(100% + 0.5rem)' }}
                               >
                                 <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
@@ -889,7 +880,8 @@ const CommandHeader = () => {
               <div className="flex md:hidden items-center justify-between gap-2">
                 <Link href={displayUser ? "/users/dashboard" : "/"} className="flex items-center gap-2">
                   <div className="relative w-7 h-7 flex items-center justify-center">
-                    <div className="absolute inset-0 bg-gradient-to-br from-red-600 to-red-800 rounded-lg shadow-lg shadow-red-500/30" />
+                    {/* ✅ REMOVED: shadow-lg shadow-red-500/30 */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-red-600 to-red-800 rounded-lg" />
                     <div className="relative z-10 text-white font-bold text-[10px]">VS</div>
                   </div>
                 </Link>
@@ -953,7 +945,7 @@ const CommandHeader = () => {
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                            className="fixed right-2 mt-2 w-[calc(100vw - 1rem)] max-w-xs rounded-xl overflow-hidden shadow-2xl z-[100001]"
+                            className="fixed right-2 mt-2 w-[calc(100vw - 1rem)] max-w-xs rounded-xl overflow-hidden z-[100001]"
                             style={{ top: '60px' }}
                           >
                             <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
@@ -1048,7 +1040,7 @@ const CommandHeader = () => {
                               initial={{ opacity: 0, y: 10, scale: 0.95 }}
                               animate={{ opacity: 1, y: 0, scale: 1 }}
                               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                              className="fixed right-2 left-2 mt-2 mx-auto w-[calc(100vw - 1rem)] max-w-xs rounded-xl overflow-hidden shadow-2xl z-[100001]"
+                              className="fixed right-2 left-2 mt-2 mx-auto w-[calc(100vw - 1rem)] max-w-xs rounded-xl overflow-hidden z-[100001]"
                               style={{ top: '60px' }}
                             >
                               <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
@@ -1109,7 +1101,7 @@ const CommandHeader = () => {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -20, scale: 0.95 }}
                   transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                  className="w-full max-w-2xl rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl relative"
+                  className="w-full max-w-2xl rounded-xl sm:rounded-2xl overflow-hidden relative"
                 >
                   <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-3xl" />
                   <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent" />
@@ -1131,7 +1123,8 @@ const CommandHeader = () => {
                       </kbd>
                     </div>
 
-                    <div className="max-h-[60vh] overflow-y-auto">
+                    {/* ✅ ADDED: scrollbar-hide class */}
+                    <div className="max-h-[60vh] overflow-y-auto scrollbar-hide">
                       {filteredCommands.length > 0 ? (
                         filteredCommands.map((category) => (
                           <div key={category.category} className="py-2 sm:py-3">
@@ -1166,7 +1159,7 @@ const CommandHeader = () => {
                                     <kbd className="hidden sm:block px-2 py-1 bg-gray-800/50 border border-gray-700/50 rounded text-xs text-gray-400 font-mono flex-shrink-0">
                                       {item.shortcut}
                                     </kbd>
-                                                                    )}
+                                  )}
                                 </Link>
                               ))}
                             </div>
@@ -1176,7 +1169,7 @@ const CommandHeader = () => {
                         <div className="py-12 sm:py-16 text-center">
                           <div className="text-3xl sm:text-4xl mb-3 sm:mb-4">🔍</div>
                           <p className="text-xs sm:text-sm text-gray-400">No results found</p>
-                        </div>
+                                                </div>
                       )}
                     </div>
 

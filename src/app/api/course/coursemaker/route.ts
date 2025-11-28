@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/app/api/course/coursemaker/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/utils/auth";
 import prisma, { PrismaTx } from "@/lib/prisma";

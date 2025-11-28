@@ -19,17 +19,16 @@ import {
   FaBookOpen,
   FaListUl,
   FaStar,
-  FaShare,
-  FaBookmark,
-  FaRegBookmark,
   FaFire,
   FaLightbulb,
   FaQuestionCircle,
   FaComments,
   FaExclamationTriangle,
+  FaCog,
+  FaTachometerAlt,
+  FaHdd,
 } from 'react-icons/fa';
 
-// ✅ Import the new modal
 import { VideoPlayerQuestionModal } from '@/components/courseinside/VideoPlayerQuestionModal';
 
 // Types
@@ -47,12 +46,20 @@ interface Note {
   createdAt: string;
 }
 
+interface VideoQuality {
+  label: string;
+  value: string;
+  url: string;
+  bitrate?: string;
+}
+
 interface Lesson {
   id: string;
   title: string;
   description: string;
   duration: string;
   videoUrl: string;
+  videoQualities?: VideoQuality[];
   isCompleted: boolean;
   progressPercent?: number;
   lastPosition?: number;
@@ -65,15 +72,12 @@ interface Lesson {
   course: { id: string; title: string };
 }
 
-// ============================================
-// NOT ENROLLED PAGE COMPONENT
-// ============================================
-
+// [NotEnrolledPage component]
 const NotEnrolledPage = memo(({ courseId }: { courseId: string }) => {
   const router = useRouter();
   
   return (
-    <div className="relative w-full min-h-screen overflow-x-hidden mt-20">
+    <div className="relative w-full min-h-screen overflow-x-hidden mt-16 sm:mt-20">
       <div className="relative z-10">
         <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-8 sm:py-12 md:py-16">
           <div className="max-w-2xl mx-auto">
@@ -85,7 +89,7 @@ const NotEnrolledPage = memo(({ courseId }: { courseId: string }) => {
               <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 rounded-2xl border border-red-500/30 backdrop-blur-2xl" />
               <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-2xl" />
               
-              <div className="relative p-8 sm:p-12 md:p-16 text-center">
+              <div className="relative p-6 sm:p-8 md:p-12 lg:p-16 text-center">
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
@@ -95,32 +99,32 @@ const NotEnrolledPage = memo(({ courseId }: { courseId: string }) => {
                   <FaExclamationTriangle className="text-4xl sm:text-5xl text-red-400" />
                 </motion.div>
 
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
+                <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-4">
                   You Are Not Enrolled
                 </h2>
-                <p className="text-base sm:text-lg text-gray-400 mb-8 max-w-md mx-auto">
+                <p className="text-sm sm:text-base lg:text-lg text-gray-400 mb-8 max-w-md mx-auto px-4">
                   You need to enroll in this course to access the learning materials and modules
                 </p>
 
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 max-w-md mx-auto px-4">
                   <button
                     onClick={() => router.push(`/users/courses/${courseId}`)}
-                    className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl font-semibold hover:scale-105 transition-transform text-base"
+                    className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl font-semibold hover:scale-105 transition-transform text-sm sm:text-base"
                   >
                     View Course Details
                   </button>
                   <button
                     onClick={() => router.push('/users/courses')}
-                    className="w-full sm:w-auto px-8 py-3 bg-gray-800/50 border border-gray-700 text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors text-base"
+                    className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-gray-800/50 border border-gray-700 text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors text-sm sm:text-base"
                   >
                     Browse Courses
                   </button>
                 </div>
 
-                <div className="mt-8 pt-8 border-t border-red-500/20">
+                <div className="mt-8 pt-8">
                   <button
                     onClick={() => router.back()}
-                    className="text-gray-400 hover:text-white transition-colors text-sm"
+                    className="text-gray-400 hover:text-white transition-colors text-xs sm:text-sm"
                   >
                     ← Go Back
                   </button>
@@ -135,10 +139,7 @@ const NotEnrolledPage = memo(({ courseId }: { courseId: string }) => {
 });
 NotEnrolledPage.displayName = 'NotEnrolledPage';
 
-// ============================================
-// SKELETON COMPONENTS
-// ============================================
-
+// [Skeleton components]
 const Skeleton = memo(({ className = "", animate = true }: { className?: string; animate?: boolean }) => (
   <div 
     className={`bg-gray-800/50 rounded ${animate ? 'skeleton-pulse' : ''} ${className}`}
@@ -147,8 +148,69 @@ const Skeleton = memo(({ className = "", animate = true }: { className?: string;
 ));
 Skeleton.displayName = 'Skeleton';
 
+// Video Loading Skeleton - replaces spinner
+const VideoLoadingSkeleton = memo(() => (
+  <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 overflow-hidden rounded-lg sm:rounded-xl lg:rounded-2xl">
+    {/* Skeleton overlay with shimmer effect */}
+    <div className="absolute inset-0 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 skeleton-shimmer" />
+    
+    {/* Center play button skeleton */}
+    <div className="relative z-10 flex flex-col items-center gap-4">
+      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gray-700/50 skeleton-pulse flex items-center justify-center">
+        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-600/50 rounded skeleton-pulse" />
+      </div>
+      
+      {/* Loading text skeleton */}
+      <div className="flex flex-col items-center gap-2">
+        <div className="h-3 w-24 bg-gray-700/50 rounded skeleton-pulse" />
+        <div className="h-2 w-16 bg-gray-700/30 rounded skeleton-pulse" />
+      </div>
+    </div>
+    
+    {/* Bottom controls skeleton */}
+    <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
+      {/* Progress bar skeleton */}
+      <div className="h-1 w-full bg-gray-700/50 rounded-full mb-3 skeleton-pulse" />
+      
+      {/* Controls skeleton */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="w-8 h-8 bg-gray-700/50 rounded-lg skeleton-pulse" />
+          <div className="w-20 h-5 bg-gray-700/50 rounded skeleton-pulse" />
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-12 h-5 bg-gray-700/50 rounded skeleton-pulse" />
+          <div className="w-12 h-5 bg-gray-700/50 rounded skeleton-pulse" />
+          <div className="w-8 h-8 bg-gray-700/50 rounded-lg skeleton-pulse" />
+        </div>
+      </div>
+    </div>
+  </div>
+));
+VideoLoadingSkeleton.displayName = 'VideoLoadingSkeleton';
+
+// Quality Change Skeleton - simpler version for quality switching
+const QualityChangeSkeleton = memo(() => (
+  <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50 overflow-hidden rounded-lg sm:rounded-xl lg:rounded-2xl backdrop-blur-sm">
+    <div className="flex flex-col items-center gap-3">
+      {/* Skeleton bars representing video loading */}
+      <div className="flex items-end gap-1">
+        <div className="w-2 h-4 bg-gray-600/60 rounded skeleton-pulse" style={{ animationDelay: '0ms' }} />
+        <div className="w-2 h-6 bg-gray-600/60 rounded skeleton-pulse" style={{ animationDelay: '100ms' }} />
+        <div className="w-2 h-8 bg-gray-600/60 rounded skeleton-pulse" style={{ animationDelay: '200ms' }} />
+        <div className="w-2 h-5 bg-gray-600/60 rounded skeleton-pulse" style={{ animationDelay: '300ms' }} />
+        <div className="w-2 h-7 bg-gray-600/60 rounded skeleton-pulse" style={{ animationDelay: '400ms' }} />
+      </div>
+      
+      {/* Text skeleton */}
+      <div className="h-3 w-28 bg-gray-700/50 rounded skeleton-pulse" />
+    </div>
+  </div>
+));
+QualityChangeSkeleton.displayName = 'QualityChangeSkeleton';
+
 const VideoPlayerSkeleton = memo(() => (
-  <div className="relative bg-black rounded-xl sm:rounded-2xl overflow-hidden mb-6 aspect-video">
+  <div className="relative bg-black rounded-lg sm:rounded-xl lg:rounded-2xl overflow-hidden mb-4 sm:mb-6 aspect-video border border-red-500/30">
     <div className="absolute inset-0 bg-gray-900/50 skeleton-pulse" />
     <div className="absolute inset-0 flex items-center justify-center">
       <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gray-800/50 skeleton-pulse" />
@@ -158,9 +220,9 @@ const VideoPlayerSkeleton = memo(() => (
 VideoPlayerSkeleton.displayName = 'VideoPlayerSkeleton';
 
 const VideoInfoSkeleton = memo(() => (
-  <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-gray-800/30 rounded-xl sm:rounded-2xl p-5 sm:p-6 backdrop-blur-xl mb-6">
+  <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-lg sm:rounded-xl lg:rounded-2xl p-4 sm:p-5 lg:p-6 backdrop-blur-xl mb-4 sm:mb-6">
     <div className="mb-4">
-      <Skeleton className="h-8 sm:h-10 w-3/4 mb-3" />
+      <Skeleton className="h-6 sm:h-8 lg:h-10 w-3/4 mb-3" />
       <Skeleton className="h-4 w-full mb-2" />
       <Skeleton className="h-4 w-5/6" />
     </div>
@@ -174,7 +236,7 @@ const VideoInfoSkeleton = memo(() => (
 VideoInfoSkeleton.displayName = 'VideoInfoSkeleton';
 
 const TabNavigationSkeleton = memo(() => (
-  <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide">
+  <div className="flex gap-2 mb-4 sm:mb-6 overflow-x-auto scrollbar-hide pb-2">
     <Skeleton className="h-10 w-32 rounded-lg flex-shrink-0" />
     <Skeleton className="h-10 w-32 rounded-lg flex-shrink-0" />
     <Skeleton className="h-10 w-32 rounded-lg flex-shrink-0" />
@@ -183,7 +245,7 @@ const TabNavigationSkeleton = memo(() => (
 TabNavigationSkeleton.displayName = 'TabNavigationSkeleton';
 
 const TabContentSkeleton = memo(() => (
-  <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-gray-800/30 rounded-xl sm:rounded-2xl p-5 sm:p-6 backdrop-blur-xl">
+  <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-lg sm:rounded-xl lg:rounded-2xl p-4 sm:p-5 lg:p-6 backdrop-blur-xl">
     <Skeleton className="h-6 w-48 mb-4" />
     <div className="space-y-3">
       <Skeleton className="h-20 w-full rounded-lg" />
@@ -196,8 +258,8 @@ const TabContentSkeleton = memo(() => (
 TabContentSkeleton.displayName = 'TabContentSkeleton';
 
 const SidebarSkeleton = memo(() => (
-  <div className="space-y-6">
-    <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-gray-800/30 rounded-xl sm:rounded-2xl p-4 sm:p-5 backdrop-blur-xl">
+  <div className="space-y-4 sm:space-y-6">
+    <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-lg sm:rounded-xl lg:rounded-2xl p-4 sm:p-5 backdrop-blur-xl">
       <Skeleton className="h-5 w-40 mb-4" />
       <div className="flex gap-2 mb-4">
         <Skeleton className="h-10 flex-1 rounded-lg" />
@@ -205,7 +267,7 @@ const SidebarSkeleton = memo(() => (
       </div>
       <Skeleton className="h-24 w-full rounded-lg" />
     </div>
-    <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-gray-800/30 rounded-xl sm:rounded-2xl p-4 sm:p-5 backdrop-blur-xl">
+    <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-lg sm:rounded-xl lg:rounded-2xl p-4 sm:p-5 backdrop-blur-xl">
       <Skeleton className="h-5 w-32 mb-4" />
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -225,21 +287,17 @@ SidebarSkeleton.displayName = 'SidebarSkeleton';
 const LoadingSkeleton = memo(() => (
   <div className="relative w-full min-h-screen overflow-x-hidden">
     <div className="relative z-10">
-      <section className="relative w-full py-4 sm:py-6 border-b border-red-500/20">
+      <section className="relative w-full py-3 sm:py-4 lg:py-6">
         <div className="w-full max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-[88%] xl:max-w-[1800px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <Skeleton className="h-6 w-32 rounded-lg" />
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Skeleton className="h-10 w-10 rounded-lg" />
-              <Skeleton className="h-10 w-10 rounded-lg" />
-            </div>
           </div>
         </div>
       </section>
 
-      <section className="relative w-full py-6 sm:py-8">
+      <section className="relative w-full py-4 sm:py-6 lg:py-8">
         <div className="w-full max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-[88%] xl:max-w-[1800px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             <div className="lg:col-span-2">
               <VideoPlayerSkeleton />
               <VideoInfoSkeleton />
@@ -262,8 +320,17 @@ const LoadingSkeleton = memo(() => (
         0%, 100% { opacity: 1; }
         50% { opacity: 0.5; }
       }
+      .skeleton-shimmer {
+        animation: skeleton-shimmer 2s ease-in-out infinite;
+      }
+      @keyframes skeleton-shimmer {
+        0% { opacity: 0.5; }
+        50% { opacity: 0.8; }
+        100% { opacity: 0.5; }
+      }
       @media (prefers-reduced-motion: reduce) {
-        .skeleton-pulse {
+        .skeleton-pulse,
+        .skeleton-shimmer {
           animation: none;
           opacity: 0.7;
         }
@@ -282,6 +349,7 @@ const VideoPlayerPage = () => {
   const searchParams = useSearchParams();
   const lessonId = searchParams.get('lessonId');
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
 
   const [lessonData, setLessonData] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(true);
@@ -295,21 +363,31 @@ const VideoPlayerPage = () => {
   const [duration, setDuration] = useState("0:00");
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(0);
   const [videoCurrentSeconds, setVideoCurrentSeconds] = useState(0);
-  const [activeTab, setActiveTab] = useState< "resources" | "transcript" | "notes">("resources");
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [activeTab, setActiveTab] = useState<"resources" | "transcript" | "notes">("resources");
   const [notes, setNotes] = useState<Note[]>([]);
   const [newNote, setNewNote] = useState("");
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [watchTime, setWatchTime] = useState(0);
   const [isSavingProgress, setIsSavingProgress] = useState(false);
   const [isMarkedComplete, setIsMarkedComplete] = useState(false);
-  const [isRestoringPosition, setIsRestoringPosition] = useState(false); // ✅ NEW
+  const [isRestoringPosition, setIsRestoringPosition] = useState(false);
 
-  // ✅ ADD THESE NEW STATES
+  const [availableQualities, setAvailableQualities] = useState<VideoQuality[]>([]);
+  const [currentQuality, setCurrentQuality] = useState<string>('auto');
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [isChangingQuality, setIsChangingQuality] = useState(false);
+
+  const [isVideoLoading, setIsVideoLoading] = useState(true);
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+
+  const [showControls, setShowControls] = useState(true);
+  const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null);
+
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [roomId, setRoomId] = useState<string>("");
 
-  // ✅ ADD THIS STATE
   const [enrollmentStatus, setEnrollmentStatus] = useState<{
     checked: boolean;
     enrolled: boolean;
@@ -333,7 +411,6 @@ const VideoPlayerPage = () => {
     }
   }, [lessonId]);
 
-  // ✅ MODIFIED: Don't redirect, just set state
   const checkEnrollmentAccess = useCallback(async (courseId: string) => {
     try {
       const response = await fetch(`/api/course/check-enrollment?courseId=${courseId}`, {
@@ -386,18 +463,19 @@ const VideoPlayerPage = () => {
 
       const data = await response.json();
       
-      // ✅ MODIFIED: Check enrollment after getting lesson data
       if (data.course?.id) {
         const hasAccess = await checkEnrollmentAccess(data.course.id);
         if (!hasAccess) {
           setLoading(false);
-          return; // Don't set lesson data
+          return;
         }
       }
       
       setLessonData(data);
+
+      const qualities = parseVideoQualities(data.videoUrl);
+      setAvailableQualities(qualities);
       
-      // Set initial states from database
       if (data.watchTime > 0) {
         setWatchTime(data.watchTime);
       }
@@ -414,7 +492,90 @@ const VideoPlayerPage = () => {
     }
   };
 
-  // ✅ ADD THIS: Fetch room ID when lesson loads
+  const parseVideoQualities = (videoUrl: string): VideoQuality[] => {
+    if (videoUrl.includes('cloudinary.com')) {
+      const baseUrl = videoUrl.split('/upload/')[0] + '/upload/';
+      const videoPath = videoUrl.split('/upload/')[1];
+      
+      return [
+        {
+          label: 'Auto',
+          value: 'auto',
+          url: videoUrl,
+        },
+        {
+          label: '1080p',
+          value: '1080',
+          url: `${baseUrl}q_auto,h_1080/${videoPath}`,
+          bitrate: '~5 Mbps'
+        },
+        {
+          label: '720p',
+          value: '720',
+          url: `${baseUrl}q_auto,h_720/${videoPath}`,
+          bitrate: '~2.5 Mbps'
+        },
+        {
+          label: '480p',
+          value: '480',
+          url: `${baseUrl}q_auto,h_480/${videoPath}`,
+          bitrate: '~1 Mbps'
+        },
+        {
+          label: '360p',
+          value: '360',
+          url: `${baseUrl}q_auto,h_360/${videoPath}`,
+          bitrate: '~0.5 Mbps'
+        },
+      ];
+    }
+    
+    return [
+      {
+        label: 'Auto',
+        value: 'auto',
+        url: videoUrl,
+      }
+    ];
+  };
+
+  const changeVideoQuality = useCallback(async (quality: VideoQuality) => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    try {
+      setIsChangingQuality(true);
+      const currentTime = video.currentTime;
+      const wasPlaying = !video.paused;
+
+      video.src = quality.url;
+      video.load();
+
+      await new Promise<void>((resolve) => {
+        const handleCanPlay = () => {
+          video.removeEventListener('canplay', handleCanPlay);
+          resolve();
+        };
+        video.addEventListener('canplay', handleCanPlay);
+      });
+
+      video.currentTime = currentTime;
+      
+      if (wasPlaying) {
+        await video.play();
+      }
+
+      setCurrentQuality(quality.value);
+      setShowQualityMenu(false);
+
+      console.log(`Quality changed to ${quality.label}`);
+    } catch (error) {
+      console.error('Error changing quality:', error);
+    } finally {
+      setIsChangingQuality(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (lessonData?.course?.id) {
       fetchRoomId(lessonData.course.id);
@@ -433,13 +594,10 @@ const VideoPlayerPage = () => {
     }
   };
 
-  // ✅ ADD THIS: Handle question creation
   const handleQuestionCreated = (question: any) => {
     console.log('Question created:', question);
-    // Optionally show success message or refresh questions
   };
 
-  // Format time helper function
   const formatTime = useCallback((seconds: number) => {
     if (isNaN(seconds) || !isFinite(seconds)) {
       return "0:00";
@@ -449,7 +607,6 @@ const VideoPlayerPage = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
-  // Save progress to database
   const saveProgress = useCallback(async (forceComplete = false) => {
     if (!lessonId || !lessonData?.module?.id || !lessonData?.course?.id) return;
     
@@ -478,7 +635,7 @@ const VideoPlayerPage = () => {
           lastPosition: Math.floor(videoCurrentSeconds),
           progressPercent: currentProgress,
           watchTime: Math.floor(watchTime)
-        }); // ✅ Debug log
+        });
         
         if (shouldMarkComplete) {
           setIsMarkedComplete(true);
@@ -491,7 +648,6 @@ const VideoPlayerPage = () => {
     }
   }, [lessonId, lessonData, progress, watchTime, videoCurrentSeconds]);
 
-  // Auto-save progress every 10 seconds
   useEffect(() => {
     if (isPlaying && lessonId && lessonData) {
       progressSaveInterval.current = setInterval(() => {
@@ -506,7 +662,6 @@ const VideoPlayerPage = () => {
     }
   }, [isPlaying, lessonId, lessonData, saveProgress]);
 
-  // ✅ IMPROVED: Save progress when leaving page
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (lessonId && lessonData && videoCurrentSeconds > 0) {
@@ -520,11 +675,6 @@ const VideoPlayerPage = () => {
           isCompleted: progress >= 90,
         });
         
-        console.log('Saving on unload:', {
-          lastPosition: Math.floor(videoCurrentSeconds),
-          progressPercent: Math.round(progress)
-        });
-        
         navigator.sendBeacon(
           '/api/course/lesson/progress',
           new Blob([data], { type: 'application/json' })
@@ -534,7 +684,6 @@ const VideoPlayerPage = () => {
 
     const handleVisibilityChange = () => {
       if (document.hidden && lessonId && lessonData && videoCurrentSeconds > 0) {
-        console.log('Saving on visibility change');
         saveProgress(false);
       }
     };
@@ -546,14 +695,12 @@ const VideoPlayerPage = () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       
-      // Final save on component unmount
       if (lessonId && lessonData && videoCurrentSeconds > 0) {
         handleBeforeUnload();
       }
     };
   }, [lessonId, lessonData, progress, watchTime, videoCurrentSeconds, saveProgress]);
 
-  // Manual mark as complete
   const handleMarkComplete = async () => {
     await saveProgress(true);
     
@@ -564,15 +711,29 @@ const VideoPlayerPage = () => {
     }, 1000);
   };
 
-  // Video Controls
   const togglePlay = useCallback(() => {
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
       } else {
-        videoRef.current.play();
+        const playPromise = videoRef.current.play();
+        
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              console.log('Video playing successfully');
+              setIsPlaying(true);
+            })
+            .catch((error) => {
+              console.error('Error playing video:', error);
+              if (error.name === 'NotAllowedError') {
+                console.log('Play was prevented - user interaction required');
+              }
+            });
+        } else {
+          setIsPlaying(true);
+        }
       }
-      setIsPlaying(!isPlaying);
     }
   }, [isPlaying]);
 
@@ -610,33 +771,166 @@ const VideoPlayerPage = () => {
     }
   }, [isMuted]);
 
+  // Robust Fullscreen Toggle for Mobile (Safari/iOS) & Desktop
   const toggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      videoRef.current?.requestFullscreen();
+    const container = videoContainerRef.current;
+    const video = videoRef.current;
+
+    if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+      // ENTER Fullscreen
+      if (container?.requestFullscreen) {
+        container.requestFullscreen().catch(err => {
+            console.warn("Standard requestFullscreen failed, trying fallback:", err);
+            // Fallback for iOS which usually only supports video element fullscreen
+            if (video && (video as any).webkitEnterFullscreen) {
+                (video as any).webkitEnterFullscreen();
+            }
+        });
+      } else if (container && (container as any).webkitRequestFullscreen) {
+        (container as any).webkitRequestFullscreen();
+      } else if (video && (video as any).webkitEnterFullscreen) {
+        // iOS Safari specific
+        (video as any).webkitEnterFullscreen();
+      }
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen();
+      // EXIT Fullscreen
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if ((document as any).webkitExitFullscreen) {
+        (document as any).webkitExitFullscreen();
+      }
       setIsFullscreen(false);
     }
   }, []);
 
-  const changePlaybackSpeed = useCallback(() => {
-    const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
-    const currentIndex = speeds.indexOf(playbackSpeed);
-    const nextSpeed = speeds[(currentIndex + 1) % speeds.length];
-    setPlaybackSpeed(nextSpeed);
-    if (videoRef.current) {
-      videoRef.current.playbackRate = nextSpeed;
-    }
-  }, [playbackSpeed]);
+  // Listen for native iOS fullscreen exit
+  useEffect(() => {
+    const video = videoRef.current;
+    const handleWebkitEndFullscreen = () => {
+        setIsFullscreen(false);
+    };
 
-  // Video event handlers
+    if (video) {
+        video.addEventListener('webkitendfullscreen', handleWebkitEndFullscreen);
+    }
+    return () => {
+        if (video) {
+            video.removeEventListener('webkitendfullscreen', handleWebkitEndFullscreen);
+        }
+    };
+  }, []);
+
+  const changePlaybackSpeed = useCallback((speed: number) => {
+    setPlaybackSpeed(speed);
+    if (videoRef.current) {
+      videoRef.current.playbackRate = speed;
+    }
+    setShowSpeedMenu(false);
+  }, []);
+
+  // Auto-hide controls on desktop, tap-to-show on mobile
+  const resetControlsTimeout = useCallback(() => {
+    setShowControls(true);
+    if (controlsTimeout) {
+      clearTimeout(controlsTimeout);
+    }
+    
+    // Only auto-hide on desktop when playing
+    if (window.innerWidth >= 768 && isPlaying) {
+      const timeout = setTimeout(() => {
+        setShowControls(false);
+      }, 3000);
+      
+      setControlsTimeout(timeout);
+    }
+  }, [isPlaying, controlsTimeout]);
+
+  // Mobile tap to toggle controls
+  const handleVideoTap = useCallback((e: React.MouseEvent) => {
+    // Prevent toggling when clicking on controls
+    if ((e.target as HTMLElement).closest('.video-controls')) {
+      return;
+    }
+    
+    if (window.innerWidth < 768) {
+      setShowControls(prev => !prev);
+    }
+  }, []);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    const handleLoadStart = () => {
+      console.log('Video: Load started');
+      setIsVideoLoading(true);
+      setIsVideoReady(false);
+      setVideoError(false);
+    };
+
+    const handleLoadedMetadata = () => {
+      console.log('Video: Metadata loaded');
+      if (video.duration && !isNaN(video.duration) && isFinite(video.duration)) {
+        const totalSeconds = video.duration;
+        setVideoDurationSeconds(totalSeconds);
+        setDuration(formatTime(totalSeconds));
+        console.log('Video metadata loaded, duration:', totalSeconds);
+        
+        if (isMobile) {
+          setIsVideoLoading(false);
+          setIsVideoReady(true);
+        }
+      }
+    };
+
+    const handleLoadedData = () => {
+      console.log('Video: Data loaded');
+      setIsVideoLoading(false);
+      setIsVideoReady(true);
+    };
+
+    const handleCanPlay = () => {
+      console.log('Video: Can play');
+      setIsVideoLoading(false);
+      setIsVideoReady(true);
+    };
+
+    const handleCanPlayThrough = () => {
+      console.log('Video: Can play through');
+      setIsVideoLoading(false);
+      setIsVideoReady(true);
+    };
+
+    const handleWaiting = () => {
+      console.log('Video: Waiting/Buffering');
+      // Only show loading if not changing quality (quality change has its own skeleton)
+      if (!isChangingQuality) {
+        setIsVideoLoading(true);
+      }
+    };
+
+    const handlePlaying = () => {
+      console.log('Video: Playing');
+      setIsVideoLoading(false);
+      setIsVideoReady(true);
+    };
+
+    const handleError = (e: Event) => {
+      console.error('Video error:', e);
+      const videoElement = e.target as HTMLVideoElement;
+      if (videoElement.error) {
+        console.error('Video error code:', videoElement.error.code);
+        console.error('Video error message:', videoElement.error.message);
+      }
+      setVideoError(true);
+      setIsVideoLoading(false);
+    };
+
     const handleTimeUpdate = () => {
-      if (video.duration && !isNaN(video.duration)) {
+      if (video.duration && !isNaN(video.duration) && isFinite(video.duration)) {
         const currentSeconds = video.currentTime;
         const totalSeconds = video.duration;
         const progressPercent = (currentSeconds / totalSeconds) * 100;
@@ -651,15 +945,6 @@ const VideoPlayerPage = () => {
       }
     };
 
-    const handleLoadedMetadata = () => {
-      if (video.duration && !isNaN(video.duration)) {
-        const totalSeconds = video.duration;
-        setVideoDurationSeconds(totalSeconds);
-        setDuration(formatTime(totalSeconds));
-        console.log('Video metadata loaded, duration:', totalSeconds);
-      }
-    };
-
     const handleEnded = () => {
       setIsPlaying(false);
       setProgress(100);
@@ -669,42 +954,92 @@ const VideoPlayerPage = () => {
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
 
-    video.addEventListener('timeupdate', handleTimeUpdate);
+    const handleStalled = () => {
+      console.log('Video: Stalled');
+      if (video.readyState < 3) {
+        console.log('Attempting to recover from stall...');
+        video.load();
+      }
+    };
+
+    const handleSuspend = () => {
+      console.log('Video: Suspended');
+      if (isMobile && video.readyState >= 1) {
+        setIsVideoLoading(false);
+        setIsVideoReady(true);
+      }
+    };
+
+    video.addEventListener('loadstart', handleLoadStart);
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    video.addEventListener('loadeddata', handleLoadedData);
+    video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('canplaythrough', handleCanPlayThrough);
+    video.addEventListener('waiting', handleWaiting);
+    video.addEventListener('playing', handlePlaying);
+    video.addEventListener('error', handleError);
+    video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('ended', handleEnded);
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
+    video.addEventListener('stalled', handleStalled);
+    video.addEventListener('suspend', handleSuspend);
 
-    // Trigger metadata handler if video is already loaded
+    if (video.readyState === 0) {
+      console.log('Forcing video load...');
+      video.load();
+    }
+
     if (video.readyState >= 1) {
       handleLoadedMetadata();
     }
+    if (video.readyState >= 2) {
+      handleLoadedData();
+    }
+    if (video.readyState >= 3) {
+      handleCanPlay();
+    }
+
+    const mobileTimeout = setTimeout(() => {
+      if (isMobile && !isVideoReady && !videoError) {
+        console.log('Mobile timeout: Marking video as ready');
+        setIsVideoLoading(false);
+        setIsVideoReady(true);
+      }
+    }, 3000);
 
     return () => {
-      video.removeEventListener('timeupdate', handleTimeUpdate);
+      clearTimeout(mobileTimeout);
+      video.removeEventListener('loadstart', handleLoadStart);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      video.removeEventListener('loadeddata', handleLoadedData);
+      video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('canplaythrough', handleCanPlayThrough);
+      video.removeEventListener('waiting', handleWaiting);
+      video.removeEventListener('playing', handlePlaying);
+      video.removeEventListener('error', handleError);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('ended', handleEnded);
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePause);
+      video.removeEventListener('stalled', handleStalled);
+      video.removeEventListener('suspend', handleSuspend);
     };
-  }, [formatTime, isPlaying, saveProgress]);
+  }, [formatTime, isPlaying, saveProgress, isVideoReady, videoError, isChangingQuality]);
 
-  // ✅ IMPROVED: Restore video position when lessonData loads
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !lessonData?.lastPosition || lessonData.lastPosition <= 0) return;
+    if (!video || !lessonData?.lastPosition || lessonData.lastPosition <= 0 || !isVideoReady) return;
 
     let mounted = true;
     let timeoutId: NodeJS.Timeout;
 
     const restorePosition = () => {
-      if (!mounted || !video) return;
+      if (!mounted || !video || !isVideoReady) return;
 
-      // Ensure video has duration loaded
       if (video.duration && !isNaN(video.duration) && isFinite(video.duration)) {
         const savedPosition = lessonData.lastPosition || 0;
         
-        // Only restore if position is valid and different from current
         if (savedPosition > 0 && savedPosition < video.duration && 
             Math.abs(video.currentTime - savedPosition) > 1) {
           
@@ -715,45 +1050,28 @@ const VideoPlayerPage = () => {
           setVideoCurrentSeconds(savedPosition);
           setCurrentTime(formatTime(savedPosition));
           
-          // Update progress bar
           const progressPercent = (savedPosition / video.duration) * 100;
           setProgress(progressPercent);
           
-          // Hide indicator after 2 seconds
           setTimeout(() => {
             if (mounted) {
               setIsRestoringPosition(false);
             }
           }, 2000);
         }
-      } else {
-        // Retry if duration not loaded yet
-        timeoutId = setTimeout(restorePosition, 100);
       }
     };
 
-    // Wait for metadata to be fully loaded
-    const handleLoadedMetadata = () => {
-      console.log('Video metadata loaded, restoring position');
-      // Small delay to ensure everything is initialized
-      timeoutId = setTimeout(restorePosition, 50);
-    };
-
-    // Check if metadata is already loaded
-    if (video.readyState >= 1) {
-      handleLoadedMetadata();
-    } else {
-      video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    if (isVideoReady) {
+      timeoutId = setTimeout(restorePosition, 100);
     }
 
     return () => {
       mounted = false;
       clearTimeout(timeoutId);
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
     };
-  }, [lessonData?.lastPosition, formatTime]);
+  }, [lessonData?.lastPosition, formatTime, isVideoReady]);
 
-  // Note handlers
   const handleAddNote = useCallback(() => {
     if (newNote.trim() && videoRef.current) {
       const note: Note = {
@@ -771,40 +1089,37 @@ const VideoPlayerPage = () => {
     setNotes(prev => prev.filter(note => note.id !== noteId));
   }, []);
 
-  const handleTabChange = useCallback((tab:  "resources" | "transcript" | "notes") => {
+  const handleTabChange = useCallback((tab: "resources" | "transcript" | "notes") => {
     setActiveTab(tab);
   }, []);
 
-  // ✅ ADD THIS: Show not enrolled page
   if (enrollmentStatus.checked && !enrollmentStatus.enrolled && !enrollmentStatus.isOwner && enrollmentStatus.courseId) {
     return <NotEnrolledPage courseId={enrollmentStatus.courseId} />;
   }
 
-  // LOADING STATE
   if (loading) {
     return <LoadingSkeleton />;
   }
 
-  // ERROR STATE
   if (error || !lessonData) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="relative z-10 text-center max-w-md">
-          <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-2xl p-8 backdrop-blur-xl">
-            <FaExclamationTriangle className="text-red-500 text-6xl mx-auto mb-6" />
-            <h1 className="text-white text-3xl font-black mb-4">{error || 'Lesson Not Found'}</h1>
-            <p className="text-gray-400 mb-6">We couldn't load the lesson. Please try again.</p>
-            <div className="flex gap-3">
+        <div className="relative z-10 text-center max-w-md w-full">
+          <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-2xl p-6 sm:p-8 backdrop-blur-xl">
+            <FaExclamationTriangle className="text-red-500 text-5xl sm:text-6xl mx-auto mb-4 sm:mb-6" />
+            <h1 className="text-white text-2xl sm:text-3xl font-black mb-3 sm:mb-4">{error || 'Lesson Not Found'}</h1>
+            <p className="text-gray-400 text-sm sm:text-base mb-4 sm:mb-6">We couldn't load the lesson. Please try again.</p>
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => router.back()}
-                className="flex-1 bg-gray-900/50 border border-red-500/30 text-white px-6 py-3 rounded-xl font-bold hover:bg-gray-800/50 transition-colors"
+                className="flex-1 bg-gray-900/50 border border-red-500/30 text-white px-4 sm:px-6 py-3 rounded-xl font-bold hover:bg-gray-800/50 transition-colors text-sm sm:text-base"
               >
                 <FaArrowLeft className="inline mr-2" />
                 Go Back
               </button>
               <button
                 onClick={fetchLessonDataUpdated}
-                className="flex-1 bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl font-bold hover:scale-105 transition-transform"
+                className="flex-1 bg-gradient-to-r from-red-600 to-red-700 text-white px-4 sm:px-6 py-3 rounded-xl font-bold hover:scale-105 transition-transform text-sm sm:text-base"
               >
                 Retry
               </button>
@@ -816,13 +1131,12 @@ const VideoPlayerPage = () => {
   }
 
   return (
-    <div className="relative w-full min-h-screen overflow-x-hidden mt-20">
-      {/* Main Content */}
+    <div className="relative w-full min-h-screen overflow-x-hidden mt-16 sm:mt-20">
       <div className="relative z-10">
         {/* Header */}
-        <section className="relative w-full py-4 sm:py-6 border-b border-red-500/20">
+        <section className="relative w-full py-3 sm:py-4 lg:py-6">
           <div className="w-full max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-[88%] xl:max-w-[1800px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <button
                 onClick={() => {
                   if (lessonData?.module?.id) {
@@ -833,53 +1147,78 @@ const VideoPlayerPage = () => {
                 }}
                 className="flex items-center gap-2 text-gray-400 hover:text-white hover:-translate-x-1 transition-transform"
               >
-                <FaArrowLeft className="text-sm sm:text-base" />
-                <span className="text-sm sm:text-base font-semibold hidden sm:inline">Back to Lessons</span>
+                <FaArrowLeft className="text-xs sm:text-sm" />
+                <span className="text-[11px] sm:text-sm lg:text-base font-semibold hidden xs:inline">Back to Lessons</span>
+                <span className="text-[11px] sm:text-sm lg:text-base font-semibold xs:hidden">Back</span>
               </button>
-
-              <div className="flex items-center gap-2 sm:gap-3">
-                <ActionButton
-                  onClick={() => setIsBookmarked(!isBookmarked)}
-                  icon={isBookmarked ? FaBookmark : FaRegBookmark}
-                  isActive={isBookmarked}
-                />
-                <ActionButton icon={FaShare} />
-              </div>
             </div>
           </div>
         </section>
 
-        {/* Video Player Section */}
-        <section className="relative w-full py-6 sm:py-8">
+        {/* Main Content */}
+        <section className="relative w-full py-4 sm:py-6 lg:py-8">
           <div className="w-full max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-[88%] xl:max-w-[1800px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-              {/* Main Video Column */}
-              <div className="lg:col-span-2">
-                {/* Video Player */}
-                <div className="relative bg-black rounded-xl sm:rounded-2xl overflow-hidden mb-6 group animate-fadeIn">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+              {/* Video Section */}
+              <div className="lg:col-span-2 w-full">
+                {/* Video Player with Mobile Tap Controls */}
+                <div 
+                  ref={videoContainerRef}
+                  className="relative bg-black rounded-lg sm:rounded-xl lg:rounded-2xl md:overflow-hidden overflow-visible mb-4 sm:mb-6 group animate-fadeIn w-full border border-red-500/30 aspect-video touch-action-manipulation"
+                  onMouseMove={resetControlsTimeout}
+                  onTouchStart={resetControlsTimeout}
+                  onClick={handleVideoTap}
+                  style={{ touchAction: 'manipulation' }}
+                >
+                  {/* Quality Change Skeleton Overlay */}
+                  {isChangingQuality && (
+                    <QualityChangeSkeleton />
+                  )}
+
+                  {/* Initial Loading Skeleton Overlay */}
+                  {isVideoLoading && !videoError && !isChangingQuality && (
+                    <VideoLoadingSkeleton />
+                  )}
+
+                  {/* Error State */}
+                  {videoError && (
+                    <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50 overflow-hidden rounded-lg sm:rounded-xl lg:rounded-2xl">
+                      <div className="text-center px-4">
+                        <FaExclamationTriangle className="text-red-500 text-3xl sm:text-4xl mx-auto mb-3" />
+                        <p className="text-white text-xs sm:text-sm font-semibold mb-3">Failed to load video</p>
+                        <button
+                          onClick={() => {
+                            setVideoError(false);
+                            if (videoRef.current) {
+                              videoRef.current.load();
+                            }
+                          }}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold transition-all"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <video
                     ref={videoRef}
-                    key={lessonData.videoUrl} // ✅ Force remount on video change
-                    className="w-full aspect-video bg-black"
-                    onClick={togglePlay}
+                    key={lessonData.videoUrl}
+                    className="w-full h-full bg-black object-contain rounded-lg sm:rounded-xl lg:rounded-2xl"
                     preload="metadata"
+                    playsInline
+                    webkit-playsinline="true"
+                    crossOrigin="anonymous"
+                    onContextMenu={(e) => e.preventDefault()}
                   >
                     <source src={lessonData.videoUrl} type="video/mp4" />
                     Your browser does not support the video tag.
                   </video>
 
-                  {/* ✅ Position Restored Indicator */}
-                  {isRestoringPosition && (
-                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-green-600/90 backdrop-blur-sm px-4 py-2 rounded-lg z-50 animate-fadeIn">
-                      <span className="text-white text-sm font-semibold flex items-center gap-2">
-                        <FaClock />
-                        Resumed from {currentTime}
-                      </span>
-                    </div>
-                  )}
+              
 
-                  {/* Video Controls Overlay */}
-                  <VideoControls
+                  {/* Enhanced Video Controls - Mobile Optimized */}
+                  <EnhancedVideoControls
                     isPlaying={isPlaying}
                     progress={progress}
                     volume={volume}
@@ -894,28 +1233,36 @@ const VideoPlayerPage = () => {
                     toggleMute={toggleMute}
                     toggleFullscreen={toggleFullscreen}
                     changePlaybackSpeed={changePlaybackSpeed}
+                    availableQualities={availableQualities}
+                    currentQuality={currentQuality}
+                    showQualityMenu={showQualityMenu}
+                    setShowQualityMenu={setShowQualityMenu}
+                    showSpeedMenu={showSpeedMenu}
+                    setShowSpeedMenu={setShowSpeedMenu}
+                    changeVideoQuality={changeVideoQuality}
+                    showControls={showControls}
                   />
                 </div>
 
                 {/* Video Info */}
-                <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-xl sm:rounded-2xl p-5 sm:p-6 backdrop-blur-xl mb-6 animate-fadeIn">
-                  <div className="flex items-start justify-between gap-4 mb-4">
-                    <div className="flex-1">
-                      <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white mb-3">
+                <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-lg sm:rounded-xl lg:rounded-2xl p-4 sm:p-5 lg:p-6 backdrop-blur-xl mb-4 sm:mb-6 animate-fadeIn">
+                  <div className="flex items-start justify-between gap-3 sm:gap-4 mb-3">
+                    <div className="flex-1 min-w-0">
+                      <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-black text-white mb-2 break-words">
                         {lessonData.title}
                       </h1>
-                      <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
+                      <p className="text-xs sm:text-sm lg:text-base text-gray-400 leading-relaxed">
                         {lessonData.description}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     <InfoItem icon={FaClock} text={duration !== "0:00" ? duration : lessonData.duration} />
                     <InfoItem icon={FaDownload} text={`${lessonData.resources.length} Resources`} />
                     {isMarkedComplete && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <FaCheckCircle className="text-green-500" />
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <FaCheckCircle className="text-green-500 text-xs" />
                         <span className="text-green-400 font-semibold">Completed</span>
                       </div>
                     )}
@@ -927,7 +1274,6 @@ const VideoPlayerPage = () => {
                   <TabNavigation activeTab={activeTab} onTabChange={handleTabChange} />
 
                   <AnimatePresence mode="wait">
-                
                     {activeTab === "resources" && (
                       <ResourcesTab key="resources" resources={lessonData.resources} />
                     )}
@@ -951,7 +1297,7 @@ const VideoPlayerPage = () => {
               </div>
 
               {/* Sidebar */}
-              <div className="lg:col-span-1">
+              <div className="lg:col-span-1 w-full">
                 <Sidebar
                   lessonData={lessonData}
                   currentTime={currentTime}
@@ -965,7 +1311,7 @@ const VideoPlayerPage = () => {
                   isMarkedComplete={isMarkedComplete}
                   isSavingProgress={isSavingProgress}
                   router={router}
-                  onAskQuestion={() => setIsQuestionModalOpen(true)} // ✅ ADD THIS
+                  onAskQuestion={() => setIsQuestionModalOpen(true)}
                 />
               </div>
             </div>
@@ -973,7 +1319,6 @@ const VideoPlayerPage = () => {
         </section>
       </div>
 
-      {/* ✅ ADD THIS: Question Modal */}
       {lessonData && roomId && (
         <VideoPlayerQuestionModal
           isOpen={isQuestionModalOpen}
@@ -991,7 +1336,6 @@ const VideoPlayerPage = () => {
         />
       )}
 
-      {/* Animations */}
       <style jsx global>{`
         @keyframes fadeIn {
           from {
@@ -1023,6 +1367,25 @@ const VideoPlayerPage = () => {
           animation: slideIn 0.3s ease-out;
         }
 
+        .skeleton-pulse {
+          animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes skeleton-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+        
+        .skeleton-shimmer {
+          animation: skeleton-shimmer 2s ease-in-out infinite;
+        }
+        
+        @keyframes skeleton-shimmer {
+          0% { opacity: 0.5; }
+          50% { opacity: 0.8; }
+          100% { opacity: 0.5; }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           *,
           *::before,
@@ -1033,7 +1396,9 @@ const VideoPlayerPage = () => {
           }
           
           .animate-fadeIn,
-          .animate-slideIn {
+          .animate-slideIn,
+          .skeleton-pulse,
+          .skeleton-shimmer {
             animation: none;
             opacity: 1;
             transform: none;
@@ -1053,7 +1418,284 @@ const VideoPlayerPage = () => {
 };
 
 // ============================================
-// UPDATE SIDEBAR COMPONENT
+// ENHANCED VIDEO CONTROLS - MOBILE OPTIMIZED
+// ============================================
+const EnhancedVideoControls = memo(({
+  isPlaying,
+  progress,
+  volume,
+  isMuted,
+  isFullscreen,
+  currentTime,
+  duration,
+  playbackSpeed,
+  togglePlay,
+  handleProgressChange,
+  handleVolumeChange,
+  toggleMute,
+  toggleFullscreen,
+  changePlaybackSpeed,
+  availableQualities,
+  currentQuality,
+  showQualityMenu,
+  setShowQualityMenu,
+  showSpeedMenu,
+  setShowSpeedMenu,
+  changeVideoQuality,
+  showControls,
+}: any) => {
+  const speedOptions = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+  return (
+    <div
+      className={`absolute bottom-0 left-0 right-0 px-3 pb-3 pt-8 md:p-3 transition-opacity duration-300 bg-gradient-to-t from-black/90 via-black/50 to-transparent ${
+        showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      }`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Progress Bar */}
+      <div className="mb-2 md:mb-3">
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="0.1"
+          value={progress}
+          onChange={handleProgressChange}
+          className="w-full h-0.5 md:h-1 bg-gray-500/50 rounded-full appearance-none cursor-pointer 
+            [&::-webkit-slider-thumb]:appearance-none 
+            [&::-webkit-slider-thumb]:w-2.5 
+            [&::-webkit-slider-thumb]:h-2.5 
+            md:[&::-webkit-slider-thumb]:w-3 
+            md:[&::-webkit-slider-thumb]:h-3 
+            [&::-webkit-slider-thumb]:rounded-full 
+            [&::-webkit-slider-thumb]:bg-red-500 
+            [&::-webkit-slider-thumb]:border-0
+            md:[&::-webkit-slider-thumb]:border-2 
+            [&::-webkit-slider-thumb]:border-white 
+            [&::-webkit-slider-thumb]:shadow-lg 
+            [&::-webkit-slider-thumb]:cursor-pointer
+            [&::-moz-range-thumb]:w-2.5 
+            [&::-moz-range-thumb]:h-2.5 
+            md:[&::-moz-range-thumb]:w-3 
+            md:[&::-moz-range-thumb]:h-3 
+            [&::-moz-range-thumb]:rounded-full 
+            [&::-moz-range-thumb]:bg-red-500 
+            [&::-moz-range-thumb]:border-0
+            md:[&::-moz-range-thumb]:border-2 
+            [&::-moz-range-thumb]:border-white 
+            [&::-moz-range-thumb]:shadow-lg 
+            [&::-moz-range-thumb]:cursor-pointer"
+          style={{
+            background: `linear-gradient(to right, rgb(220, 38, 38) ${progress}%, rgba(255, 255, 255, 0.2) ${progress}%)`
+          }}
+        />
+      </div>
+
+      {/* Controls Bar */}
+      <div className="flex items-center justify-between gap-1 md:gap-2">
+        {/* Left Controls */}
+        <div className="flex items-center gap-3 md:gap-2">
+          {/* Play/Pause */}
+          <button
+            onClick={togglePlay}
+            className="w-auto h-auto md:w-8 md:h-8 rounded md:rounded-lg md:bg-black/40 md:backdrop-blur-sm md:border md:border-white/30 
+              text-white md:hover:bg-black/60 transition-all active:scale-95 active:bg-white/10 md:shadow-lg flex items-center justify-center p-1"
+          >
+            {isPlaying ? (
+              <FaPause className="text-base md:text-sm drop-shadow-md" />
+            ) : (
+              <FaPlay className="text-base md:text-sm ml-0.5 drop-shadow-md" />
+            )}
+          </button>
+
+          {/* Time Display */}
+          <div className="md:px-2 md:py-1 md:rounded-lg md:bg-black/40 md:backdrop-blur-sm md:border md:border-white/20 md:shadow-lg">
+            <span className="text-white text-[10px] md:text-xs font-semibold whitespace-nowrap drop-shadow-md">
+              {currentTime} / {duration}
+            </span>
+          </div>
+
+          {/* Volume - Desktop Only */}
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 shadow-lg">
+            <button
+              onClick={toggleMute}
+              className="text-white hover:text-red-400 transition-colors"
+            >
+              {isMuted || volume === 0 ? (
+                <FaVolumeMute className="text-sm" />
+              ) : (
+                <FaVolumeUp className="text-sm" />
+              )}
+            </button>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={volume}
+              onChange={handleVolumeChange}
+              className="w-20 h-1 bg-gray-700 rounded-full appearance-none cursor-pointer 
+                [&::-webkit-slider-thumb]:appearance-none 
+                [&::-webkit-slider-thumb]:w-3 
+                [&::-webkit-slider-thumb]:h-3 
+                [&::-webkit-slider-thumb]:rounded-full 
+                [&::-webkit-slider-thumb]:bg-red-500 
+                [&::-webkit-slider-thumb]:cursor-pointer
+                [&::-moz-range-thumb]:w-3 
+                [&::-moz-range-thumb]:h-3 
+                [&::-moz-range-thumb]:rounded-full 
+                [&::-moz-range-thumb]:bg-red-500 
+                [&::-moz-range-thumb]:cursor-pointer"
+            />
+          </div>
+        </div>
+
+        {/* Right Controls */}
+        <div className="flex items-center gap-4 md:gap-1.5">
+          {/* Speed Control */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowSpeedMenu(!showSpeedMenu);
+                setShowQualityMenu(false);
+              }}
+              className={`md:px-2.5 md:py-1.5 rounded md:rounded-lg md:backdrop-blur-sm md:border font-semibold text-[10px] md:text-xs 
+                transition-all active:scale-95 active:bg-white/10 md:shadow-lg flex items-center gap-1 px-1.5 py-0.5 ${
+                showSpeedMenu
+                  ? 'text-red-400 md:bg-red-600/60 md:border-red-400/60 md:text-white'
+                  : 'text-white md:bg-black/40 md:border-white/30 md:hover:bg-black/60 md:hover:border-white/40'
+              }`}
+            >
+              <FaTachometerAlt className="text-sm md:text-xs drop-shadow-md" />
+              <span className="hidden sm:inline drop-shadow-md">{playbackSpeed}x</span>
+            </button>
+
+            {/* Speed Menu */}
+            {showSpeedMenu && (
+              <div className="absolute top-full right-0 mt-2 md:bottom-full md:mb-2 md:top-auto bg-black/95 backdrop-blur-xl border border-white/30 
+                  rounded-lg md:rounded-xl shadow-2xl overflow-y-auto max-h-[60vh] min-w-[100px] md:min-w-[120px] z-50 animate-fadeIn origin-top-right md:origin-bottom-right">
+                <div className="p-1 md:p-2">
+                  <div className="text-[9px] md:text-xs font-bold text-red-400 px-1.5 md:px-3 py-1 md:py-2 border-b border-white/20 sticky top-0 bg-black/95">
+                    Speed
+                  </div>
+                  <div>
+                    {speedOptions.map((speed) => (
+                      <button
+                        key={speed}
+                        onClick={() => changePlaybackSpeed(speed)}
+                        className={`w-full px-1.5 md:px-3 py-1 md:py-2 text-left text-[9px] md:text-xs transition-all rounded md:rounded-lg my-0.5 active:bg-white/10 ${
+                          playbackSpeed === speed
+                            ? 'bg-red-600/40 border border-white/30 text-white font-semibold'
+                            : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>{speed === 1 ? 'Normal' : `${speed}x`}</span>
+                          {playbackSpeed === speed && (
+                            <FaCheckCircle className="text-[8px] md:text-xs text-red-400" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Quality Control */}
+          {availableQualities.length > 1 && (
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowQualityMenu(!showQualityMenu);
+                  setShowSpeedMenu(false);
+                }}
+                className={`md:px-2.5 md:py-1.5 rounded md:rounded-lg md:backdrop-blur-sm md:border font-semibold text-[10px] md:text-xs 
+                  transition-all active:scale-95 active:bg-white/10 md:shadow-lg flex items-center gap-1 px-1.5 py-0.5 ${
+                  showQualityMenu
+                    ? 'text-red-400 md:bg-red-600/60 md:border-red-400/60 md:text-white'
+                    : 'text-white md:bg-black/40 md:border-white/30 md:hover:bg-black/60 md:hover:border-white/40'
+                }`}
+              >
+                <FaHdd className="text-sm md:text-xs drop-shadow-md" />
+                <span className="hidden sm:inline drop-shadow-md">
+                  {availableQualities.find((q: VideoQuality) => q.value === currentQuality)?.label || 'Auto'}
+                </span>
+              </button>
+
+              {/* Quality Menu */}
+              {showQualityMenu && (
+                <div className="absolute top-full right-0 mt-2 md:bottom-full md:mb-2 md:top-auto bg-black/95 backdrop-blur-xl border border-white/30 
+                  rounded-lg md:rounded-xl shadow-2xl overflow-y-auto max-h-[60vh] min-w-[130px] md:min-w-[140px] z-50 animate-fadeIn origin-top-right md:origin-bottom-right">
+                  <div className="p-1 md:p-2">
+                    <div className="text-[9px] md:text-xs font-bold text-red-400 px-1.5 md:px-3 py-1 md:py-2 border-b border-white/20 sticky top-0 bg-black/95">
+                      Quality
+                    </div>
+                    <div>
+                      {availableQualities.map((quality: VideoQuality) => (
+                        <button
+                          key={quality.value}
+                          onClick={() => changeVideoQuality(quality)}
+                          className={`w-full px-1.5 md:px-3 py-1 md:py-2 text-left text-[9px] md:text-xs transition-all rounded md:rounded-lg my-0.5 active:bg-white/10 ${
+                            currentQuality === quality.value
+                              ? 'bg-red-600/40 border border-white/30 text-white font-semibold'
+                              : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold truncate">{quality.label}</div>
+                              {quality.bitrate && (
+                                <div className="text-[8px] md:text-[10px] text-gray-500 truncate">{quality.bitrate}</div>
+                              )}
+                            </div>
+                            {currentQuality === quality.value && (
+                              <FaCheckCircle className="text-[8px] md:text-xs text-red-400 flex-shrink-0" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Volume - Mobile & Tablet Only */}
+          <button
+            onClick={toggleMute}
+            className="lg:hidden text-white hover:text-red-400 transition-colors active:scale-95 active:text-white/80 p-1"
+          >
+            {isMuted || volume === 0 ? (
+              <FaVolumeMute className="text-base md:text-sm drop-shadow-md" />
+            ) : (
+              <FaVolumeUp className="text-base md:text-sm drop-shadow-md" />
+            )}
+          </button>
+
+          {/* Fullscreen */}
+          <button
+            onClick={toggleFullscreen}
+            className="w-auto h-auto md:w-8 md:h-8 rounded md:rounded-lg md:bg-black/40 md:backdrop-blur-sm md:border md:border-white/30 
+              text-white md:hover:bg-black/60 transition-all active:scale-95 active:bg-white/10 md:shadow-lg flex items-center justify-center p-1"
+          >
+            {isFullscreen ? (
+              <FaCompress className="text-base md:text-sm drop-shadow-md" />
+            ) : (
+              <FaExpand className="text-base md:text-sm drop-shadow-md" />
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+EnhancedVideoControls.displayName = 'EnhancedVideoControls';
+// ============================================
+// SIDEBAR COMPONENT
 // ============================================
 
 const Sidebar = memo(({
@@ -1069,7 +1711,7 @@ const Sidebar = memo(({
   isMarkedComplete,
   isSavingProgress,
   router,
-  onAskQuestion, // ✅ ADD THIS PROP
+  onAskQuestion,
 }: any) => {
   const watchedMinutes = Math.floor(watchTime / 60);
   const watchedSeconds = Math.floor(watchTime % 60);
@@ -1077,29 +1719,26 @@ const Sidebar = memo(({
   const totalSeconds = Math.floor(videoDurationSeconds % 60);
 
   return (
-    <div className="space-y-6">
-      {/* Navigation */}
-
-
-
-
-      {/* ✅ UPDATE Help Section with Ask Question button */}
-      <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-xl sm:rounded-2xl p-4 sm:p-5 backdrop-blur-xl animate-fadeIn" style={{ animationDelay: '200ms' }}>
+    <div className="space-y-4 sm:space-y-6">
+      {/* Ask Question Card */}
+      <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-lg sm:rounded-xl lg:rounded-2xl p-3 sm:p-4 backdrop-blur-xl animate-fadeIn" style={{ animationDelay: '200ms' }}>
         <div className="text-center">
-          <FaQuestionCircle className="text-4xl text-red-500 mx-auto mb-3" />
-          <h3 className="text-lg font-black text-white mb-2">Need Help?</h3>
-          <p className="text-sm text-gray-400 mb-4">
-            Have questions about this lesson? Ask the mentor directly!
+          <FaQuestionCircle className="text-2xl sm:text-3xl text-red-500 mx-auto mb-1.5 sm:mb-2" />
+          <h3 className="text-sm sm:text-base font-black text-white mb-1 sm:mb-1.5">Need Help?</h3>
+          <p className="text-[10px] sm:text-xs text-gray-400 mb-2 sm:mb-3 px-2">
+            Have questions? Ask the mentor!
           </p>
           <button 
             onClick={onAskQuestion}
-            className="w-full py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg text-white font-semibold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+            className="w-full py-2 sm:py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg text-white font-semibold text-[11px] sm:text-xs transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-1 sm:gap-1.5"
           >
-            <FaQuestionCircle />
+            <FaQuestionCircle className="text-[10px] sm:text-xs" />
             Ask a Question
           </button>
         </div>
       </div>
+
+    
     </div>
   );
 });
@@ -1109,24 +1748,6 @@ Sidebar.displayName = 'Sidebar';
 // MEMOIZED COMPONENTS
 // ============================================
 
-const ActionButton = memo(({ 
-  onClick, 
-  icon: Icon, 
-  isActive = false 
-}: { 
-  onClick?: () => void;
-  icon: React.ElementType;
-  isActive?: boolean;
-}) => (
-  <button
-    onClick={onClick}
-    className="p-2 sm:p-2.5 rounded-lg bg-gray-900/50 border border-red-500/30 hover:bg-red-900/30 transition-all hover:scale-105 active:scale-95"
-  >
-    <Icon className={`text-sm sm:text-base ${isActive ? 'text-red-500' : 'text-gray-400'}`} />
-  </button>
-));
-ActionButton.displayName = 'ActionButton';
-
 const InfoItem = memo(({ 
   icon: Icon, 
   text 
@@ -1134,119 +1755,12 @@ const InfoItem = memo(({
   icon: React.ElementType;
   text: string;
 }) => (
-  <div className="flex items-center gap-2 text-sm text-gray-400">
-    <Icon className="text-red-500" />
+  <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs text-gray-400">
+    <Icon className="text-red-500 text-[10px] sm:text-xs" />
     <span>{text}</span>
   </div>
 ));
 InfoItem.displayName = 'InfoItem';
-
-const VideoControls = memo(({
-  isPlaying,
-  progress,
-  volume,
-  isMuted,
-  isFullscreen,
-  currentTime,
-  duration,
-  playbackSpeed,
-  togglePlay,
-  handleProgressChange,
-  handleVolumeChange,
-  toggleMute,
-  toggleFullscreen,
-  changePlaybackSpeed,
-}: any) => (
-  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-    <div className="absolute inset-0 flex items-center justify-center">
-      <button
-        onClick={togglePlay}
-        className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-red-600/90 backdrop-blur-sm flex items-center justify-center hover:scale-110 active:scale-90 transition-transform"
-      >
-        {isPlaying ? (
-          <FaPause className="text-2xl sm:text-3xl text-white" />
-        ) : (
-          <FaPlay className="text-2xl sm:text-3xl text-white ml-1" />
-        )}
-      </button>
-    </div>
-
-    <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
-      <div className="mb-4">
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={progress}
-          onChange={handleProgressChange}
-          className="w-full h-1.5 bg-gray-700 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-red-600"
-        />
-      </div>
-
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <button
-            onClick={togglePlay}
-            className="text-white hover:text-red-400 transition-colors"
-          >
-            {isPlaying ? (
-              <FaPause className="text-lg sm:text-xl" />
-            ) : (
-              <FaPlay className="text-lg sm:text-xl" />
-            )}
-          </button>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleMute}
-              className="text-white hover:text-red-400 transition-colors"
-            >
-              {isMuted || volume === 0 ? (
-                <FaVolumeMute className="text-lg sm:text-xl" />
-              ) : (
-                <FaVolumeUp className="text-lg sm:text-xl" />
-              )}
-            </button>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.1"
-              value={volume}
-              onChange={handleVolumeChange}
-              className="w-16 sm:w-20 h-1 bg-gray-700 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
-            />
-          </div>
-
-          <div className="text-white text-sm font-medium">
-            {currentTime} / {duration}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 sm:gap-3">
-          <button
-            onClick={changePlaybackSpeed}
-            className="px-2 sm:px-3 py-1 bg-gray-800/80 hover:bg-gray-700/80 rounded text-white text-xs sm:text-sm font-semibold transition-colors"
-          >
-            {playbackSpeed}x
-          </button>
-
-          <button
-            onClick={toggleFullscreen}
-            className="text-white hover:text-red-400 transition-colors"
-          >
-            {isFullscreen ? (
-              <FaCompress className="text-lg sm:text-xl" />
-            ) : (
-              <FaExpand className="text-lg sm:text-xl" />
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-));
-VideoControls.displayName = 'VideoControls';
 
 const TabNavigation = memo(({ 
   activeTab, 
@@ -1261,21 +1775,21 @@ const TabNavigation = memo(({
   ];
 
   return (
-    <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide">
+    <div className="flex gap-2 mb-4 sm:mb-6 overflow-x-auto scrollbar-hide pb-2">
       {tabs.map((tab) => {
         const Icon = tab.icon;
         return (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all whitespace-nowrap active:scale-95 ${
+            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg font-semibold text-[11px] sm:text-xs transition-all whitespace-nowrap active:scale-95 flex-shrink-0 border ${
               activeTab === tab.id
-                ? "bg-gradient-to-r from-red-600 to-red-700 text-white"
-                : "bg-gray-900/50 border border-red-500/30 text-gray-400 hover:text-white hover:bg-red-900/30"
+                ? "bg-gradient-to-r from-red-600 to-red-700 text-white border-transparent"
+                : "bg-gray-900/50 border-red-500/30 text-gray-400 hover:text-white hover:bg-red-900/30"
             }`}
           >
-            <Icon className="text-xs sm:text-sm" />
-            <span className="hidden sm:inline">{tab.label}</span>
+            <Icon className="text-[10px] sm:text-xs" />
+            <span>{tab.label}</span>
           </button>
         );
       })}
@@ -1284,58 +1798,56 @@ const TabNavigation = memo(({
 });
 TabNavigation.displayName = 'TabNavigation';
 
-
-
 const ResourcesTab = memo(({ resources }: { resources: Resource[] }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     exit={{ opacity: 0, y: -20 }}
     transition={{ duration: 0.2 }}
-    className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-xl sm:rounded-2xl p-5 sm:p-6 backdrop-blur-xl"
+    className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-lg sm:rounded-xl lg:rounded-2xl p-3 sm:p-4 lg:p-6 backdrop-blur-xl"
   >
-    <h3 className="text-xl sm:text-2xl font-black text-white mb-4 flex items-center gap-2">
-      <FaDownload className="text-red-500" />
+    <h3 className="text-base sm:text-lg lg:text-xl font-black text-white mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2">
+      <FaDownload className="text-red-500 text-sm sm:text-base" />
       Downloadable Resources
     </h3>
-    <p className="text-sm text-gray-400 mb-6">
-      Download these valuable resources to supplement your learning and put the lessons into practice.
+    <p className="text-[10px] sm:text-xs text-gray-400 mb-3 sm:mb-4">
+      Download these resources to supplement your learning.
     </p>
     {resources.length > 0 ? (
       <>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
           {resources.map((resource, idx) => (
             <a
               key={idx}
               href={resource.url}
-              className="flex items-center gap-4 p-4 bg-gray-900/50 border border-red-500/20 rounded-lg hover:bg-red-900/30 hover:border-red-500/40 transition-all group hover:-translate-y-1 animate-slideIn"
+              className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-gray-900/50 border border-red-500/30 rounded-lg hover:bg-red-900/30 hover:border-red-500/40 transition-all group hover:-translate-y-1 animate-slideIn"
               style={{ animationDelay: `${idx * 50}ms` }}
             >
-              <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br from-red-600 to-red-700 flex items-center justify-center">
-                <FaDownload className="text-white text-lg" />
+              <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-red-600 to-red-700 flex items-center justify-center">
+                <FaDownload className="text-white text-xs sm:text-sm" />
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-bold text-white group-hover:text-red-400 transition-colors truncate mb-1">
+                <h4 className="text-[11px] sm:text-xs font-bold text-white group-hover:text-red-400 transition-colors truncate mb-0.5">
                   {resource.name}
                 </h4>
-                <p className="text-xs text-gray-500">
+                <p className="text-[9px] sm:text-[10px] text-gray-500">
                   {resource.type} • {resource.size}
                 </p>
               </div>
-              <FaChevronRight className="text-gray-600 group-hover:text-red-400 transition-colors flex-shrink-0" />
+              <FaChevronRight className="text-gray-600 group-hover:text-red-400 transition-colors flex-shrink-0 text-[10px] sm:text-xs" />
             </a>
           ))}
         </div>
 
-        <button className="w-full mt-6 py-3 px-6 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]">
-          <FaDownload />
+        <button className="w-full mt-3 sm:mt-4 py-2 sm:py-2.5 px-3 sm:px-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] text-[11px] sm:text-xs">
+          <FaDownload className="text-[10px] sm:text-xs" />
           <span>Download All Resources</span>
         </button>
       </>
     ) : (
-      <div className="text-center py-12">
-        <FaDownload className="text-5xl text-gray-700 mx-auto mb-4" />
-        <p className="text-gray-500">No resources available for this lesson yet.</p>
+      <div className="text-center py-6 sm:py-8">
+        <FaDownload className="text-3xl sm:text-4xl text-gray-700 mx-auto mb-2 sm:mb-3" />
+        <p className="text-gray-500 text-[10px] sm:text-xs">No resources available for this lesson yet.</p>
       </div>
     )}
   </motion.div>
@@ -1348,14 +1860,14 @@ const TranscriptTab = memo(({ transcript }: { transcript: string }) => (
     animate={{ opacity: 1, y: 0 }}
     exit={{ opacity: 0, y: -20 }}
     transition={{ duration: 0.2 }}
-    className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-xl sm:rounded-2xl p-5 sm:p-6 backdrop-blur-xl"
+    className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-lg sm:rounded-xl lg:rounded-2xl p-3 sm:p-4 lg:p-6 backdrop-blur-xl"
   >
-    <h3 className="text-xl sm:text-2xl font-black text-white mb-4 flex items-center gap-2">
-      <FaBookOpen className="text-red-500" />
+    <h3 className="text-base sm:text-lg lg:text-xl font-black text-white mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2">
+      <FaBookOpen className="text-red-500 text-sm sm:text-base" />
       Transcript
     </h3>
     <div className="prose prose-invert max-w-none">
-      <div className="text-sm sm:text-base text-gray-300 leading-relaxed whitespace-pre-line">
+      <div className="text-[11px] sm:text-xs lg:text-sm text-gray-300 leading-relaxed whitespace-pre-line">
         {transcript || "Transcript coming soon..."}
       </div>
     </div>
@@ -1375,61 +1887,61 @@ const NotesTab = memo(({
     animate={{ opacity: 1, y: 0 }}
     exit={{ opacity: 0, y: -20 }}
     transition={{ duration: 0.2 }}
-    className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-xl sm:rounded-2xl p-5 sm:p-6 backdrop-blur-xl"
+    className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-lg sm:rounded-xl lg:rounded-2xl p-3 sm:p-4 lg:p-6 backdrop-blur-xl"
   >
-    <h3 className="text-xl sm:text-2xl font-black text-white mb-4 flex items-center gap-2">
-      <FaComments className="text-red-500" />
+    <h3 className="text-base sm:text-lg lg:text-xl font-black text-white mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2">
+      <FaComments className="text-red-500 text-sm sm:text-base" />
       My Notes
     </h3>
 
-    <div className="mb-6">
-      <div className="flex gap-2">
+    <div className="mb-3 sm:mb-4">
+      <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="text"
           value={newNote}
           onChange={(e) => setNewNote(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleAddNote()}
           placeholder="Add a note at current timestamp..."
-          className="flex-1 px-4 py-3 bg-gray-900/50 border border-red-500/20 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500/50 transition-colors"
+          className="flex-1 px-2.5 sm:px-3 py-2 sm:py-2.5 bg-gray-900/50 border border-red-500/30 rounded-lg text-white placeholder-gray-500 text-[11px] sm:text-xs focus:outline-none focus:border-red-500/50 transition-colors"
         />
         <button
           onClick={handleAddNote}
           disabled={!newNote.trim()}
-          className="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed text-white font-bold rounded-lg text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+          className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed text-white font-bold rounded-lg text-[11px] sm:text-xs transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
-          Add
+          Add Note
         </button>
       </div>
     </div>
 
     {notes.length > 0 ? (
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         {notes.map((note: Note, idx: number) => (
           <div
             key={note.id}
-            className="p-4 bg-gray-900/50 border border-red-500/20 rounded-lg group animate-slideIn"
+            className="p-2.5 sm:p-3 bg-gray-900/50 border border-red-500/30 rounded-lg group animate-slideIn"
             style={{ animationDelay: `${idx * 50}ms` }}
           >
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <span className="px-2.5 py-1 bg-red-600/20 border border-red-500/30 rounded text-xs font-bold text-red-400">
+            <div className="flex items-start justify-between gap-2 mb-1.5 sm:mb-2">
+              <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-red-600/20 border border-red-500/30 rounded text-[9px] sm:text-[10px] font-bold text-red-400">
                 {note.timestamp}
               </span>
               <button
                 onClick={() => handleDeleteNote(note.id)}
-                className="text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                className="text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 text-xs sm:text-sm"
               >
                 ✕
               </button>
             </div>
-            <p className="text-sm text-gray-300 mb-2">{note.content}</p>
-            <p className="text-xs text-gray-600">{note.createdAt}</p>
+            <p className="text-[10px] sm:text-xs text-gray-300 mb-1">{note.content}</p>
+            <p className="text-[9px] sm:text-[10px] text-gray-600">{note.createdAt}</p>
           </div>
         ))}
       </div>
     ) : (
-      <div className="text-center py-12">
-        <FaComments className="text-5xl text-gray-700 mx-auto mb-4" />
-        <p className="text-gray-500">No notes yet. Add your first note above!</p>
+      <div className="text-center py-6 sm:py-8">
+        <FaComments className="text-3xl sm:text-4xl text-gray-700 mx-auto mb-2 sm:mb-3" />
+        <p className="text-gray-500 text-[10px] sm:text-xs">No notes yet. Add your first note above!</p>
       </div>
     )}
   </motion.div>
