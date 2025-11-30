@@ -1308,7 +1308,7 @@ const handleDashboardRedirect = useCallback(async () => {
                         <FaEnvelope className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-red-500/70 group-focus-within:text-red-500 transition-colors z-10 text-xs sm:text-sm" />
                         <input
                           type="email"
-                          placeholder="your.email@example.com"
+                         
                           value={formData.email}
                           onChange={(e) => {
                             setFormData({ ...formData, email: e.target.value });
@@ -1333,7 +1333,7 @@ const handleDashboardRedirect = useCallback(async () => {
                           <FaLock className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-red-500/70 group-focus-within:text-red-500 transition-colors z-10 text-xs sm:text-sm" />
                           <input
                             type={uiState.showPassword ? "text" : "password"}
-                            placeholder="Create a strong password"
+                          
                             value={formData.password}
                             onChange={(e) => {
                               setFormData({
@@ -1670,7 +1670,7 @@ const handleDashboardRedirect = useCallback(async () => {
                           <FaUser className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-red-500/70 group-focus-within:text-red-500 transition-colors z-10 text-xs sm:text-sm" />
                           <input
                             type="text"
-                            placeholder="johndoe123"
+                       
                             value={formData.username}
                             onChange={(e) => {
                               const value = e.target.value
@@ -1704,7 +1704,7 @@ const handleDashboardRedirect = useCallback(async () => {
                           </label>
                           <input
                             type="text"
-                            placeholder="John"
+                     
                             value={formData.name}
                             onChange={(e) =>
                               setFormData({ ...formData, name: e.target.value })
@@ -1723,7 +1723,7 @@ const handleDashboardRedirect = useCallback(async () => {
                           </label>
                           <input
                             type="text"
-                            placeholder="Doe"
+                        
                             value={formData.surname}
                             onChange={(e) =>
                               setFormData({
@@ -1821,7 +1821,7 @@ const handleDashboardRedirect = useCallback(async () => {
                           <FaUser className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-red-500/70 group-focus-within:text-red-500 transition-colors z-10 text-xs sm:text-sm" />
                           <input
                             type="text"
-                            placeholder="johndoe123"
+                  
                             value={formData.username}
                             onChange={(e) => {
                               const value = e.target.value
@@ -1854,7 +1854,7 @@ const handleDashboardRedirect = useCallback(async () => {
                           </label>
                           <input
                             type="text"
-                            placeholder="John"
+                    
                             value={formData.name}
                             onChange={(e) =>
                               setFormData({ ...formData, name: e.target.value })
@@ -1873,7 +1873,6 @@ const handleDashboardRedirect = useCallback(async () => {
                           </label>
                           <input
                             type="text"
-                            placeholder="Doe"
                             value={formData.surname}
                             onChange={(e) =>
                               setFormData({

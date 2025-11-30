@@ -276,7 +276,7 @@ export default function SignInPage() {
                           <FaEnvelope className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-red-400/70 group-focus-within:text-red-400 transition-colors z-10 text-xs sm:text-sm" />
                           <input
                             type="email"
-                            placeholder="your.email@example.com"
+                          
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                             className="w-full p-2.5 sm:p-3 md:p-4 pl-9 sm:pl-11 md:pl-12 pr-3 sm:pr-4 rounded-lg sm:rounded-xl text-sm sm:text-base bg-gray-800/40 text-white border border-gray-600/40 focus:border-red-400/60 focus:outline-none placeholder-gray-500 transition-all duration-300 backdrop-blur-sm focus:bg-gray-800/60"
@@ -295,7 +295,7 @@ export default function SignInPage() {
                           <FaLock className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-red-400/70 group-focus-within:text-red-400 transition-colors z-10 text-xs sm:text-sm" />
                           <input
                             type={uiState.showPassword ? "text" : "password"}
-                            placeholder="Enter your password"
+                        
                             value={formData.password}
                             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                             className="w-full p-2.5 sm:p-3 md:p-4 pl-9 sm:pl-11 md:pl-12 pr-9 sm:pr-11 md:pr-12 rounded-lg sm:rounded-xl text-sm sm:text-base bg-gray-800/40 text-white border border-gray-600/40 focus:border-red-400/60 focus:outline-none placeholder-gray-500 transition-all duration-300 backdrop-blur-sm focus:bg-gray-800/60"

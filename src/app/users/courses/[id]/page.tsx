@@ -1,4 +1,3 @@
-//Volumes/vision/codes/course/my-app/src/app/users/courses/[id]/page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -119,7 +118,6 @@ const ProfileAvatar = ({
   );
 };
 
-// ... (keep existing skeleton components)
 const NavbarSkeleton = () => {
   return (
     <motion.header
@@ -314,9 +312,6 @@ const CoursePageSkeleton = () => {
   );
 };
 
-// app/users/courses/[id]/page.tsx
-
-// ✅ NEW: Hook to fetch ONLY card data (price, sale, title, description)
 function useCourseCardData(courseId: string, refreshKey: number) {
   const [cardData, setCardData] = useState<{
     title: string;
@@ -337,7 +332,7 @@ function useCourseCardData(courseId: string, refreshKey: number) {
 
         const response = await fetch('/api/course/cards', {
           credentials: 'include',
-          cache: 'no-store', // ✅ NO CACHE
+          cache: 'no-store',
         });
 
         if (!response.ok) {
@@ -350,7 +345,6 @@ function useCourseCardData(courseId: string, refreshKey: number) {
         console.log(`✅ [Course Detail] Card data loaded in ${loadTime}ms`);
 
         if (isMounted) {
-          // Find the card for this specific course
           const card = data.cards.find((c: any) => c.id === courseId);
           
           if (card) {
@@ -384,7 +378,6 @@ function useCourseCardData(courseId: string, refreshKey: number) {
   return { cardData, loading };
 }
 
-// ✅ NEW: Fetch enrollment status from cards API
 function useEnrollmentStatus(courseId: string, user: any, refreshKey: number) {
   const [enrollmentStatus, setEnrollmentStatus] = useState<{
     enrolled: boolean;
@@ -397,7 +390,6 @@ function useEnrollmentStatus(courseId: string, user: any, refreshKey: number) {
 
     async function loadEnrollment() {
       if (!user) {
-        // Not logged in
         if (isMounted) {
           setEnrollmentStatus(null);
           setLoading(false);
@@ -453,7 +445,6 @@ function useEnrollmentStatus(courseId: string, user: any, refreshKey: number) {
   return { enrollmentStatus, loading };
 }
 
-// ✅ UPDATE: Modified atomic hook - NO enrollment status
 function useAtomicCourseData(id: string, refreshKey: number) {
   const [data, setData] = useState<{
     courseData: any;
@@ -554,7 +545,6 @@ export default function PublicCoursePage() {
   const id = params.id as string;
   const { user, logout, checkAuthStatus } = useAuth();
   
-  // ✅ ALL STATE HOOKS FIRST
   const [refreshKey, setRefreshKey] = useState(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
@@ -563,18 +553,13 @@ export default function PublicCoursePage() {
   const [ownerHoverPosition, setOwnerHoverPosition] = useState({ x: 0, y: 0 });
   const [ownerHoverTimeout, setOwnerHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  // ✅ ALL CUSTOM HOOKS
-  // ✅ Fetch course data (cached, no enrollment)
   const { courseData, owner, currentUserAvatars, loading: atomicLoading, error } =
     useAtomicCourseData(id, refreshKey);
   
-  // ✅ Fetch card data with pricing
   const { cardData, loading: cardLoading } = useCourseCardData(id, refreshKey);
   
-  // ✅ Fetch enrollment status separately (NO CACHE)
   const { enrollmentStatus, loading: enrollmentLoading } = useEnrollmentStatus(id, user, refreshKey);
 
-  // ✅ ALL EFFECTS
   useAutoRefresh(() => {
     setRefreshKey(prev => prev + 1);
   }, 30000);
@@ -638,7 +623,6 @@ export default function PublicCoursePage() {
     }
   }, [isProfileOpen]);
 
-  // ✅ ALL MEMOIZED VALUES
   const mergedCourseData = useMemo(() => {
     if (!courseData) return null;
     if (!cardData) return courseData;
@@ -666,13 +650,11 @@ export default function PublicCoursePage() {
     [owner]
   );
 
-  // ✅ UPDATE: Loading check
   const shouldShowSkeleton = useMemo(() => 
     atomicLoading || cardLoading || (user && enrollmentLoading),
     [atomicLoading, cardLoading, user, enrollmentLoading]
   );
 
-  // ✅ ALL EVENT HANDLERS (regular functions, not hooks)
   const handleOwnerHover = (e: React.MouseEvent) => {
     if (ownerHoverTimeout) {
       clearTimeout(ownerHoverTimeout);
@@ -808,7 +790,6 @@ export default function PublicCoursePage() {
     );
   };
 
-  // ✅ NOW CONDITIONAL RENDERING (after ALL hooks)
   console.log("[Course Page] Render state:", {
     hasUser: !!user,
     userEmail: user?.email,
@@ -1047,7 +1028,6 @@ export default function PublicCoursePage() {
                         </div>
                       </motion.button>
 
-                      {/* Profile Dropdown */}
                       <AnimatePresence>
                         {isProfileOpen && (
                           <>
@@ -1155,9 +1135,8 @@ export default function PublicCoursePage() {
                 </div>
               </div>
 
-              {/* Mobile Layout - keep existing code */}
+              {/* Mobile Layout */}
               <div className="flex md:hidden items-center justify-between gap-2">
-                {/* ✅ Course Title + Owner Avatar - HOVERABLE & CLICKABLE */}
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <div
                     className="w-7 h-7 rounded-full border-2 border-red-500/50 overflow-hidden bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center flex-shrink-0 cursor-pointer hover:border-red-500 transition-all"
@@ -1176,7 +1155,6 @@ export default function PublicCoursePage() {
                     <h2 className="text-white font-bold text-xs leading-tight truncate">
                       {mergedCourseData?.courseTitle}
                     </h2>
-                    {/* ✅ Owner Name - CLICKABLE on mobile */}
                     <p
                       className="text-gray-400 text-[10px] truncate cursor-pointer hover:text-white transition-colors"
                       onClick={handleOwnerClick}
@@ -1188,7 +1166,6 @@ export default function PublicCoursePage() {
 
                 {user ? (
                   <div className="relative dropdown-container">
-                    {/* ... existing profile button ... */}
                     <button
                       onClick={() => {
                         setIsProfileOpen(!isProfileOpen);
@@ -1326,34 +1303,8 @@ export default function PublicCoursePage() {
 
       {/* Dynamic Homepage Rendering */}
       {renderHomepage()}
-      
-      {/* Floating Action Buttons - keep existing */}
-      {!user && (
-        <motion.button
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          onClick={handleEnroll}
-          disabled={enrolling}
-          className="fixed bottom-8 right-8 md:hidden bg-gradient-to-r from-red-600 to-red-700 shadow-[0_0_40px_rgba(239,68,68,0.8)] text-white p-6 rounded-full font-black hover:scale-110 transition-transform disabled:opacity-50 z-40"
-        >
-          {enrolling ? (
-            <FaSpinner className="text-2xl animate-spin" />
-          ) : (
-            <FaRocket className="text-2xl" />
-          )}
-        </motion.button>
-      )}
 
-      {user && enrollmentStatus?.enrolled && !enrollmentStatus?.isOwner && (
-        <motion.button
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          onClick={handleStartLearning}
-          className="fixed bottom-8 right-8 md:hidden bg-gradient-to-r from-green-600 to-green-700 shadow-[0_0_40px_rgba(34,197,94,0.8)] text-white p-6 rounded-full font-black hover:scale-110 transition-transform z-40"
-        >
-          <FaPlay className="text-2xl" />
-        </motion.button>
-      )}
+      {/* ✅ REMOVED: Floating Action Buttons (rocket icons) */}
 
       {/* Hover Card Portal */}
       <div onMouseEnter={handleOwnerHoverCardEnter} onMouseLeave={handleOwnerLeave}>
