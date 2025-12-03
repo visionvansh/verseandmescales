@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/utils/email.ts
 import nodemailer from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 

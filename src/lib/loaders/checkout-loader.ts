@@ -6,22 +6,40 @@ interface AtomicCheckoutData {
   course: any;
   owner: any;
   currentUserAvatars: any[];
-  paypalOrderId: string;
-  stripeClientSecret: string;
-  stripePaymentIntentId: string;
+  paypalOrderId: string | null;
+  stripeClientSecret: string | null;
+  stripePaymentIntentId: string | null;
   timestamp: number;
 }
 
 export async function loadCompleteCheckoutData(
   courseId: string,
-  userId: string
+  userId: string | null // ✅ Make userId optional
 ): Promise<AtomicCheckoutData> {
   const startTime = Date.now();
-  console.log('⚡ Loading checkout data for:', courseId);
+  console.log('[Checkout Loader] ⚡ Loading checkout data:', {
+    courseId,
+    hasUserId: !!userId,
+  });
 
   try {
+    // 1. Fetch course data (always needed)
     const courseDetail = await fetchCourseForCheckout(courseId);
     
+    // 2. If no user, return early without payment intents
+    if (!userId) {
+      console.log('[Checkout Loader] ⚠️ No user - skipping payment intents');
+      return {
+        ...courseDetail,
+        currentUserAvatars: [],
+        paypalOrderId: null,
+        stripeClientSecret: null,
+        stripePaymentIntentId: null,
+        timestamp: Date.now(),
+      };
+    }
+    
+    // 3. Fetch user avatars
     const currentUserAvatars = await prisma.avatar.findMany({
       where: { userId },
       orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
@@ -36,14 +54,15 @@ export async function loadCompleteCheckoutData(
       },
     });
 
-    // Create both PayPal and Stripe payment intents
+    // 4. Create payment intents for authenticated user
+    console.log('[Checkout Loader] 🔄 Creating payment intents for authenticated user');
     const [paypalData, stripeData] = await Promise.all([
       createPayPalOrderForCourse(courseId, userId, courseDetail.course),
       createStripePaymentIntent(courseId, userId, courseDetail.course),
     ]);
 
     const totalTime = Date.now() - startTime;
-    console.log(`⚡ Checkout data loaded in ${totalTime}ms`);
+    console.log(`[Checkout Loader] ⚡ Checkout data loaded in ${totalTime}ms`);
 
     return {
       ...courseDetail,
@@ -53,7 +72,7 @@ export async function loadCompleteCheckoutData(
       timestamp: Date.now(),
     };
   } catch (error) {
-    console.error('❌ Failed to load checkout data:', error);
+    console.error('[Checkout Loader] ❌ Failed to load checkout data:', error);
     throw error;
   }
 }

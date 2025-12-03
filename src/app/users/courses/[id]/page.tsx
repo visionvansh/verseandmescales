@@ -472,7 +472,6 @@ function useAtomicCourseData(id: string, refreshKey: number) {
           credentials: 'include',
           cache: 'no-store',
         });
-
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error('Course not found or not published');
@@ -576,17 +575,17 @@ export default function PublicCoursePage() {
   }, [checkAuthStatus, id]);
 
   useEffect(() => {
-    const handleReturnFromSignup = async () => {
+    const handleReturnFromCheckout = async () => {
       const shouldForceCheck = sessionStorage.getItem('force_auth_check_on_return');
       
       if (shouldForceCheck) {
-        console.log('[Course Page] 🔄 Forcing auth check after signup');
+        console.log('[Course Page] 🔄 Forcing auth check after checkout');
         sessionStorage.removeItem('force_auth_check_on_return');
         await checkAuthStatus(true);
       }
     };
 
-    handleReturnFromSignup();
+    handleReturnFromCheckout();
   }, [checkAuthStatus]);
 
   useEffect(() => {
@@ -707,38 +706,11 @@ export default function PublicCoursePage() {
     }
   };
 
+  // ✅ UPDATED: Always go to checkout page, regardless of auth status
   const handleEnroll = async () => {
     try {
       setEnrolling(true);
-
-      if (!user) {
-        const courseUrl = `/users/courses/${id}`;
-
-        const minimalMetadata = {
-          courseId: id,
-          fromCourse: true,
-          timestamp: Date.now()
-        };
-
-        console.log('[Course Page] 📦 Storing minimal metadata:', minimalMetadata);
-
-        sessionStorage.setItem('signup_course_metadata', JSON.stringify(minimalMetadata));
-        sessionStorage.setItem('signup_redirect_url', courseUrl);
-        sessionStorage.setItem('force_auth_check_on_return', 'true');
-        
-        localStorage.setItem('temp_signup_course_metadata', JSON.stringify(minimalMetadata));
-        localStorage.setItem('temp_signup_redirect', courseUrl);
-        
-        const signupUrl = new URL('/auth/signup', window.location.origin);
-        signupUrl.searchParams.set('redirect', courseUrl);
-        signupUrl.searchParams.set('course', id);
-        
-        console.log('[Course Page] 🚀 Navigating to:', signupUrl.toString());
-        
-        router.push(signupUrl.toString());
-        return;
-      }
-
+      // Always navigate to checkout - account creation happens there if needed
       router.push(`/users/courses/${id}/checkout`);
     } catch (err) {
       console.error("[Course Page] ❌ Error:", err);
@@ -951,7 +923,8 @@ export default function PublicCoursePage() {
                         Start Learning
                       </span>
                     </motion.button>
-                  ) : user ? (
+                  ) : (
+                    // ✅ UPDATED: Always show Enroll button, go to checkout
                     <motion.button
                       onClick={handleEnroll}
                       disabled={enrolling}
@@ -965,7 +938,7 @@ export default function PublicCoursePage() {
                         <>
                           <FaSpinner className="text-sm text-white relative z-10 animate-spin" />
                           <span className="text-sm font-bold text-white relative z-10">
-                            Enrolling...
+                            Loading...
                           </span>
                         </>
                       ) : (
@@ -976,26 +949,6 @@ export default function PublicCoursePage() {
                           </span>
                         </>
                       )}
-                    </motion.button>
-                  ) : (
-                    <motion.button
-                      onClick={() =>
-                        router.push(
-                          `/auth/signup?redirect=${encodeURIComponent(
-                            `/users/courses/${id}`
-                          )}`
-                        )
-                      }
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="relative px-6 py-2.5 rounded-xl overflow-hidden group flex items-center gap-2"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-700 shadow-[0_0_40px_rgba(239,68,68,0.4)]" />
-                      <div className="absolute inset-0 border border-red-500/30 rounded-xl" />
-                      <FaUser className="text-sm text-white relative z-10" />
-                      <span className="text-sm font-bold text-white relative z-10">
-                        Sign Up to Enroll
-                      </span>
                     </motion.button>
                   )}
 
@@ -1277,21 +1230,16 @@ export default function PublicCoursePage() {
                     </AnimatePresence>
                   </div>
                 ) : (
+                  // ✅ UPDATED: Mobile - Go to checkout instead of signup
                   <motion.button
-                    onClick={() =>
-                      router.push(
-                        `/auth/signup?redirect=${encodeURIComponent(
-                          `/users/courses/${id}`
-                        )}`
-                      )
-                    }
+                    onClick={handleEnroll}
                     whileTap={{ scale: 0.95 }}
                     className="relative px-3 py-1.5 rounded-lg overflow-hidden flex items-center gap-1.5"
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-700" />
-                    <FaUser className="text-xs text-white relative z-10" />
+                    <FaRocket className="text-xs text-white relative z-10" />
                     <span className="text-xs font-bold text-white relative z-10">
-                      Sign Up
+                      Enroll
                     </span>
                   </motion.button>
                 )}
@@ -1303,8 +1251,6 @@ export default function PublicCoursePage() {
 
       {/* Dynamic Homepage Rendering */}
       {renderHomepage()}
-
-      {/* ✅ REMOVED: Floating Action Buttons (rocket icons) */}
 
       {/* Hover Card Portal */}
       <div onMouseEnter={handleOwnerHoverCardEnter} onMouseLeave={handleOwnerLeave}>

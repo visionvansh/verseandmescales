@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/components/settings/Privacy/PasswordSection.tsx
 "use client";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion } from "framer-motion";

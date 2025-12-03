@@ -1,4 +1,3 @@
-///contexts/AuthContext
 "use client";
 import React, {
   createContext,
@@ -299,6 +298,18 @@ function useAtomicAuth() {
   return { ...data, loadAtomicAuth };
 }
 
+// Add this helper at the top of AuthContext after imports
+const emitAuthChange = (user: any) => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('auth-state-changed', { 
+      detail: { user } 
+    }));
+    
+    // Also trigger storage event for navbar
+    window.dispatchEvent(new Event('storage'));
+  }
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
@@ -307,15 +318,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isPublicCoursesRoute = useCallback((path: string) => {
     return path === '/users/courses' || path.startsWith('/users/courses/');
   }, []);
-
-  // Add this helper function at the top of the file
-  const emitAuthChange = (user: User | null) => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('auth-state-changed', { 
-        detail: { user } 
-      }));
-    }
-  };
 
   // State
   const [user, setUser] = useState<User | null>(null);
@@ -1506,7 +1508,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       lastCheckRef.current = now;
       setIsLoading(true);
 
-      // ✅ Use atomic endpoint instead of separate /me call
+      // ✅ CRITICAL: Clear cache on force refresh
+      if (forceRefresh) {
+        authCacheRef.current = null;
+        sessionStorage.removeItem('navbar_user_cache');
+      }
+
       const response = await fetch('/api/atomic/complete', {
         credentials: 'include',
         cache: forceRefresh ? 'no-store' : 'default',
@@ -1519,18 +1526,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.log('[Auth] ✅ User authenticated via atomic load');
           setUser(atomicData.user);
           setSessions(atomicData.sessions || []);
+          
+          // ✅ CRITICAL: Emit auth change event
           emitAuthChange(atomicData.user);
           
           setDeviceTrusted(atomicData.user.deviceTrusted || false);
 
-          // Update cache
+          // Update caches
           authCacheRef.current = {
             user: atomicData.user,
             timestamp: Date.now(),
             deviceFingerprint: deviceFingerprint,
           };
 
-          // Update navbar cache
           sessionStorage.setItem('navbar_user_cache', JSON.stringify({
             user: {
               id: atomicData.user.id,
@@ -1541,28 +1549,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             },
             timestamp: Date.now(),
           }));
+
+          // ✅ CRITICAL: Force navbar to update
+          window.dispatchEvent(new Event('storage'));
         }
       } else if (response.status === 401) {
         console.log('[Auth] Not authenticated');
         setUser(null);
         setSessions([]);
-        emitAuthChange(null);
+        emitAuthChange(null); // ✅ Emit for logout too
         authCacheRef.current = null;
         sessionStorage.removeItem('navbar_user_cache');
       }
     } catch (error) {
       console.error("[Auth] Check failed:", error);
       setUser(null);
-      setSessions([]);
       emitAuthChange(null);
-      authCacheRef.current = null;
     } finally {
       setIsLoading(false);
       setAuthChecked(true);
       initialCheckDone.current = true;
       checkInProgressRef.current = false;
     }
-  }, [pathname, deviceFingerprint, isPublicRoute, isPublicCoursesRoute, isProtectedRoute, router]);
+  }, [pathname, deviceFingerprint]);
 
   const clearAllData = () => {
     setUser(null);
@@ -1580,38 +1589,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   // Initialize auth
-useEffect(() => {
-  const initAuth = async () => {
-    console.log("[Auth] Initializing for route:", pathname);
-    await generateDeviceFingerprint();
+  useEffect(() => {
+    const initAuth = async () => {
+      console.log("[Auth] Initializing for route:", pathname);
+      await generateDeviceFingerprint();
 
-    const currentPath = pathname || "/";
-    const isPublic = isPublicRoute(currentPath);
-    const isCourses = isPublicCoursesRoute(currentPath);
+      const currentPath = pathname || "/";
+      const isPublic = isPublicRoute(currentPath);
+      const isCourses = isPublicCoursesRoute(currentPath);
 
-    if (isPublic && !isCourses) {
-      // ✅ FIXED: Check auth but don't block rendering
-      console.log("[Auth] Public route, checking auth in background");
-      setIsLoading(false); // Don't block rendering
-      await checkAuthStatus(false); // Check auth silently
-      setAuthChecked(true);
-    } else if (isCourses) {
-      // ✅ Courses route - check auth but don't block
-      console.log("[Auth] Public courses route, checking auth in background");
-      setIsLoading(false); // Don't block rendering
-      await checkAuthStatus(false); // Check auth silently
-      setAuthChecked(true);
-    } else {
-      // Protected routes - must auth first
-      console.log("[Auth] Protected route, checking auth");
-      setIsLoading(true);
-      setAuthChecked(false);
-      await checkAuthStatus(false);
-    }
-  };
+      if (isPublic && !isCourses) {
+        // ✅ FIXED: Check auth but don't block rendering
+        console.log("[Auth] Public route, checking auth in background");
+        setIsLoading(false); // Don't block rendering
+        await checkAuthStatus(false); // Check auth silently
+        setAuthChecked(true);
+      } else if (isCourses) {
+        // ✅ Courses route - check auth but don't block
+        console.log("[Auth] Public courses route, checking auth in background");
+        setIsLoading(false); // Don't block rendering
+        await checkAuthStatus(false); // Check auth silently
+        setAuthChecked(true);
+      } else {
+        // Protected routes - must auth first
+        console.log("[Auth] Protected route, checking auth");
+        setIsLoading(true);
+        setAuthChecked(false);
+        await checkAuthStatus(false);
+      }
+    };
 
-  initAuth();
-}, [pathname]);
+    initAuth();
+  }, [pathname]);
 
   // Cleanup on unmount
   useEffect(() => {
