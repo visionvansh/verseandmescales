@@ -16,8 +16,11 @@ export function CurriculumSection() {
       const scrollPosition = container.scrollLeft;
       const containerWidth = container.offsetWidth;
       const itemWidth = containerWidth * 0.78;
+      const gap = 16;
 
-      const newIndex = Math.round(scrollPosition / itemWidth);
+      const leftSpacer = containerWidth * 0.11;
+      const adjustedScrollPosition = scrollPosition - leftSpacer;
+      const newIndex = Math.round(adjustedScrollPosition / (itemWidth + gap));
       const clampedIndex = Math.min(Math.max(newIndex, 0), COURSE_MODULES.length - 1);
 
       if (clampedIndex !== activeIndex) {
@@ -30,8 +33,12 @@ export function CurriculumSection() {
     if (scrollContainerRef.current) {
       const containerWidth = scrollContainerRef.current.offsetWidth;
       const itemWidth = containerWidth * 0.78;
+      const gap = 16;
+      const leftSpacer = containerWidth * 0.11;
+      const scrollPosition = leftSpacer + (itemWidth + gap) * index;
+      
       scrollContainerRef.current.scrollTo({ 
-        left: itemWidth * index, 
+        left: scrollPosition, 
         behavior: 'smooth' 
       });
     }
@@ -43,7 +50,7 @@ export function CurriculumSection() {
   return (
     <section
       id="curriculum"
-      className="py-20 sm:py-24 lg:py-32 relative overflow-hidden"
+      className="py-12 sm:py-16 lg:py-20 relative overflow-hidden"
     >
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
@@ -52,12 +59,12 @@ export function CurriculumSection() {
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-center mb-10"
+          className="text-center mb-8"
         >
-          <span className="text-red-500 font-bold tracking-[0.25em] uppercase text-xs mb-6 block">
+          <span className="text-red-500 font-bold tracking-[0.25em] uppercase text-xs mb-4 block">
             Declassified Protocol
           </span>
-          <h2 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white mb-6 tracking-tight">
+          <h2 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white mb-4 tracking-tight">
             THE FRAMEWORK FOR <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-gray-500">
               TOTAL DOMINANCE
@@ -95,7 +102,7 @@ export function CurriculumSection() {
             className="
               flex md:grid 
               md:grid-cols-2 xl:grid-cols-3 
-              gap-4 sm:gap-6 xl:gap-8 
+              gap-4 
               overflow-x-auto md:overflow-visible 
               snap-x snap-mandatory md:snap-none 
               py-4 
@@ -137,7 +144,7 @@ export function CurriculumSection() {
           </div>
 
           {/* Mobile Navigation Controls */}
-          <div className="mt-8 flex flex-col items-center gap-4 md:hidden">
+          <div className="mt-6 flex flex-col items-center gap-4 md:hidden">
             
             {/* Progress Indicator */}
             <div className="flex items-center gap-3">

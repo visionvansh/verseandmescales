@@ -40,17 +40,17 @@ function FeatureScroller() {
   const doubledFeatures = useMemo(() => [...FEATURES, ...FEATURES], []);
 
   return (
-    <div className="relative w-full overflow-hidden py-4 sm:py-6">
-      {/* Left Fade Mask - uses transparent to allow parent bg to show */}
-      <div className="absolute left-0 top-0 bottom-0 w-16 sm:w-24 md:w-32 bg-gradient-to-r from-gray-950 to-transparent z-10 pointer-events-none" />
+    <div className="relative w-full overflow-hidden py-4">
+      {/* Left Fade Mask */}
+      <div className="absolute left-0 top-0 bottom-0 w-20 sm:w-28 bg-gradient-to-r from-gray-950 to-transparent z-10 pointer-events-none" />
       
       {/* Right Fade Mask */}
-      <div className="absolute right-0 top-0 bottom-0 w-16 sm:w-24 md:w-32 bg-gradient-to-l from-gray-950 to-transparent z-10 pointer-events-none" />
+      <div className="absolute right-0 top-0 bottom-0 w-20 sm:w-28 bg-gradient-to-l from-gray-950 to-transparent z-10 pointer-events-none" />
       
       {/* Scrolling Container */}
       <div 
         ref={scrollRef}
-        className="flex gap-4 sm:gap-6 overflow-x-hidden"
+        className="flex gap-4 overflow-x-hidden"
         style={{ scrollBehavior: 'auto' }}
       >
         {doubledFeatures.map((feature, index) => {
@@ -58,22 +58,22 @@ function FeatureScroller() {
           return (
             <article
               key={`${feature.id}-${index}`}
-              className="group relative flex-shrink-0 w-72 xs:w-80 sm:w-96 p-6 sm:p-8 rounded-2xl bg-gradient-to-b from-gray-900/80 to-gray-950/80 border border-white/5 hover:border-red-500/30 transition-all duration-500 overflow-hidden"
+              className="group relative flex-shrink-0 w-72 xs:w-80 sm:w-96 p-6 rounded-2xl bg-gradient-to-b from-gray-900/80 to-gray-950/80 border border-white/5 hover:border-red-500/30 transition-all duration-500 overflow-hidden"
             >
               {/* Background Icon */}
               <div
                 className="absolute top-4 right-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500"
                 aria-hidden="true"
               >
-                <Icon className="text-7xl sm:text-8xl text-red-500" />
+                <Icon className="text-7xl text-red-500" />
               </div>
 
               {/* Content */}
               <div className="relative z-10">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-red-900/30 rounded-xl flex items-center justify-center text-red-500 mb-5 group-hover:bg-red-500 group-hover:text-white transition-all duration-300">
-                  <Icon className="text-xl sm:text-2xl" />
+                <div className="w-12 h-12 bg-red-900/30 rounded-xl flex items-center justify-center text-red-500 mb-4 group-hover:bg-red-500 group-hover:text-white transition-all duration-300">
+                  <Icon className="text-xl" />
                 </div>
-                <h3 className="text-lg sm:text-xl font-bold text-white mb-1">
+                <h3 className="text-lg font-bold text-white mb-1">
                   {feature.title}
                 </h3>
                 <p className="text-xs font-bold text-red-500 uppercase tracking-wider mb-3">
@@ -95,7 +95,7 @@ export function FeatureGrid() {
   return (
     <section
       id="features"
-      className="py-20 sm:py-24 lg:py-32 relative overflow-hidden"
+      className="py-12 sm:py-16 lg:py-20 relative overflow-hidden"
       aria-labelledby="features-heading"
     >
       <div className="container mx-auto px-4 sm:px-6 relative z-10">
@@ -104,7 +104,7 @@ export function FeatureGrid() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 mb-16 sm:mb-20"
+          className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-12"
         >
           {STATS.map((stat, i) => (
             <m.div
@@ -130,7 +130,7 @@ export function FeatureGrid() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-center mb-8 sm:mb-12"
+          className="text-center mb-8"
         >
           <h2
             id="features-heading"

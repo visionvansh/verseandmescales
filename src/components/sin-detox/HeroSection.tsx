@@ -29,14 +29,94 @@ interface HeroSectionProps {
   badgeText?: string;
   subheadline?: string;
   subheadlineHighlight?: string;
-  primaryCtaText?: string;
   secondaryCtaText?: string;
   videoUrl?: string;
   rating?: number;
   totalUsers?: string;
   showVideoCta?: boolean;
   className?: string;
+  
+  // Payment integration props
+  enrollmentStatus?: any;
+  onEnroll?: () => void;
+  onStartLearning?: () => void;
+  enrolling?: boolean;
+  regularPrice?: string;
+  salePrice?: string | null;
+  hasSale?: boolean;
+  saleEndsAt?: string | null;
 }
+
+// ===== COUNTDOWN TIMER COMPONENT =====
+const CountdownTimer = ({ endsAt }: { endsAt: string }) => {
+  const [timeLeft, setTimeLeft] = useState<{
+    hours: number;
+    minutes: number;
+    seconds: number;
+    expired: boolean;
+  }>({ hours: 0, minutes: 0, seconds: 0, expired: false });
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = Date.now();
+      const endTime = new Date(endsAt).getTime();
+      const difference = endTime - now;
+
+      if (difference <= 0) {
+        return { hours: 0, minutes: 0, seconds: 0, expired: true };
+      }
+
+      const hours = Math.floor(difference / (1000 * 60 * 60));
+      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+      return { hours, minutes, seconds, expired: false };
+    };
+
+    setTimeLeft(calculateTimeLeft());
+
+    const interval = setInterval(() => {
+      const newTimeLeft = calculateTimeLeft();
+      setTimeLeft(newTimeLeft);
+
+      if (newTimeLeft.expired) {
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [endsAt]);
+
+  if (timeLeft.expired) return null;
+
+  const totalMinutes = timeLeft.hours * 60 + timeLeft.minutes;
+  const isUrgent = totalMinutes < 60;
+  const isCritical = totalMinutes < 10;
+
+  return (
+    <m.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.3 }}
+      className="inline-flex items-center gap-2 sm:gap-3 bg-gradient-to-r from-orange-500/10 to-red-500/10 border border-orange-500/30 px-3 sm:px-4 py-2 rounded-lg backdrop-blur-xl"
+    >
+      <div className="flex items-center gap-2">
+        <FaFire className={`text-xl ${isCritical ? "text-red-500 animate-pulse" : isUrgent ? "text-orange-500" : "text-orange-400"}`} />
+        <span className={`text-sm sm:text-base font-bold uppercase tracking-wide ${
+          isCritical ? "text-red-400" : isUrgent ? "text-orange-400" : "text-orange-300"
+        }`}>
+          SALE ENDS
+        </span>
+      </div>
+      <span className="text-gray-400">•</span>
+      <span className={`text-base sm:text-lg font-semibold tabular-nums ${
+        isCritical ? "text-red-400 animate-pulse" : isUrgent ? "text-orange-400" : "text-orange-300"
+      }`}>
+        {timeLeft.hours}h {timeLeft.minutes}m {timeLeft.seconds}s
+      </span>
+    </m.div>
+  );
+};
 
 // ===== UTILITY COMPONENTS =====
 
@@ -121,7 +201,7 @@ const TypewriterText = ({ text, highlight, delay = 0 }: { text: string; highligh
   };
 
   return (
-    <div className="min-h-[3.5rem] sm:min-h-[3.5rem] md:min-h-[4rem] leading-snug">
+    <div className="min-h-[3rem] sm:min-h-[3.5rem] leading-snug">
       {renderText()}
       <span className={`${showCursor ? "opacity-100" : "opacity-0"} text-red-500 font-bold ml-1`}>|</span>
     </div>
@@ -129,48 +209,59 @@ const TypewriterText = ({ text, highlight, delay = 0 }: { text: string; highligh
 };
 
 // 3. Spotlight Button Effect
-const SpotlightButton = ({ onClick, children }: { onClick: () => void; children: React.ReactNode }) => {
+const SpotlightButton = ({ onClick, children, disabled = false }: { onClick: () => void; children: React.ReactNode; disabled?: boolean }) => {
   const divRef = useRef<HTMLButtonElement>(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [opacity, setOpacity] = useState(0);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (!divRef.current) return;
+    if (!divRef.current || disabled) return;
     const div = divRef.current;
     const rect = div.getBoundingClientRect();
     setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 
-  const handleFocus = () => setOpacity(1);
+  const handleFocus = () => !disabled && setOpacity(1);
   const handleBlur = () => setOpacity(0);
-  const handleMouseEnter = () => setOpacity(1);
+  const handleMouseEnter = () => !disabled && setOpacity(1);
   const handleMouseLeave = () => setOpacity(0);
 
   return (
     <button
       ref={divRef}
       onClick={onClick}
+      disabled={disabled}
       onMouseMove={handleMouseMove}
       onFocus={handleFocus}
       onBlur={handleBlur}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      // ✅ DECREASED: px-6 py-3.5 (was px-10 py-5)
-      className="relative group w-full sm:w-auto px-6 py-3.5 sm:px-6 sm:py-4 bg-zinc-900 overflow-hidden rounded-xl transition-all duration-300 hover:scale-[1.02] border border-zinc-800"
+      className={`relative group w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-zinc-900 overflow-hidden rounded-xl transition-all duration-300 border border-zinc-800 ${
+        disabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02]'
+      }`}
     >
-      <div
-        className="pointer-events-none absolute -inset-px opacity-0 transition duration-300 group-hover:opacity-100"
-        style={{
-          background: `radial-gradient(600px circle at ${position.x}px ${position.y}px, rgba(220, 38, 38, 0.4), transparent 40%)`,
-        }}
-      />
+      {!disabled && (
+        <div
+          className="pointer-events-none absolute -inset-px opacity-0 transition duration-300 group-hover:opacity-100"
+          style={{
+            background: `radial-gradient(600px circle at ${position.x}px ${position.y}px, rgba(220, 38, 38, 0.4), transparent 40%)`,
+          }}
+        />
+      )}
       <div className="relative z-10">{children}</div>
-      <div className="absolute inset-0 ring-1 ring-inset ring-red-500/20 rounded-xl group-hover:ring-red-500/50 transition-all duration-300" />
+      <div className={`absolute inset-0 ring-1 ring-inset rounded-xl transition-all duration-300 ${
+        disabled ? 'ring-zinc-800' : 'ring-red-500/20 group-hover:ring-red-500/50'
+      }`} />
     </button>
   );
 };
 
-// ===== HERO BACKGROUND COMPONENT (UNCHANGED) =====
+// ===== CLAMP UTILITY FUNCTION =====
+const clamp = (value: number, min: number, max: number): number => {
+  return Math.min(Math.max(value, min), max);
+};
+
+// ===== HERO BACKGROUND COMPONENT =====
 const HeroBackground = React.memo(({ 
   desktopImage, 
   mobileImage 
@@ -179,8 +270,16 @@ const HeroBackground = React.memo(({
   mobileImage: string; 
 }) => {
   const { scrollY } = useScroll();
-  const y = useTransform(scrollY, [0, 600], [0, 200]);
-  const scale = useTransform(scrollY, [0, 600], [1, 1.15]);
+  
+  const y = useTransform(scrollY, (value) => {
+    const clampedScroll = clamp(value, 0, 600);
+    return (clampedScroll / 600) * 200;
+  });
+  
+  const scale = useTransform(scrollY, (value) => {
+    const clampedScroll = clamp(value, 0, 600);
+    return 1 + (clampedScroll / 600) * 0.15;
+  });
 
   return (
     <div className="absolute inset-0 z-0 overflow-hidden">
@@ -249,16 +348,16 @@ const HeroBadge = React.memo(({ text }: { text: string }) => (
     initial={{ opacity: 0, scale: 0.8 }}
     animate={{ opacity: 1, scale: 1 }}
     transition={{ duration: 0.5 }}
-    className="inline-flex items-center gap-2 mb-6 sm:mb-6"
+    className="inline-flex items-center gap-2 mb-4"
   >
     <div className="relative group cursor-default">
       <div className="absolute -inset-1 bg-gradient-to-r from-red-600 to-red-900 rounded-lg blur opacity-40 group-hover:opacity-75 transition duration-200" />
-      <div className="relative px-5 py-2 sm:px-4 sm:py-1.5 bg-black rounded-lg border border-red-500/30 flex items-center gap-2.5">
-        <span className="relative flex h-2.5 w-2.5 sm:h-2 sm:w-2">
+      <div className="relative px-4 py-1.5 bg-black rounded-lg border border-red-500/30 flex items-center gap-2">
+        <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-full w-full bg-red-500"></span>
         </span>
-        <span className="text-xs sm:text-[10px] md:text-xs font-mono font-bold tracking-widest text-red-400 uppercase">
+        <span className="text-[10px] sm:text-xs font-mono font-bold tracking-widest text-red-400 uppercase">
           {text}
         </span>
       </div>
@@ -270,7 +369,7 @@ HeroBadge.displayName = 'HeroBadge';
 
 // ===== HEADLINE COMPONENT =====
 const HeroHeadline = React.memo(({ line1, line2 }: { line1: string; line2: string }) => (
-  <div className="relative mb-6 sm:mb-6 select-none">
+  <div className="relative mb-4 select-none">
     <h1 className="text-[18vw] xs:text-[4.5rem] sm:text-[6rem] md:text-[8rem] lg:text-[9rem] font-black tracking-tighter leading-[0.85] text-white mix-blend-difference">
       <ScrambleText text={line1} delay={0.2} />
     </h1>
@@ -291,7 +390,7 @@ const HeroSubheadline = React.memo(({ text, highlight }: { text: string; highlig
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}
     transition={{ duration: 0.5, delay: 1.5 }}
-    className="text-lg xs:text-lg sm:text-xl md:text-2xl text-gray-300 max-w-[95%] sm:max-w-2xl mx-auto mb-10 sm:mb-10 font-mono"
+    className="text-base sm:text-lg md:text-xl text-gray-300 max-w-[95%] sm:max-w-2xl mx-auto mb-6 font-mono"
   >
     <TypewriterText text={text} highlight={highlight} delay={1.8} />
   </m.div>
@@ -306,19 +405,19 @@ const HeroRating = React.memo(({ rating, totalUsers }: { rating: number; totalUs
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 2.5 }}
-      className="flex justify-center mb-10 sm:mb-8"
+      className="flex justify-center mb-6"
     >
-      <div className="flex items-center gap-4 sm:gap-3 px-5 py-2.5 sm:px-4 sm:py-2 bg-white/5 backdrop-blur-md border-l-2 border-red-500 rounded-r-lg">
+      <div className="flex items-center gap-3 px-4 py-2 bg-white/5 backdrop-blur-md border-l-2 border-red-500 rounded-r-lg">
         <div className="flex gap-1">
           {[...Array(5)].map((_, i) => (
             <FaStar 
               key={i} 
-              className={`text-sm sm:text-xs ${i < Math.floor(rating) ? "text-red-500" : "text-gray-700"}`} 
+              className={`text-xs ${i < Math.floor(rating) ? "text-red-500" : "text-gray-700"}`} 
             />
           ))}
         </div>
-        <div className="h-5 sm:h-4 w-[1px] bg-white/10" />
-        <span className="text-sm sm:text-xs font-mono text-gray-400">
+        <div className="h-4 w-[1px] bg-white/10" />
+        <span className="text-xs font-mono text-gray-400">
           <span className="text-white font-bold">{totalUsers}</span> JOINED
         </span>
       </div>
@@ -328,56 +427,103 @@ const HeroRating = React.memo(({ rating, totalUsers }: { rating: number; totalUs
 
 HeroRating.displayName = 'HeroRating';
 
-// ===== CTA BUTTONS COMPONENT =====
-const HeroCtaButtons = React.memo(({ 
-  primaryText, 
-  secondaryText, 
-  onPrimaryClick, 
+// ===== PAYMENT CTA BUTTONS COMPONENT =====
+const PaymentCtaButtons = React.memo(({ 
+  enrollmentStatus,
+  onEnroll,
+  onStartLearning,
+  enrolling,
+  regularPrice,
+  salePrice,
+  hasSale,
+  saleEndsAt,
   onSecondaryClick,
-  showSecondary = true 
-}: { 
-  primaryText: string; 
-  secondaryText: string; 
-  onPrimaryClick: () => void; 
-  onSecondaryClick: () => void;
-  showSecondary?: boolean;
-}) => (
-  <m.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5, delay: 3 }}
-    className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-4 px-4 sm:px-4 w-full sm:w-auto"
-  >
-    {/* Primary CTA with Spotlight Effect */}
-    <SpotlightButton onClick={onPrimaryClick}>
-      {/* ✅ DECREASED: text-base (was text-xl) */}
-      <span className="flex items-center justify-center gap-2.5 sm:gap-2.5 text-white font-bold text-base sm:text-base tracking-wide uppercase">
-        {primaryText}
-        <FaFire className="text-red-500 text-base sm:text-sm" />
-      </span>
-    </SpotlightButton>
+  secondaryText,
+  showSecondary
+}: any) => {
+  const shouldShowTimer = !enrollmentStatus?.enrolled && 
+                          !enrollmentStatus?.isOwner && 
+                          hasSale && 
+                          saleEndsAt;
 
-    {/* Secondary CTA */}
-    {showSecondary && (
-      <button
-        onClick={onSecondaryClick}
-        // ✅ DECREASED: px-6 py-3 (was px-10 py-5)
-        className="group relative w-full sm:w-auto px-6 py-3 sm:px-6 sm:py-4 text-gray-400 hover:text-white font-mono text-sm sm:text-sm tracking-widest uppercase transition-all duration-300"
-      >
-        <span className="flex items-center justify-center gap-3 sm:gap-2.5">
-          {/* ✅ DECREASED: h-8 w-8 (was h-10 w-10) */}
-          <span className="relative flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded-full border border-gray-700 group-hover:border-white transition-colors">
-            <FaPlayCircle className="text-sm sm:text-xs" />
-          </span>
-          {secondaryText}
-        </span>
-        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-[1px] bg-red-500 group-hover:w-full transition-all duration-300" />
-      </button>
-    )}
-  </m.div>
-));
+  return (
+    <m.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 3 }}
+      className="flex flex-col items-center gap-4 w-full max-w-2xl mx-auto px-4"
+    >
+      {/* Timer */}
+      {shouldShowTimer && (
+        <CountdownTimer endsAt={saleEndsAt} />
+      )}
 
-HeroCtaButtons.displayName = 'HeroCtaButtons';
+      {/* Payment Buttons */}
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
+        {/* Primary Payment CTA */}
+        {enrollmentStatus?.isOwner ? (
+          <SpotlightButton onClick={() => {}}>
+            <span className="flex items-center justify-center gap-2 text-white font-bold text-sm sm:text-base tracking-wide uppercase">
+              <FaCheckCircle className="text-blue-500" />
+              YOUR PROTOCOL
+            </span>
+          </SpotlightButton>
+        ) : enrollmentStatus?.enrolled ? (
+          <SpotlightButton onClick={onStartLearning}>
+            <span className="flex items-center justify-center gap-2 text-white font-bold text-sm sm:text-base tracking-wide uppercase">
+              <FaCheckCircle className="text-green-500" />
+              CONTINUE TRAINING
+            </span>
+          </SpotlightButton>
+        ) : (
+          <SpotlightButton onClick={onEnroll} disabled={enrolling}>
+            {enrolling ? (
+              <span className="flex items-center justify-center gap-2 text-white font-bold text-sm sm:text-base tracking-wide uppercase">
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                PROCESSING...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2 text-white font-bold text-sm sm:text-base tracking-wide uppercase whitespace-nowrap">
+                <span>START AT</span>
+                {hasSale ? (
+                  <>
+                    <span className="line-through opacity-70">
+                      ${parseFloat(regularPrice).toFixed(0)}
+                    </span>
+                    <span className="text-yellow-300">
+                      ${parseFloat(salePrice).toFixed(0)}
+                    </span>
+                  </>
+                ) : (
+                  <span>${parseFloat(regularPrice).toFixed(0)}</span>
+                )}
+                <FaFire className="text-red-500" />
+              </span>
+            )}
+          </SpotlightButton>
+        )}
+
+        {/* Secondary CTA (Watch Video) */}
+        {showSecondary && !enrollmentStatus?.enrolled && !enrollmentStatus?.isOwner && (
+          <button
+            onClick={onSecondaryClick}
+            className="group relative w-full sm:w-auto px-6 py-2.5 sm:px-7 sm:py-3.5 text-gray-400 hover:text-white font-mono text-sm tracking-widest uppercase transition-all duration-300"
+          >
+            <span className="flex items-center justify-center gap-2.5">
+              <span className="relative flex h-7 w-7 items-center justify-center rounded-full border border-gray-700 group-hover:border-white transition-colors">
+                <FaPlayCircle className="text-xs" />
+              </span>
+              {secondaryText}
+            </span>
+            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-[1px] bg-red-500 group-hover:w-full transition-all duration-300" />
+          </button>
+        )}
+      </div>
+    </m.div>
+  );
+});
+
+PaymentCtaButtons.displayName = 'PaymentCtaButtons';
 
 // ===== TRUST BADGES COMPONENT =====
 const HeroTrustBadges = React.memo(() => (
@@ -385,15 +531,15 @@ const HeroTrustBadges = React.memo(() => (
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}
     transition={{ duration: 0.4, delay: 3.2 }}
-    className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 sm:gap-6 mt-12 sm:mt-12 opacity-60 hover:opacity-100 transition-opacity duration-300"
+    className="flex flex-wrap items-center justify-center gap-6 mt-8 opacity-60 hover:opacity-100 transition-opacity duration-300"
   >
     {[
       { icon: FaShieldAlt, text: "ENCRYPTED" },
       { icon: FaCheckCircle, text: "VERIFIED" },
       { icon: FaBolt, text: "LIFETIME" }
     ].map((item, i) => (
-      <div key={i} className="flex items-center gap-2.5 sm:gap-2 text-xs sm:text-[10px] font-mono tracking-widest text-gray-500 uppercase">
-        <item.icon className="text-red-900 text-base sm:text-xs" />
+      <div key={i} className="flex items-center gap-2 text-[10px] sm:text-xs font-mono tracking-widest text-gray-500 uppercase">
+        <item.icon className="text-red-900 text-xs" />
         <span>{item.text}</span>
       </div>
     ))}
@@ -409,10 +555,10 @@ const ScrollIndicator = React.memo(({ onClick }: { onClick: () => void }) => (
     animate={{ opacity: 1 }}
     transition={{ delay: 4 }}
     onClick={onClick}
-    className="absolute bottom-6 sm:bottom-10 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 group"
+    className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 group"
     aria-label="Scroll to explore content"
   >
-    <div className="h-8 sm:h-12 w-[1px] bg-gradient-to-b from-transparent via-red-500 to-transparent" />
+    <div className="h-10 w-[1px] bg-gradient-to-b from-transparent via-red-500 to-transparent" />
     <span className="text-[9px] sm:text-[10px] font-mono font-bold tracking-[0.3em] text-red-500/50 group-hover:text-red-500 transition-colors uppercase vertical-rl">
       Scroll
     </span>
@@ -430,18 +576,26 @@ export function HeroSection({
   badgeText = HERO_CONFIG.badge.text,
   subheadline = HERO_CONFIG.subheadline.text,
   subheadlineHighlight = HERO_CONFIG.subheadline.highlight,
-  primaryCtaText = HERO_CONFIG.cta.primary.text,
   secondaryCtaText = HERO_CONFIG.cta.secondary.text,
   videoUrl = HERO_VIDEO_URL,
   rating = HERO_CONFIG.stats.rating,
   totalUsers = HERO_CONFIG.stats.totalUsers,
   showVideoCta = true,
   className = "",
+  
+  // Payment integration props
+  enrollmentStatus,
+  onEnroll,
+  onStartLearning,
+  enrolling = false,
+  regularPrice = "97.00",
+  salePrice = null,
+  hasSale = false,
+  saleEndsAt = null,
 }: HeroSectionProps) {
   const { isOpen, videoUrl: modalVideoUrl, openModal, closeModal } = useVideoModal();
   const scrollTo = useSmoothScroll();
 
-  const handlePrimaryClick = () => scrollTo("pricing");
   const handleSecondaryClick = () => videoUrl && openModal(videoUrl);
   const handleScrollClick = () => scrollTo("features");
 
@@ -449,27 +603,34 @@ export function HeroSection({
     <>
       <section
         id="hero"
-        className={`relative min-h-screen flex items-center justify-center overflow-hidden bg-black ${className}`}
+        className={`relative min-h-screen flex items-center justify-center overflow-hidden ${className}`}
         aria-label="Hero section"
       >
-        {/* Background Layer (UNCHANGED) */}
+        {/* Background Layer */}
         <HeroBackground 
           desktopImage={backgroundDesktop} 
           mobileImage={backgroundMobile} 
         />
 
-        <div className="relative z-10 w-full max-w-[95%] lg:max-w-7xl mx-auto px-4 sm:px-4 text-center pt-0 pb-20 sm:pt-20 sm:pb-16">
+        <div className="relative z-10 w-full max-w-[95%] lg:max-w-7xl mx-auto px-4 text-center pt-20 pb-16">
            <div className="flex flex-col items-center justify-center">
               <HeroBadge text={badgeText} />
               <HeroHeadline line1={headlineLine1} line2={headlineLine2} />
               <HeroSubheadline text={subheadline} highlight={subheadlineHighlight} />
               <HeroRating rating={rating} totalUsers={totalUsers} />
               
-              <HeroCtaButtons
-                primaryText={primaryCtaText}
-                secondaryText={secondaryCtaText}
-                onPrimaryClick={handlePrimaryClick}
+              {/* Integrated Payment CTA Buttons */}
+              <PaymentCtaButtons
+                enrollmentStatus={enrollmentStatus}
+                onEnroll={onEnroll}
+                onStartLearning={onStartLearning}
+                enrolling={enrolling}
+                regularPrice={regularPrice}
+                salePrice={salePrice}
+                hasSale={hasSale}
+                saleEndsAt={saleEndsAt}
                 onSecondaryClick={handleSecondaryClick}
+                secondaryText={secondaryCtaText}
                 showSecondary={showVideoCta && !!videoUrl}
               />
               

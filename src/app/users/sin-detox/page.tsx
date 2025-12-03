@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/app/users/sin-detox/page.tsx
 import { Metadata } from "next";
 import { LazyMotion, domAnimation } from "framer-motion";
 import {

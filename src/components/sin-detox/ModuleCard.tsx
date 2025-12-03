@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/components/sin-detox/ModuleCard.tsx
 "use client";
 
 import { memo } from "react";

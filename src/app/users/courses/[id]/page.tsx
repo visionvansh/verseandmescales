@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/app/users/courses/[id]/page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
