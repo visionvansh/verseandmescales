@@ -83,153 +83,136 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
     return formatFileSize(bytesPerSecond) + "/s";
   };
 
-  const handleVideoUpload = async (file: File) => {
-    // Validate file type
-    if (!file.type.startsWith("video/")) {
-      setUploadError("Please upload a video file");
-      alert("Please upload a video file");
-      return;
+const handleVideoUpload = async (file: File) => {
+  if (!file.type.startsWith("video/")) {
+    setUploadError("Please upload a video file");
+    alert("Please upload a video file");
+    return;
+  }
+
+  const maxSize = 3 * 1024 * 1024 * 1024; // 3GB
+  if (file.size > maxSize) {
+    setUploadError("File size exceeds 3GB limit");
+    alert("File size exceeds 3GB. Maximum: 3GB");
+    return;
+  }
+
+  setIsUploadingVideo(true);
+  setUploadProgress(0);
+  setUploadError("");
+  setUploadSpeed("");
+  uploadStartTimeRef.current = Date.now();
+  uploadedBytesRef.current = 0;
+
+  try {
+    console.log(`📤 Starting upload: ${file.name} (${formatFileSize(file.size)})`);
+
+    // ✅ Get video metadata
+    const video = document.createElement("video");
+    video.preload = "metadata";
+
+    const metadata = await new Promise<{duration: number, size: number}>((resolve) => {
+      video.onloadedmetadata = () => {
+        resolve({ duration: video.duration, size: file.size });
+      };
+      video.onerror = () => {
+        resolve({ duration: 0, size: file.size });
+      };
+      video.src = URL.createObjectURL(file);
+    });
+
+    // ✅ Initialize chunked upload
+    const initResponse = await fetch("/api/upload/video-chunked", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: file.name,
+        fileSize: file.size,
+        folder: "course-videos",
+      }),
+    });
+
+    if (!initResponse.ok) {
+      throw new Error("Failed to initialize upload");
     }
 
-    // Check file size (3GB limit)
-    const maxSize = 3 * 1024 * 1024 * 1024; // 3GB in bytes
-    if (file.size > maxSize) {
-      setUploadError("File size exceeds 3GB limit");
-      alert("File size exceeds 3GB limit. Maximum allowed size is 3GB.");
-      return;
-    }
+    const uploadConfig = await initResponse.json();
 
-    setIsUploadingVideo(true);
-    setUploadProgress(0);
-    setUploadError("");
-    setUploadSpeed("");
-    uploadStartTimeRef.current = Date.now();
-    uploadedBytesRef.current = 0;
+    // ✅ Upload directly to Cloudinary with chunking
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("timestamp", uploadConfig.timestamp);
+    formData.append("signature", uploadConfig.signature);
+    formData.append("api_key", uploadConfig.apiKey);
+    formData.append("folder", uploadConfig.folder);
+    formData.append("resource_type", "video");
 
-    try {
-      console.log(`📤 Starting upload: ${file.name} (${formatFileSize(file.size)})`);
+    const xhr = new XMLHttpRequest();
 
-      // Extract video metadata first
-      const video = document.createElement("video");
-      video.preload = "metadata";
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) {
+        const progress = Math.round((e.loaded / e.total) * 100);
+        setUploadProgress(progress);
+        
+        uploadedBytesRef.current = e.loaded;
+        const elapsedTime = Date.now() - uploadStartTimeRef.current;
+        const speed = calculateUploadSpeed(e.loaded, elapsedTime);
+        setUploadSpeed(speed);
+        
+        console.log(`📊 Progress: ${progress}% (${formatFileSize(e.loaded)} / ${formatFileSize(e.total)}) - ${speed}`);
+      }
+    });
 
-      const metadataPromise = new Promise<{duration: number, size: number}>((resolve) => {
-        video.onloadedmetadata = () => {
-          resolve({
-            duration: video.duration,
-            size: file.size
-          });
-        };
-        video.onerror = () => {
-          resolve({
-            duration: 0,
-            size: file.size
-          });
-        };
-        video.src = URL.createObjectURL(file);
-      });
-
-      const metadata = await metadataPromise;
-
-      // Create FormData for upload
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "course-videos");
-
-      // Upload using XMLHttpRequest for progress tracking
-      const xhr = new XMLHttpRequest();
-
-      // Track upload progress
-      xhr.upload.addEventListener("progress", (e) => {
-        if (e.lengthComputable) {
-          const progress = Math.round((e.loaded / e.total) * 100);
-          setUploadProgress(progress);
-          
-          // Calculate upload speed
-          uploadedBytesRef.current = e.loaded;
-          const elapsedTime = Date.now() - uploadStartTimeRef.current;
-          const speed = calculateUploadSpeed(e.loaded, elapsedTime);
-          setUploadSpeed(speed);
-          
-          console.log(`📊 Progress: ${progress}% (${formatFileSize(e.loaded)} / ${formatFileSize(e.total)}) - ${speed}`);
+    const uploadPromise = new Promise<any>((resolve, reject) => {
+      xhr.addEventListener("load", () => {
+        if (xhr.status === 200) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            console.log("✅ Upload successful:", response);
+            resolve(response);
+          } catch (e) {
+            reject(new Error("Invalid response from server"));
+          }
+        } else {
+          console.error("❌ Upload failed:", xhr.status, xhr.responseText);
+          reject(new Error(`Upload failed with status ${xhr.status}`));
         }
       });
 
-      // Handle upload completion
-      const uploadPromise = new Promise<any>((resolve, reject) => {
-        xhr.addEventListener("load", () => {
-          if (xhr.status === 200) {
-            try {
-              const response = JSON.parse(xhr.responseText);
-              console.log("✅ Upload successful:", response);
-              resolve(response);
-            } catch (e) {
-              console.error("❌ Failed to parse response:", xhr.responseText);
-              reject(new Error("Invalid response from server"));
-            }
-          } else {
-            console.error("❌ Upload failed with status:", xhr.status);
-            console.error("Response:", xhr.responseText);
-            
-            try {
-              const errorResponse = JSON.parse(xhr.responseText);
-              const errorMessage = errorResponse.error || "Upload failed";
-              reject(new Error(errorMessage));
-            } catch (e) {
-              reject(new Error(`Upload failed with status ${xhr.status}`));
-            }
-          }
-        });
+      xhr.addEventListener("error", () => reject(new Error("Network error")));
+      xhr.addEventListener("abort", () => reject(new Error("Upload cancelled")));
+      xhr.addEventListener("timeout", () => reject(new Error("Upload timeout")));
+    });
 
-        xhr.addEventListener("error", () => {
-          console.error("❌ Network error during upload");
-          reject(new Error("Network error. Check your internet connection."));
-        });
+    // ✅ Upload directly to Cloudinary (bypasses Next.js server)
+    xhr.open("POST", `https://api.cloudinary.com/v1_1/${uploadConfig.cloudName}/video/upload`);
+    xhr.timeout = 600000; // 10 minutes
+    xhr.send(formData);
 
-        xhr.addEventListener("abort", () => {
-          console.error("❌ Upload cancelled");
-          reject(new Error("Upload cancelled"));
-        });
+    const result = await uploadPromise;
 
-        xhr.addEventListener("timeout", () => {
-          console.error("❌ Upload timeout");
-          reject(new Error("Upload timeout. File might be too large or connection too slow."));
-        });
-      });
+    onUpdate({
+      videoUrl: result.secure_url,
+      videoDuration: (result.duration || metadata.duration).toString(),
+      videoSize: (result.bytes || metadata.size).toString(),
+    });
 
-      xhr.open("POST", "/api/upload/video");
-      xhr.timeout = 300000; // 5 minutes timeout
-      xhr.send(formData);
-
-      const result = await uploadPromise;
-
-      // Update lesson with video data
-      onUpdate({
-        videoUrl: result.secure_url,
-        videoDuration: (result.duration || metadata.duration).toString(),
-        videoSize: (result.bytes || metadata.size).toString(),
-      });
-
-      setIsUploadingVideo(false);
-      setUploadProgress(100);
-      setUploadError("");
-      setUploadSpeed("");
-      
-      // Clean up blob URL
-      URL.revokeObjectURL(video.src);
-      
-      console.log("✅ Video upload complete");
-      
-    } catch (error) {
-      console.error("❌ Error uploading video:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to upload video";
-      setUploadError(errorMessage);
-      alert(`Upload Failed: ${errorMessage}`);
-      setIsUploadingVideo(false);
-      setUploadProgress(0);
-      setUploadSpeed("");
-    }
-  };
+    setIsUploadingVideo(false);
+    setUploadProgress(100);
+    URL.revokeObjectURL(video.src);
+    
+    console.log("✅ Video upload complete");
+    
+  } catch (error) {
+    console.error("❌ Error uploading video:", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to upload video";
+    setUploadError(errorMessage);
+    alert(`Upload Failed: ${errorMessage}`);
+    setIsUploadingVideo(false);
+    setUploadProgress(0);
+    setUploadSpeed("");
+  }
+};
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
