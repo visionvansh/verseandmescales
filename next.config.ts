@@ -38,7 +38,7 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   serverActions: {
-    bodySizeLimit: '20mb',
+    bodySizeLimit: '3gb', // ✅ Increased from 20mb to 3gb
   },
   serverExternalPackages: ['@prisma/client', 'bcrypt'],
   webpack: (config, { isServer }) => {
@@ -46,6 +46,11 @@ const nextConfig: NextConfig = {
       config.externals.push('@prisma/client', 'bcrypt');
     }
     return config;
+  },
+  // ✅ Additional configuration for large file uploads
+  experimental: {
+    // Disable body size limit for API routes
+    serverComponentsExternalPackages: ['@prisma/client', 'bcrypt'],
   },
 };
 

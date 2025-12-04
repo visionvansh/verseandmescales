@@ -46,12 +46,15 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
   const [expandResources, setExpandResources] = useState(false);
   const [openResourceMenu, setOpenResourceMenu] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string>("");
+  const [uploadSpeed, setUploadSpeed] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadStartTimeRef = useRef<number>(0);
+  const uploadedBytesRef = useRef<number>(0);
 
   // Format file size
-  const formatFileSize = (bytes: string): string => {
+  const formatFileSize = (bytes: string | number): string => {
     if (!bytes) return "";
-    const size = parseInt(bytes);
+    const size = typeof bytes === 'string' ? parseInt(bytes) : bytes;
     if (size === 0) return "0 Bytes";
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
@@ -60,9 +63,9 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
   };
 
   // Format duration
-  const formatDuration = (seconds: string): string => {
+  const formatDuration = (seconds: string | number): string => {
     if (!seconds) return "";
-    const sec = parseInt(seconds);
+    const sec = typeof seconds === 'string' ? parseInt(seconds) : seconds;
     const hours = Math.floor(sec / 3600);
     const minutes = Math.floor((sec % 3600) / 60);
     const secs = sec % 60;
@@ -73,6 +76,13 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
     return `${minutes}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Calculate upload speed
+  const calculateUploadSpeed = (uploadedBytes: number, elapsedTime: number): string => {
+    if (elapsedTime === 0) return "";
+    const bytesPerSecond = uploadedBytes / (elapsedTime / 1000);
+    return formatFileSize(bytesPerSecond) + "/s";
+  };
+
   const handleVideoUpload = async (file: File) => {
     // Validate file type
     if (!file.type.startsWith("video/")) {
@@ -81,33 +91,24 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
       return;
     }
 
-    // Check file size (2GB limit)
-    const maxSize = 2 * 1024 * 1024 * 1024; // 2GB in bytes
+    // Check file size (3GB limit)
+    const maxSize = 3 * 1024 * 1024 * 1024; // 3GB in bytes
     if (file.size > maxSize) {
-      setUploadError("File size exceeds 2GB limit");
-      alert("File size exceeds 2GB limit");
-      return;
-    }
-
-    // Validate environment variables
-    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-
-    if (!cloudName || !uploadPreset) {
-      console.error("Missing Cloudinary credentials:", {
-        cloudName: cloudName ? "✓" : "✗",
-        uploadPreset: uploadPreset ? "✓" : "✗"
-      });
-      setUploadError("Cloudinary configuration missing. Please check environment variables.");
-      alert("Cloudinary configuration error. Check console for details.");
+      setUploadError("File size exceeds 3GB limit");
+      alert("File size exceeds 3GB limit. Maximum allowed size is 3GB.");
       return;
     }
 
     setIsUploadingVideo(true);
     setUploadProgress(0);
     setUploadError("");
+    setUploadSpeed("");
+    uploadStartTimeRef.current = Date.now();
+    uploadedBytesRef.current = 0;
 
     try {
+      console.log(`📤 Starting upload: ${file.name} (${formatFileSize(file.size)})`);
+
       // Extract video metadata first
       const video = document.createElement("video");
       video.preload = "metadata";
@@ -130,12 +131,12 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
 
       const metadata = await metadataPromise;
 
-      // Upload to Cloudinary using XMLHttpRequest for progress tracking
+      // Create FormData for upload
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("upload_preset", uploadPreset);
-      formData.append("folder", "course-videos"); // Optional: organize uploads
+      formData.append("folder", "course-videos");
 
+      // Upload using XMLHttpRequest for progress tracking
       const xhr = new XMLHttpRequest();
 
       // Track upload progress
@@ -143,17 +144,25 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
         if (e.lengthComputable) {
           const progress = Math.round((e.loaded / e.total) * 100);
           setUploadProgress(progress);
+          
+          // Calculate upload speed
+          uploadedBytesRef.current = e.loaded;
+          const elapsedTime = Date.now() - uploadStartTimeRef.current;
+          const speed = calculateUploadSpeed(e.loaded, elapsedTime);
+          setUploadSpeed(speed);
+          
+          console.log(`📊 Progress: ${progress}% (${formatFileSize(e.loaded)} / ${formatFileSize(e.total)}) - ${speed}`);
         }
       });
 
       // Handle upload completion
-      const uploadPromise = new Promise<string>((resolve, reject) => {
+      const uploadPromise = new Promise<any>((resolve, reject) => {
         xhr.addEventListener("load", () => {
           if (xhr.status === 200) {
             try {
               const response = JSON.parse(xhr.responseText);
               console.log("✅ Upload successful:", response);
-              resolve(response.secure_url);
+              resolve(response);
             } catch (e) {
               console.error("❌ Failed to parse response:", xhr.responseText);
               reject(new Error("Invalid response from server"));
@@ -164,7 +173,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
             
             try {
               const errorResponse = JSON.parse(xhr.responseText);
-              const errorMessage = errorResponse.error?.message || "Upload failed";
+              const errorMessage = errorResponse.error || "Upload failed";
               reject(new Error(errorMessage));
             } catch (e) {
               reject(new Error(`Upload failed with status ${xhr.status}`));
@@ -181,26 +190,30 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
           console.error("❌ Upload cancelled");
           reject(new Error("Upload cancelled"));
         });
+
+        xhr.addEventListener("timeout", () => {
+          console.error("❌ Upload timeout");
+          reject(new Error("Upload timeout. File might be too large or connection too slow."));
+        });
       });
 
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
-      console.log("📤 Uploading to:", uploadUrl);
-      
-      xhr.open("POST", uploadUrl);
+      xhr.open("POST", "/api/upload/video");
+      xhr.timeout = 300000; // 5 minutes timeout
       xhr.send(formData);
 
-      const cloudinaryUrl = await uploadPromise;
+      const result = await uploadPromise;
 
-      // Update lesson with Cloudinary URL and metadata
+      // Update lesson with video data
       onUpdate({
-        videoUrl: cloudinaryUrl,
-        videoDuration: metadata.duration.toString(),
-        videoSize: metadata.size.toString(),
+        videoUrl: result.secure_url,
+        videoDuration: (result.duration || metadata.duration).toString(),
+        videoSize: (result.bytes || metadata.size).toString(),
       });
 
       setIsUploadingVideo(false);
-      setUploadProgress(0);
+      setUploadProgress(100);
       setUploadError("");
+      setUploadSpeed("");
       
       // Clean up blob URL
       URL.revokeObjectURL(video.src);
@@ -214,6 +227,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
       alert(`Upload Failed: ${errorMessage}`);
       setIsUploadingVideo(false);
       setUploadProgress(0);
+      setUploadSpeed("");
     }
   };
 
@@ -420,16 +434,26 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
                 <p className="text-xs xs:text-sm text-gray-500 mt-1">
                   Drag and drop your video or click to browse
                 </p>
+                {uploadSpeed && (
+                  <p className="text-xs text-green-400 mt-1">
+                    Speed: {uploadSpeed}
+                  </p>
+                )}
               </div>
 
               {isUploadingVideo && (
-                <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
-                  <motion.div
-                    className="h-full bg-gradient-to-r from-red-600 to-red-500"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${uploadProgress}%` }}
-                    transition={{ duration: 0.3 }}
-                  />
+                <div className="space-y-2">
+                  <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-red-600 to-red-500"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${uploadProgress}%` }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    {uploadProgress}% complete
+                  </p>
                 </div>
               )}
 
@@ -442,7 +466,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, onUpdate }) => {
               </button>
 
               <p className="text-xs text-gray-600 mt-2">
-                Supported formats: MP4, WebM, Ogg (Max 2GB)
+                Supported formats: MP4, WebM, MOV, AVI (Max 3GB)
               </p>
             </div>
           </motion.div>
