@@ -1,3 +1,4 @@
+//Volumes/vision/codes/course/my-app/src/components/custom-homepages/SinDetoxHomepage.tsx
 "use client";
 
 import React from "react";

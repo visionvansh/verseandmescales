@@ -131,48 +131,49 @@ export async function GET(req: NextRequest) {
     }, 0);
 
     // Transform lessons with progress data
-    const transformedLessons = module.lessons.map((lesson: Lesson, index: number) => {
-      const progress = progressMap.get(lesson.id);
-      
-      // Find the index of the first incomplete lesson
-      const firstIncompleteLessonIndex = module.lessons.findIndex((l: Lesson, i: number) => {
-        const lProgress = progressMap.get(l.id);
-        return !lProgress?.isCompleted;
-      });
+   const transformedLessons = module.lessons.map((lesson: Lesson, index: number) => {
+  const progress = progressMap.get(lesson.id);
+  
+  // Find the index of the first incomplete lesson
+  const firstIncompleteLessonIndex = module.lessons.findIndex((l: Lesson, i: number) => {
+    const lProgress = progressMap.get(l.id);
+    return !lProgress?.isCompleted;
+  });
 
-      // Lock logic: 
-      // - First lesson is always unlocked
-      // - If no lessons completed, only first is unlocked
-      // - Otherwise, lessons up to and including the first incomplete are unlocked
-      let isLocked = false;
-      if (index > 0) {
-        if (completedLessons === 0) {
-          isLocked = true; // Lock all except first if none completed
-        } else if (firstIncompleteLessonIndex !== -1) {
-          isLocked = index > firstIncompleteLessonIndex; // Lock lessons after first incomplete
-        }
-      }
+  // Lock logic
+  let isLocked = false;
+  if (index > 0) {
+    if (completedLessons === 0) {
+      isLocked = true;
+    } else if (firstIncompleteLessonIndex !== -1) {
+      isLocked = index > firstIncompleteLessonIndex;
+    }
+  }
 
-      return {
-        id: lesson.id,
-        title: lesson.title,
-        description: lesson.description,
-        duration: lesson.videoDuration,
-        videoUrl: lesson.videoUrl,
-        isCompleted: progress?.isCompleted || false,
-        progressPercent: progress?.progressPercent || 0,
-        lastPosition: progress?.lastPosition || 0,
-        watchTime: progress?.watchTime || 0,
-        isLocked: isLocked,
-        resources: lesson.resources.map((resource: Resource) => ({
-          name: resource.title,
-          type: resource.fileType,
-          size: resource.fileSize,
-          url: resource.fileUrl,
-        })),
-        transcript: lesson.description || "",
-      };
-    });
+  // ✅ IMPORTANT: If lesson is completed, always show 100% progress
+  const isLessonCompleted = progress?.isCompleted || false;
+  const displayProgressPercent = isLessonCompleted ? 100 : (progress?.progressPercent || 0);
+
+  return {
+    id: lesson.id,
+    title: lesson.title,
+    description: lesson.description,
+    duration: lesson.videoDuration,
+    videoUrl: lesson.videoUrl,
+    isCompleted: isLessonCompleted,
+    progressPercent: displayProgressPercent, // ✅ Always 100 if completed
+    lastPosition: progress?.lastPosition || 0, // ✅ Still track position for resume
+    watchTime: progress?.watchTime || 0,
+    isLocked: isLocked,
+    resources: lesson.resources.map((resource: Resource) => ({
+      name: resource.title,
+      type: resource.fileType,
+      size: resource.fileSize,
+      url: resource.fileUrl,
+    })),
+    transcript: lesson.description || "",
+  };
+});
 
     const transformedData = {
       id: module.id,

@@ -1010,18 +1010,20 @@ export default function LearningPage() {
   }, []);
 
   // Calculate actual combined progress from all videos
-  const actualProgress = useMemo(() => {
-    if (!moduleData?.lessons?.length) return 0;
+const actualProgress = useMemo(() => {
+  if (!moduleData?.lessons?.length) return 0;
 
-    const totalProgress = moduleData.lessons.reduce((sum, lesson) => {
-      const lessonProgress =
-        lesson.progressPercent ?? (lesson.isCompleted ? 100 : 0);
-      return sum + lessonProgress;
-    }, 0);
+  const totalProgress = moduleData.lessons.reduce((sum, lesson) => {
+    // ✅ Completed lessons always count as 100%, regardless of stored progressPercent
+    const lessonProgress = lesson.isCompleted 
+      ? 100 
+      : (lesson.progressPercent ?? 0);
+    return sum + lessonProgress;
+  }, 0);
 
-    const averageProgress = totalProgress / moduleData.lessons.length;
-    return Math.round(averageProgress);
-  }, [moduleData]);
+  const averageProgress = totalProgress / moduleData.lessons.length;
+  return Math.round(averageProgress);
+}, [moduleData]);
 
   // Calculate total watch time from all videos
   const totalWatchTime = useMemo(() => {

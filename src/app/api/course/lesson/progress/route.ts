@@ -32,6 +32,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ✅ First, check if there's existing progress
+    const existingProgress = await prisma.lessonProgress.findUnique({
+      where: {
+        userId_lessonId: {
+          userId: user.id,
+          lessonId: lessonId,
+        },
+      },
+    });
+
+    // ✅ CRITICAL: Once completed, NEVER revert to incomplete
+    const wasAlreadyCompleted = existingProgress?.isCompleted || false;
+    const shouldMarkCompleted = wasAlreadyCompleted || isCompleted || false;
+
+    // ✅ For completed lessons: keep progressPercent at 100, but still track position
+    const finalProgressPercent = wasAlreadyCompleted 
+      ? 100 
+      : (progressPercent || 0);
+
+    // ✅ Keep the higher watch time (cumulative tracking)
+    const finalWatchTime = Math.max(existingProgress?.watchTime || 0, watchTime || 0);
+
     // Upsert lesson progress
     const progress = await prisma.lessonProgress.upsert({
       where: {
@@ -41,11 +63,13 @@ export async function POST(req: NextRequest) {
         },
       },
       update: {
-        watchTime: watchTime || 0,
-        progressPercent: progressPercent || 0,
-        lastPosition: lastPosition || 0,
-        isCompleted: isCompleted || false,
-        completedAt: isCompleted ? new Date() : undefined,
+        watchTime: finalWatchTime,
+        progressPercent: finalProgressPercent,
+        lastPosition: lastPosition || 0, // ✅ Always update position for resume functionality
+        isCompleted: shouldMarkCompleted, // ✅ Never goes from true to false
+        completedAt: shouldMarkCompleted && !existingProgress?.completedAt 
+          ? new Date() 
+          : existingProgress?.completedAt, // ✅ Keep original completion date
         lastWatchedAt: new Date(),
       },
       create: {
@@ -57,7 +81,7 @@ export async function POST(req: NextRequest) {
         progressPercent: progressPercent || 0,
         lastPosition: lastPosition || 0,
         isCompleted: isCompleted || false,
-        completedAt: isCompleted ? new Date() : undefined,
+        completedAt: isCompleted ? new Date() : null,
         lastWatchedAt: new Date(),
       },
     });
@@ -66,6 +90,7 @@ export async function POST(req: NextRequest) {
       {
         success: true,
         progress: progress,
+        wasAlreadyCompleted, // ✅ Let frontend know if it was already complete
       },
       { status: 200 }
     );

@@ -109,7 +109,7 @@ NotEnrolledPage.displayName = 'NotEnrolledPage';
 // ============================================
 
 /**
- * Format duration from seconds to readable format
+ * ✅ FIXED: Format duration from seconds to readable format (same as /learning)
  * Automatically converts 60+ seconds to minutes and 60+ minutes to hours
  */
 const formatDuration = (seconds: string | number | undefined): string => {
@@ -166,12 +166,7 @@ const calculateTotalDuration = (lessons: any[]): number => {
   }, 0);
   
   // Round final total
-  const roundedTotal = Math.round(total);
-  
-  console.log('📊 Total duration calculated:', roundedTotal, 'seconds from', lessons.length, 'lessons');
-  console.log('   Formatted:', formatDuration(roundedTotal));
-  
-  return roundedTotal;
+  return Math.round(total);
 };
 
 /**
@@ -393,7 +388,6 @@ export default function CourseInsidePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [bookmarkedModules, setBookmarkedModules] = useState<Set<string>>(new Set());
 
-  // ✅ ADD THIS STATE
   const [enrollmentStatus, setEnrollmentStatus] = useState<{
     checked: boolean;
     enrolled: boolean;
@@ -413,7 +407,6 @@ export default function CourseInsidePage() {
     }
   }, [courseId]);
 
-  // ✅ MODIFIED: Don't redirect, just set state
   const checkEnrollmentAccess = async () => {
     try {
       const response = await fetch(`/api/course/check-enrollment?courseId=${courseId}`, {
@@ -457,12 +450,12 @@ export default function CourseInsidePage() {
       
       console.log('📦 Raw modules data:', data);
       
-      // Transform modules with proper duration handling
+      // ✅ FIXED: Transform modules with proper duration handling (same as /learning)
       const transformedModules = await Promise.all(
         data.map(async (module: any, index: number) => {
           console.log(`🔍 Processing module: ${module.title}`);
           
-          // Process lessons with rounded durations
+          // ✅ Process lessons with rounded durations (store as numbers)
           let lessonsWithProgress = (module.lessons || []).map((lesson: any) => {
             // Parse and round duration to whole seconds
             const rawDuration = typeof lesson.duration === 'string' 
@@ -471,9 +464,16 @@ export default function CourseInsidePage() {
             
             const roundedDuration = Math.round(isNaN(rawDuration) ? 0 : rawDuration);
             
+            console.log(`📹 Lesson: ${lesson.title}`, {
+              rawDuration,
+              roundedDuration,
+              formatted: formatDuration(roundedDuration)
+            });
+            
             return {
               ...lesson,
-              duration: roundedDuration, // Store as rounded number
+              duration: roundedDuration, // ✅ Store as number (seconds)
+              durationFormatted: formatDuration(roundedDuration), // ✅ Add formatted version
               isCompleted: false,
               progressPercent: 0,
               watchTime: 0,
@@ -483,7 +483,7 @@ export default function CourseInsidePage() {
           console.log('📝 Processed lessons:', lessonsWithProgress.map((l: any) => ({
             title: l.title,
             duration: l.duration,
-            formatted: formatDuration(l.duration)
+            formatted: l.durationFormatted
           })));
           
           try {
@@ -509,7 +509,8 @@ export default function CourseInsidePage() {
                   
                   return {
                     ...progressLesson,
-                    duration: roundedDuration, // Store as rounded number
+                    duration: roundedDuration, // ✅ Store as number (seconds)
+                    durationFormatted: formatDuration(roundedDuration), // ✅ Add formatted version
                   };
                 });
               }
@@ -539,7 +540,7 @@ export default function CourseInsidePage() {
             lessons: lessonsWithProgress.map((l: any) => ({
               title: l.title,
               durationSeconds: l.duration,
-              formatted: formatDuration(l.duration)
+              formatted: l.durationFormatted
             }))
           });
 
@@ -553,9 +554,9 @@ export default function CourseInsidePage() {
             progress,
             completedLessons,
             totalLessons,
-            duration: totalDurationFormatted,
-            totalDuration: totalDurationFormatted,
-            durationSeconds: totalDurationSeconds,
+            duration: totalDurationFormatted, // ✅ Formatted string for display
+            totalDuration: totalDurationFormatted, // ✅ Formatted string for display
+            durationSeconds: totalDurationSeconds, // ✅ Raw seconds for calculations
             totalWatchTime,
             isLocked: false,
             isFeatured: index === 0,
@@ -563,10 +564,7 @@ export default function CourseInsidePage() {
             color: "from-red-600 to-red-700",
             skills: module.learningOutcomes || module.skills || [],
             prerequisites: module.prerequisites || [],
-            lessons: lessonsWithProgress.map((lesson: any) => ({
-              ...lesson,
-              durationFormatted: formatDuration(lesson.duration)
-            }))
+            lessons: lessonsWithProgress, // ✅ Already includes durationFormatted
           };
         })
       );
@@ -599,7 +597,7 @@ export default function CourseInsidePage() {
       lessons: (module.lessons || []).map((lesson: any) => ({
         id: lesson.id,
         title: lesson.title,
-        duration: lesson.durationFormatted || formatDuration(lesson.duration),
+        duration: lesson.durationFormatted || formatDuration(lesson.duration), // ✅ Use formatted version
         moduleId: module.id,
         moduleTitle: module.title,
         videoUrl: lesson.videoUrl || lesson.video || '',
@@ -650,7 +648,7 @@ export default function CourseInsidePage() {
 
   const featuredModules = useMemo(() => modules.filter(m => m.isFeatured), [modules]);
 
-  // ✅ ADD THIS: Show not enrolled page
+  // Show not enrolled page
   if (enrollmentStatus.checked && !enrollmentStatus.enrolled && !enrollmentStatus.isOwner) {
     return <NotEnrolledPage courseId={courseId || ''} />;
   }
@@ -951,10 +949,7 @@ export default function CourseInsidePage() {
                 </div>
               </section>
 
-              {/* ============================================ */}
-              {/* ✅ RATINGS & REVIEWS SECTION */}
-              {/* Only show after user has made progress or completed some content */}
-              {/* ============================================ */}
+              {/* RATINGS & REVIEWS SECTION */}
               {courseId && (
                 <section className="relative w-full py-8 sm:py-12 md:py-16">
                   <div className="max-w-6xl mx-auto px-4 sm:px-6">

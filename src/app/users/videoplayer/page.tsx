@@ -1,81 +1,49 @@
+//Volumes/vision/codes/course/my-app/src/app/users/videoplayer/page.tsx
 "use client";
 
 import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  FaPlay,
-  FaPause,
-  FaExpand,
-  FaCompress,
-  FaVolumeMute,
-  FaVolumeUp,
-  FaChevronLeft,
-  FaChevronRight,
-  FaDownload,
-  FaClock,
-  FaCheckCircle,
-  FaArrowLeft,
-  FaBookOpen,
-  FaListUl,
-  FaStar,
-  FaFire,
-  FaLightbulb,
-  FaQuestionCircle,
-  FaComments,
-  FaExclamationTriangle,
-  FaCog,
-  FaTachometerAlt,
-  FaHdd,
+  FaPlay, FaPause, FaExpand, FaCompress, FaVolumeMute, FaVolumeUp,
+  FaChevronLeft, FaChevronRight, FaDownload, FaClock, FaCheckCircle,
+  FaArrowLeft, FaBookOpen, FaListUl, FaStar, FaFire, FaLightbulb,
+  FaQuestionCircle, FaComments, FaExclamationTriangle, FaCog, FaTachometerAlt, FaHdd, FaYoutube
 } from 'react-icons/fa';
 
 import { VideoPlayerQuestionModal } from '@/components/courseinside/VideoPlayerQuestionModal';
 
 // Types
-interface Resource {
-  name: string;
-  type: string;
-  size: string;
-  url: string;
+interface Resource { name: string; type: string; size: string; url: string; }
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: (() => void) | undefined;
+  }
 }
 
-interface Note {
-  id: string;
-  timestamp: string;
-  content: string;
-  createdAt: string;
-}
-
-interface VideoQuality {
-  label: string;
-  value: string;
-  url: string;
-  bitrate?: string;
-}
+interface Note { id: string; timestamp: string; content: string; createdAt: string; }
+interface VideoQuality { label: string; value: string; url?: string; bitrate?: string; }
 
 interface Lesson {
-  id: string;
-  title: string;
-  description: string;
-  duration: string;
-  videoUrl: string;
-  videoQualities?: VideoQuality[];
-  isCompleted: boolean;
-  progressPercent?: number;
-  lastPosition?: number;
-  watchTime?: number;
-  resources: Resource[];
-  transcript: string;
-  keyTakeaways: string[];
-  relatedLessons: { id: string; title: string }[];
-  module: { id: string; title: string };
-  course: { id: string; title: string };
+  videoType: string; id: string; title: string; description: string;
+  duration: string; videoUrl: string; videoQualities?: VideoQuality[];
+  isCompleted: boolean; progressPercent?: number; lastPosition?: number;
+  watchTime?: number; resources: Resource[]; transcript: string;
+  keyTakeaways: string[]; relatedLessons: { id: string; title: string }[];
+  module: { id: string; title: string }; course: { id: string; title: string };
 }
+
+// Helper Functions
+const getYoutubeId = (url: string) => {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url?.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+};
 
 // [NotEnrolledPage component]
 const NotEnrolledPage = memo(({ courseId }: { courseId: string }) => {
   const router = useRouter();
-  
   return (
     <div className="relative w-full min-h-screen overflow-x-hidden mt-16 sm:mt-20">
       <div className="relative z-10">
@@ -148,31 +116,20 @@ const Skeleton = memo(({ className = "", animate = true }: { className?: string;
 ));
 Skeleton.displayName = 'Skeleton';
 
-// Video Loading Skeleton - replaces spinner
 const VideoLoadingSkeleton = memo(() => (
   <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 overflow-hidden rounded-lg sm:rounded-xl lg:rounded-2xl">
-    {/* Skeleton overlay with shimmer effect */}
     <div className="absolute inset-0 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 skeleton-shimmer" />
-    
-    {/* Center play button skeleton */}
     <div className="relative z-10 flex flex-col items-center gap-4">
       <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gray-700/50 skeleton-pulse flex items-center justify-center">
         <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-600/50 rounded skeleton-pulse" />
       </div>
-      
-      {/* Loading text skeleton */}
       <div className="flex flex-col items-center gap-2">
         <div className="h-3 w-24 bg-gray-700/50 rounded skeleton-pulse" />
         <div className="h-2 w-16 bg-gray-700/30 rounded skeleton-pulse" />
       </div>
     </div>
-    
-    {/* Bottom controls skeleton */}
     <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
-      {/* Progress bar skeleton */}
       <div className="h-1 w-full bg-gray-700/50 rounded-full mb-3 skeleton-pulse" />
-      
-      {/* Controls skeleton */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="w-8 h-8 bg-gray-700/50 rounded-lg skeleton-pulse" />
@@ -189,11 +146,9 @@ const VideoLoadingSkeleton = memo(() => (
 ));
 VideoLoadingSkeleton.displayName = 'VideoLoadingSkeleton';
 
-// Quality Change Skeleton - simpler version for quality switching
 const QualityChangeSkeleton = memo(() => (
   <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50 overflow-hidden rounded-lg sm:rounded-xl lg:rounded-2xl backdrop-blur-sm">
     <div className="flex flex-col items-center gap-3">
-      {/* Skeleton bars representing video loading */}
       <div className="flex items-end gap-1">
         <div className="w-2 h-4 bg-gray-600/60 rounded skeleton-pulse" style={{ animationDelay: '0ms' }} />
         <div className="w-2 h-6 bg-gray-600/60 rounded skeleton-pulse" style={{ animationDelay: '100ms' }} />
@@ -201,8 +156,6 @@ const QualityChangeSkeleton = memo(() => (
         <div className="w-2 h-5 bg-gray-600/60 rounded skeleton-pulse" style={{ animationDelay: '300ms' }} />
         <div className="w-2 h-7 bg-gray-600/60 rounded skeleton-pulse" style={{ animationDelay: '400ms' }} />
       </div>
-      
-      {/* Text skeleton */}
       <div className="h-3 w-28 bg-gray-700/50 rounded skeleton-pulse" />
     </div>
   </div>
@@ -348,9 +301,14 @@ const VideoPlayerPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const lessonId = searchParams.get('lessonId');
+  
+  // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
+  const youtubePlayerRef = useRef<any>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  const progressSaveInterval = useRef<NodeJS.Timeout | undefined>(undefined);
 
+  // State
   const [lessonData, setLessonData] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -371,430 +329,205 @@ const VideoPlayerPage = () => {
   const [isSavingProgress, setIsSavingProgress] = useState(false);
   const [isMarkedComplete, setIsMarkedComplete] = useState(false);
   const [isRestoringPosition, setIsRestoringPosition] = useState(false);
-
+  
+  // Quality & Controls
   const [availableQualities, setAvailableQualities] = useState<VideoQuality[]>([]);
   const [currentQuality, setCurrentQuality] = useState<string>('auto');
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [isChangingQuality, setIsChangingQuality] = useState(false);
-
   const [isVideoLoading, setIsVideoLoading] = useState(true);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [videoError, setVideoError] = useState(false);
-
   const [showControls, setShowControls] = useState(true);
   const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null);
 
+  // Questions
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [roomId, setRoomId] = useState<string>("");
 
-  const [enrollmentStatus, setEnrollmentStatus] = useState<{
-    checked: boolean;
-    enrolled: boolean;
-    isOwner: boolean;
-    courseId: string | null;
-  }>({
-    checked: false,
-    enrolled: false,
-    isOwner: false,
-    courseId: null,
-  });
+  // YouTube specific
+  const [isYoutube, setIsYoutube] = useState(false);
+  const [youtubeId, setYoutubeId] = useState<string | null>(null);
 
-  const progressSaveInterval = useRef<NodeJS.Timeout | undefined>(undefined);
+  // Enrollment
+  const [enrollmentStatus, setEnrollmentStatus] = useState({ checked: false, enrolled: false, isOwner: false, courseId: null as string | null });
 
-  useEffect(() => {
-    if (lessonId) {
-      fetchLessonDataUpdated();
-    } else {
-      setError("No lesson ID provided");
-      setLoading(false);
-    }
-  }, [lessonId]);
-
+  // --- Enrollment Check ---
   const checkEnrollmentAccess = useCallback(async (courseId: string) => {
     try {
-      const response = await fetch(`/api/course/check-enrollment?courseId=${courseId}`, {
-        credentials: 'include',
-      });
-
+      const response = await fetch(`/api/course/check-enrollment?courseId=${courseId}`, { credentials: 'include' });
       if (!response.ok) {
-        setEnrollmentStatus({ 
-          checked: true, 
-          enrolled: false, 
-          isOwner: false,
-          courseId 
-        });
+        setEnrollmentStatus({ checked: true, enrolled: false, isOwner: false, courseId });
         return false;
       }
-
       const data = await response.json();
-      
       const hasAccess = data.enrolled || data.isOwner;
-      setEnrollmentStatus({
-        checked: true,
-        enrolled: data.enrolled || false,
-        isOwner: data.isOwner || false,
-        courseId
-      });
-
+      setEnrollmentStatus({ checked: true, enrolled: data.enrolled || false, isOwner: data.isOwner || false, courseId });
       return hasAccess;
     } catch (error) {
-      console.error('Enrollment check failed:', error);
-      setEnrollmentStatus({ 
-        checked: true, 
-        enrolled: false, 
-        isOwner: false,
-        courseId 
-      });
+      setEnrollmentStatus({ checked: true, enrolled: false, isOwner: false, courseId });
       return false;
     }
   }, []);
 
-  const fetchLessonDataUpdated = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // --- Load Lesson Data ---
+  useEffect(() => {
+    if (lessonId) fetchLessonDataUpdated();
+    else { setError("No lesson ID provided"); setLoading(false); }
+  }, [lessonId]);
 
-      const response = await fetch(`/api/course/video?lessonId=${lessonId}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch lesson data');
-      }
+const fetchLessonDataUpdated = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+    const response = await fetch(`/api/course/video?lessonId=${lessonId}`);
+    if (!response.ok) throw new Error('Failed to fetch lesson data');
+    const data = await response.json();
 
-      const data = await response.json();
-      
-      if (data.course?.id) {
-        const hasAccess = await checkEnrollmentAccess(data.course.id);
-        if (!hasAccess) {
-          setLoading(false);
-          return;
-        }
-      }
-      
-      setLessonData(data);
-
-      const qualities = parseVideoQualities(data.videoUrl);
-      setAvailableQualities(qualities);
-      
-      if (data.watchTime > 0) {
-        setWatchTime(data.watchTime);
-      }
-      if (data.progressPercent > 0) {
-        setProgress(data.progressPercent);
-      }
-      setIsMarkedComplete(data.isCompleted);
-      
-    } catch (err) {
-      console.error('Error fetching lesson:', err);
-      setError('Failed to load lesson data');
-    } finally {
-      setLoading(false);
+    if (data.course?.id) {
+      const hasAccess = await checkEnrollmentAccess(data.course.id);
+      if (!hasAccess) { setLoading(false); return; }
     }
-  };
+    
+    setLessonData(data);
+    
+    // ✅ Parse duration (data.duration is already in seconds from API)
+    const durationSeconds = parseInt(data.duration) || 0;
+    setVideoDurationSeconds(durationSeconds);
+    setDuration(formatTime(durationSeconds));
+    
+    // Determine Player Type
+    const ytId = getYoutubeId(data.videoUrl);
+    if (ytId) {
+      setIsYoutube(true);
+      setYoutubeId(ytId);
+    } else {
+      setIsYoutube(false);
+      setAvailableQualities(parseVideoQualities(data.videoUrl));
+    }
+
+    if (data.watchTime > 0) setWatchTime(data.watchTime);
+    if (data.progressPercent > 0) setProgress(data.progressPercent);
+    setIsMarkedComplete(data.isCompleted);
+    
+  } catch (err) {
+    console.error(err);
+    setError('Failed to load lesson data');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const parseVideoQualities = (videoUrl: string): VideoQuality[] => {
+    // Check if it's a Cloudinary URL
     if (videoUrl.includes('cloudinary.com')) {
       const baseUrl = videoUrl.split('/upload/')[0] + '/upload/';
       const videoPath = videoUrl.split('/upload/')[1];
       
       return [
-        {
-          label: 'Auto',
-          value: 'auto',
-          url: videoUrl,
-        },
-        {
-          label: '1080p',
-          value: '1080',
-          url: `${baseUrl}q_auto,h_1080/${videoPath}`,
-          bitrate: '~5 Mbps'
-        },
-        {
-          label: '720p',
-          value: '720',
-          url: `${baseUrl}q_auto,h_720/${videoPath}`,
-          bitrate: '~2.5 Mbps'
-        },
-        {
-          label: '480p',
-          value: '480',
-          url: `${baseUrl}q_auto,h_480/${videoPath}`,
-          bitrate: '~1 Mbps'
-        },
-        {
-          label: '360p',
-          value: '360',
-          url: `${baseUrl}q_auto,h_360/${videoPath}`,
-          bitrate: '~0.5 Mbps'
-        },
+        { label: 'Auto', value: 'auto', url: videoUrl },
+        { label: '1080p', value: '1080', url: `${baseUrl}q_auto,h_1080/${videoPath}`, bitrate: '~5 Mbps' },
+        { label: '720p', value: '720', url: `${baseUrl}q_auto,h_720/${videoPath}`, bitrate: '~2.5 Mbps' },
+        { label: '480p', value: '480', url: `${baseUrl}q_auto,h_480/${videoPath}`, bitrate: '~1 Mbps' },
+        { label: '360p', value: '360', url: `${baseUrl}q_auto,h_360/${videoPath}`, bitrate: '~0.5 Mbps' },
       ];
     }
-    
-    return [
-      {
-        label: 'Auto',
-        value: 'auto',
-        url: videoUrl,
-      }
-    ];
+    // For static videos or others
+    return [{ label: 'Auto', value: 'auto', url: videoUrl }];
   };
 
-  const changeVideoQuality = useCallback(async (quality: VideoQuality) => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    try {
-      setIsChangingQuality(true);
-      const currentTime = video.currentTime;
-      const wasPlaying = !video.paused;
-
-      video.src = quality.url;
-      video.load();
-
-      await new Promise<void>((resolve) => {
-        const handleCanPlay = () => {
-          video.removeEventListener('canplay', handleCanPlay);
-          resolve();
-        };
-        video.addEventListener('canplay', handleCanPlay);
-      });
-
-      video.currentTime = currentTime;
-      
-      if (wasPlaying) {
-        await video.play();
-      }
-
-      setCurrentQuality(quality.value);
-      setShowQualityMenu(false);
-
-      console.log(`Quality changed to ${quality.label}`);
-    } catch (error) {
-      console.error('Error changing quality:', error);
-    } finally {
-      setIsChangingQuality(false);
-    }
-  }, []);
-
+  // --- YouTube Iframe Loader ---
   useEffect(() => {
-    if (lessonData?.course?.id) {
-      fetchRoomId(lessonData.course.id);
+    if (isYoutube && !window.YT) {
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
     }
-  }, [lessonData?.course?.id]);
+  }, [isYoutube]);
 
-  const fetchRoomId = async (courseId: string) => {
-    try {
-      const response = await fetch(`/api/chat/room?courseId=${courseId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setRoomId(data.roomId);
-      }
-    } catch (error) {
-      console.error('Failed to fetch room ID:', error);
-    }
-  };
-
-  const handleQuestionCreated = (question: any) => {
-    console.log('Question created:', question);
-  };
-
+  // --- Unified Controls ---
   const formatTime = useCallback((seconds: number) => {
-    if (isNaN(seconds) || !isFinite(seconds)) {
-      return "0:00";
-    }
+    if (isNaN(seconds) || !isFinite(seconds)) return "0:00";
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
-  const saveProgress = useCallback(async (forceComplete = false) => {
-    if (!lessonId || !lessonData?.module?.id || !lessonData?.course?.id) return;
-    
-    const currentProgress = Math.round(progress);
-    const shouldMarkComplete = forceComplete || currentProgress >= 90;
-
-    try {
-      setIsSavingProgress(true);
-      
-      const response = await fetch('/api/course/lesson/progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lessonId,
-          moduleId: lessonData.module.id,
-          courseId: lessonData.course.id,
-          watchTime: Math.floor(watchTime),
-          progressPercent: currentProgress,
-          lastPosition: Math.floor(videoCurrentSeconds),
-          isCompleted: shouldMarkComplete,
-        }),
-      });
-
-      if (response.ok) {
-        console.log('Progress saved:', {
-          lastPosition: Math.floor(videoCurrentSeconds),
-          progressPercent: currentProgress,
-          watchTime: Math.floor(watchTime)
-        });
-        
-        if (shouldMarkComplete) {
-          setIsMarkedComplete(true);
-        }
-      }
-    } catch (error) {
-      console.error('Error saving progress:', error);
-    } finally {
-      setIsSavingProgress(false);
-    }
-  }, [lessonId, lessonData, progress, watchTime, videoCurrentSeconds]);
-
-  useEffect(() => {
-    if (isPlaying && lessonId && lessonData) {
-      progressSaveInterval.current = setInterval(() => {
-        saveProgress(false);
-      }, 10000);
-
-      return () => {
-        if (progressSaveInterval.current) {
-          clearInterval(progressSaveInterval.current);
-        }
-      };
-    }
-  }, [isPlaying, lessonId, lessonData, saveProgress]);
-
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (lessonId && lessonData && videoCurrentSeconds > 0) {
-        const data = JSON.stringify({
-          lessonId,
-          moduleId: lessonData.module.id,
-          courseId: lessonData.course.id,
-          watchTime: Math.floor(watchTime),
-          progressPercent: Math.round(progress),
-          lastPosition: Math.floor(videoCurrentSeconds),
-          isCompleted: progress >= 90,
-        });
-        
-        navigator.sendBeacon(
-          '/api/course/lesson/progress',
-          new Blob([data], { type: 'application/json' })
-        );
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden && lessonId && lessonData && videoCurrentSeconds > 0) {
-        saveProgress(false);
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      
-      if (lessonId && lessonData && videoCurrentSeconds > 0) {
-        handleBeforeUnload();
-      }
-    };
-  }, [lessonId, lessonData, progress, watchTime, videoCurrentSeconds, saveProgress]);
-
-  const handleMarkComplete = async () => {
-    await saveProgress(true);
-    
-    setTimeout(() => {
-      if (lessonData?.module?.id) {
-        router.push(`/users/learning?moduleId=${lessonData.module.id}`);
-      }
-    }, 1000);
-  };
-
   const togglePlay = useCallback(() => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        const playPromise = videoRef.current.play();
-        
-        if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              console.log('Video playing successfully');
-              setIsPlaying(true);
-            })
-            .catch((error) => {
-              console.error('Error playing video:', error);
-              if (error.name === 'NotAllowedError') {
-                console.log('Play was prevented - user interaction required');
-              }
-            });
-        } else {
-          setIsPlaying(true);
-        }
-      }
+    if (isYoutube && youtubePlayerRef.current) {
+        if (isPlaying) youtubePlayerRef.current.pauseVideo();
+        else youtubePlayerRef.current.playVideo();
+        setIsPlaying(!isPlaying);
+    } else if (videoRef.current) {
+        if (isPlaying) videoRef.current.pause();
+        else videoRef.current.play();
+        setIsPlaying(!isPlaying);
     }
-  }, [isPlaying]);
+  }, [isPlaying, isYoutube]);
 
   const handleProgressChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newProgress = parseFloat(e.target.value);
     setProgress(newProgress);
-    if (videoRef.current && videoDurationSeconds > 0) {
-      const newTime = (videoDurationSeconds * newProgress) / 100;
-      videoRef.current.currentTime = newTime;
-      setVideoCurrentSeconds(newTime);
-      setCurrentTime(formatTime(newTime));
+    const newTime = (videoDurationSeconds * newProgress) / 100;
+    
+    if (isYoutube && youtubePlayerRef.current) {
+        youtubePlayerRef.current.seekTo(newTime, true);
+    } else if (videoRef.current) {
+        videoRef.current.currentTime = newTime;
     }
-  }, [videoDurationSeconds, formatTime]);
+    setVideoCurrentSeconds(newTime);
+    setCurrentTime(formatTime(newTime));
+  }, [videoDurationSeconds, formatTime, isYoutube]);
 
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    if (videoRef.current) {
-      videoRef.current.volume = newVolume;
-      setIsMuted(newVolume === 0);
+    setIsMuted(newVolume === 0);
+    if (isYoutube && youtubePlayerRef.current) {
+        youtubePlayerRef.current.setVolume(newVolume * 100);
+        if (newVolume === 0) youtubePlayerRef.current.mute();
+        else youtubePlayerRef.current.unMute();
+    } else if (videoRef.current) {
+        videoRef.current.volume = newVolume;
     }
-  }, []);
+  }, [isYoutube]);
 
   const toggleMute = useCallback(() => {
-    if (videoRef.current) {
-      const newMutedState = !isMuted;
-      videoRef.current.muted = newMutedState;
-      setIsMuted(newMutedState);
-      if (newMutedState) {
-        setVolume(0);
-      } else {
-        setVolume(1);
-        videoRef.current.volume = 1;
-      }
-    }
-  }, [isMuted]);
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    const newVol = newMuted ? 0 : 1;
+    setVolume(newVol);
 
-  // Robust Fullscreen Toggle for Mobile (Safari/iOS) & Desktop
+    if (isYoutube && youtubePlayerRef.current) {
+      if (newMuted) youtubePlayerRef.current.mute();
+      else { youtubePlayerRef.current.unMute(); youtubePlayerRef.current.setVolume(100); }
+    } else if (videoRef.current) {
+      videoRef.current.muted = newMuted;
+      videoRef.current.volume = newVol;
+    }
+  }, [isMuted, isYoutube]);
+
   const toggleFullscreen = useCallback(() => {
     const container = videoContainerRef.current;
     const video = videoRef.current;
 
     if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
-      // ENTER Fullscreen
       if (container?.requestFullscreen) {
         container.requestFullscreen().catch(err => {
-            console.warn("Standard requestFullscreen failed, trying fallback:", err);
-            // Fallback for iOS which usually only supports video element fullscreen
-            if (video && (video as any).webkitEnterFullscreen) {
-                (video as any).webkitEnterFullscreen();
-            }
+          console.warn("Standard requestFullscreen failed, trying fallback:", err);
+          if (video && (video as any).webkitEnterFullscreen) {
+            (video as any).webkitEnterFullscreen();
+          }
         });
       } else if (container && (container as any).webkitRequestFullscreen) {
         (container as any).webkitRequestFullscreen();
       } else if (video && (video as any).webkitEnterFullscreen) {
-        // iOS Safari specific
         (video as any).webkitEnterFullscreen();
       }
       setIsFullscreen(true);
     } else {
-      // EXIT Fullscreen
       if (document.exitFullscreen) {
         document.exitFullscreen();
       } else if ((document as any).webkitExitFullscreen) {
@@ -804,55 +537,331 @@ const VideoPlayerPage = () => {
     }
   }, []);
 
-  // Listen for native iOS fullscreen exit
-  useEffect(() => {
-    const video = videoRef.current;
-    const handleWebkitEndFullscreen = () => {
-        setIsFullscreen(false);
-    };
-
-    if (video) {
-        video.addEventListener('webkitendfullscreen', handleWebkitEndFullscreen);
-    }
-    return () => {
-        if (video) {
-            video.removeEventListener('webkitendfullscreen', handleWebkitEndFullscreen);
-        }
-    };
-  }, []);
-
   const changePlaybackSpeed = useCallback((speed: number) => {
     setPlaybackSpeed(speed);
-    if (videoRef.current) {
-      videoRef.current.playbackRate = speed;
+    if (isYoutube && youtubePlayerRef.current) {
+        youtubePlayerRef.current.setPlaybackRate(speed);
+    } else if (videoRef.current) {
+        videoRef.current.playbackRate = speed;
     }
     setShowSpeedMenu(false);
-  }, []);
+  }, [isYoutube]);
 
-  // Auto-hide controls on desktop, tap-to-show on mobile
-  const resetControlsTimeout = useCallback(() => {
-    setShowControls(true);
-    if (controlsTimeout) {
-      clearTimeout(controlsTimeout);
+  // --- Quality Control (New) ---
+  const changeVideoQuality = useCallback(async (quality: VideoQuality) => {
+    try {
+      setIsChangingQuality(true);
+      if (isYoutube && youtubePlayerRef.current) {
+        youtubePlayerRef.current.setPlaybackQuality(quality.value);
+        setCurrentQuality(quality.value);
+        setShowQualityMenu(false);
+      } else if (videoRef.current && quality.url) {
+        const currentTime = videoRef.current.currentTime;
+        const wasPlaying = !videoRef.current.paused;
+        videoRef.current.src = quality.url;
+        videoRef.current.load();
+        videoRef.current.currentTime = currentTime;
+        if(wasPlaying) await videoRef.current.play();
+        setCurrentQuality(quality.value);
+        setShowQualityMenu(false);
+      }
+    } catch (e) {
+      console.error("Quality change failed", e);
+    } finally {
+      setIsChangingQuality(false);
+    }
+  }, [isYoutube]);
+
+  // --- YouTube Event Handlers ---
+  const onPlayerReady = (event: any) => {
+    const durationSec = event.target.getDuration();
+    
+    console.log('🎬 YouTube Player Ready:', {
+      durationSec,
+      formatted: formatTime(durationSec)
+    });
+    
+    if (durationSec && durationSec > 0) {
+      setVideoDurationSeconds(durationSec);
+      setDuration(formatTime(durationSec));
     }
     
-    // Only auto-hide on desktop when playing
-    if (window.innerWidth >= 768 && isPlaying) {
-      const timeout = setTimeout(() => {
-        setShowControls(false);
-      }, 3000);
+    // Stop loading spinner
+    setIsVideoLoading(false); 
+    setIsVideoReady(true);
+
+    // Extract qualities
+    const qualities = event.target.getAvailableQualityLevels();
+    if (qualities && qualities.length > 0) {
+      const formattedQualities = qualities.map((q: string) => ({
+        label: q === 'auto' ? 'Auto' : q.toUpperCase(),
+        value: q,
+        bitrate: q.includes('hd') ? 'HD' : 'SD'
+      }));
+      setAvailableQualities(formattedQualities);
+    }
+
+    // Update duration in backend if we got a valid duration
+    if (durationSec && durationSec > 0) {
+      updateDurationInBackend(durationSec);
+    }
+
+    // Restore position
+    if (lessonData?.lastPosition && lessonData.lastPosition > 0) {
+      console.log('⏩ Restoring YouTube position to:', lessonData.lastPosition);
+      event.target.seekTo(lessonData.lastPosition, true);
+      setVideoCurrentSeconds(lessonData.lastPosition);
+      setCurrentTime(formatTime(lessonData.lastPosition));
+      if (durationSec > 0) {
+        setProgress((lessonData.lastPosition / durationSec) * 100);
+      }
+    }
+  };
+
+  const onPlayerStateChange = (event: any) => {
+    setIsPlaying(event.data === 1); // 1 = Playing
+  };
+
+  // YouTube Polling for Progress - UPDATED
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isYoutube && isPlaying && youtubePlayerRef.current) {
+      interval = setInterval(() => {
+        try {
+          const player = youtubePlayerRef.current;
+          if (!player) return;
+          
+          const curr = player.getCurrentTime();
+          const dur = player.getDuration();
+          
+          if (curr !== undefined && dur && dur > 0) {
+            const newProgress = (curr / dur) * 100;
+            
+            setVideoCurrentSeconds(curr);
+            setCurrentTime(formatTime(curr));
+            setProgress(newProgress);
+            setWatchTime(prev => Math.max(prev, curr)); // Track max watch time
+            
+            // Also update duration if not set
+            if (videoDurationSeconds <= 0) {
+              setVideoDurationSeconds(dur);
+              setDuration(formatTime(dur));
+            }
+          }
+        } catch (e) {
+          console.warn('YouTube polling error:', e);
+        }
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isYoutube, isPlaying, formatTime, videoDurationSeconds]);
+
+  // --- Initialize YouTube Player ---
+  useEffect(() => {
+    if (!isYoutube || !youtubeId) return;
+
+    const createPlayer = () => {
+      if (youtubePlayerRef.current) return;
+      youtubePlayerRef.current = new window.YT.Player('youtube-player', {
+        height: '100%',
+        width: '100%',
+        videoId: youtubeId,
+        playerVars: {
+          'playsinline': 1,
+          'controls': 0,
+          'rel': 0,
+          'modestbranding': 1,
+          'disablekb': 1,
+          'origin': window.location.origin 
+        },
+        events: {
+          'onReady': onPlayerReady,
+          'onStateChange': onPlayerStateChange
+        }
+      });
+    };
+
+    if (window.YT && window.YT.Player) {
+      createPlayer();
+    } else {
+      const existingOnReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (existingOnReady) existingOnReady();
+        createPlayer();
+      };
+    }
+
+    return () => {
+        if (youtubePlayerRef.current && youtubePlayerRef.current.destroy) {
+            try { youtubePlayerRef.current.destroy(); } catch (e) {}
+            youtubePlayerRef.current = null;
+        }
+    };
+  }, [isYoutube, youtubeId]);
+
+  // --- API Calls ---
+  const updateDurationInBackend = async (durationSec: number) => {
+     if(!lessonId || !lessonData) return;
+     try {
+       await fetch('/api/course/lesson/update-metadata', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           lessonId,
+           duration: durationSec.toString(),
+         }),
+       });
+       console.log("✅ Duration updated in backend");
+     } catch (e) {
+       console.warn("Could not auto-update duration", e);
+     }
+  };
+
+  // UPDATED saveProgress function
+  const saveProgress = useCallback(async (forceComplete = false) => {
+  if (!lessonId || !lessonData) return;
+  
+  // For YouTube, get current duration from player if available
+  let currentDuration = videoDurationSeconds;
+  let currentPosition = videoCurrentSeconds;
+  let currentProgress = progress;
+  let currentWatchTime = watchTime;
+  
+  // If YouTube player exists, get fresh values
+  if (isYoutube && youtubePlayerRef.current) {
+    try {
+      const ytDuration = youtubePlayerRef.current.getDuration();
+      const ytCurrentTime = youtubePlayerRef.current.getCurrentTime();
       
-      setControlsTimeout(timeout);
+      if (ytDuration && ytDuration > 0) {
+        currentDuration = ytDuration;
+        currentPosition = ytCurrentTime;
+        currentProgress = (ytCurrentTime / ytDuration) * 100;
+        currentWatchTime = ytCurrentTime;
+      }
+    } catch (e) {
+      console.warn('Could not get YouTube player state:', e);
+    }
+  }
+  
+  // Don't save if we don't have valid duration
+  if (currentDuration <= 0) {
+    console.warn('⚠️ Cannot save progress: Invalid duration');
+    return;
+  }
+  
+  console.log('💾 Saving progress:', {
+    lessonId,
+    isYoutube,
+    watchTime: Math.floor(currentWatchTime),
+    progressPercent: Math.round(currentProgress),
+    lastPosition: Math.floor(currentPosition),
+    totalDuration: Math.floor(currentDuration),
+    forceComplete,
+    isAlreadyMarkedComplete: isMarkedComplete // ✅ Track if already complete
+  });
+  
+  try {
+    setIsSavingProgress(true);
+    const response = await fetch('/api/course/lesson/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lessonId,
+        moduleId: lessonData.module.id,
+        courseId: lessonData.course.id,
+        watchTime: Math.floor(currentWatchTime),
+        progressPercent: Math.round(currentProgress),
+        lastPosition: Math.floor(currentPosition),
+        isCompleted: forceComplete || currentProgress >= 90,
+        totalDuration: Math.floor(currentDuration)
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Failed to save progress:', errorData);
+    } else {
+      const data = await response.json();
+      console.log('✅ Progress saved successfully:', data);
+      
+      // ✅ Update local state based on server response
+      if (data.progress?.isCompleted) {
+        setIsMarkedComplete(true);
+      }
+      
+      // ✅ Update progress display if server says it was already complete
+      if (data.progress?.wasAlreadyCompleted) {
+        setProgress(100); // Keep showing 100% for completed videos
+      }
+    }
+  } catch (e) { 
+    console.error('❌ Error saving progress:', e); 
+  } finally { 
+    setIsSavingProgress(false); 
+  }
+}, [lessonId, lessonData, progress, watchTime, videoCurrentSeconds, videoDurationSeconds, isYoutube, isMarkedComplete]);
+
+  // UPDATED auto-save interval
+  useEffect(() => {
+    if (isPlaying && (videoDurationSeconds > 0 || isYoutube)) {
+      progressSaveInterval.current = setInterval(() => {
+        saveProgress(false);
+      }, 10000); // Save every 10 seconds
+      
+      return () => {
+        if (progressSaveInterval.current) {
+          clearInterval(progressSaveInterval.current);
+        }
+      };
+    }
+  }, [isPlaying, saveProgress, videoDurationSeconds, isYoutube]);
+
+  // Add cleanup to save progress when leaving the page
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Sync save on page leave
+      if (lessonId && lessonData && (progress > 0 || watchTime > 0)) {
+        // Use sendBeacon for reliable save on page leave
+        const data = JSON.stringify({
+          lessonId,
+          moduleId: lessonData.module.id,
+          courseId: lessonData.course.id,
+          watchTime: Math.floor(watchTime),
+          progressPercent: Math.round(progress),
+          lastPosition: Math.floor(videoCurrentSeconds),
+          isCompleted: progress >= 90,
+          totalDuration: Math.floor(videoDurationSeconds)
+        });
+        
+        navigator.sendBeacon('/api/course/lesson/progress', new Blob([data], { type: 'application/json' }));
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Also save when component unmounts
+      if (lessonId && lessonData && (progress > 0 || watchTime > 0)) {
+        saveProgress(false);
+      }
+    };
+  }, [lessonId, lessonData, progress, watchTime, videoCurrentSeconds, videoDurationSeconds, saveProgress]);
+
+  // --- Video Controls UI Logic ---
+  const resetControlsTimeout = useCallback(() => {
+    setShowControls(true);
+    if (controlsTimeout) clearTimeout(controlsTimeout);
+    if (window.innerWidth >= 768 && isPlaying) {
+      setControlsTimeout(setTimeout(() => setShowControls(false), 3000));
     }
   }, [isPlaying, controlsTimeout]);
 
-  // Mobile tap to toggle controls
   const handleVideoTap = useCallback((e: React.MouseEvent) => {
-    // Prevent toggling when clicking on controls
     if ((e.target as HTMLElement).closest('.video-controls')) {
       return;
     }
-    
     if (window.innerWidth < 768) {
       setShowControls(prev => !prev);
     }
@@ -865,19 +874,19 @@ const VideoPlayerPage = () => {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     const handleLoadStart = () => {
-      console.log('Video: Load started');
+      console.log('📹 Video: Load started');
       setIsVideoLoading(true);
       setIsVideoReady(false);
       setVideoError(false);
     };
 
     const handleLoadedMetadata = () => {
-      console.log('Video: Metadata loaded');
+      console.log('📹 Video: Metadata loaded');
       if (video.duration && !isNaN(video.duration) && isFinite(video.duration)) {
         const totalSeconds = video.duration;
         setVideoDurationSeconds(totalSeconds);
         setDuration(formatTime(totalSeconds));
-        console.log('Video metadata loaded, duration:', totalSeconds);
+        console.log('⏱️ Video metadata loaded, duration:', totalSeconds);
         
         if (isMobile) {
           setIsVideoLoading(false);
@@ -887,43 +896,42 @@ const VideoPlayerPage = () => {
     };
 
     const handleLoadedData = () => {
-      console.log('Video: Data loaded');
+      console.log('📹 Video: Data loaded');
       setIsVideoLoading(false);
       setIsVideoReady(true);
     };
 
     const handleCanPlay = () => {
-      console.log('Video: Can play');
+      console.log('📹 Video: Can play');
       setIsVideoLoading(false);
       setIsVideoReady(true);
     };
 
     const handleCanPlayThrough = () => {
-      console.log('Video: Can play through');
+      console.log('📹 Video: Can play through');
       setIsVideoLoading(false);
       setIsVideoReady(true);
     };
 
     const handleWaiting = () => {
-      console.log('Video: Waiting/Buffering');
-      // Only show loading if not changing quality (quality change has its own skeleton)
+      console.log('⏳ Video: Waiting/Buffering');
       if (!isChangingQuality) {
         setIsVideoLoading(true);
       }
     };
 
     const handlePlaying = () => {
-      console.log('Video: Playing');
+      console.log('▶️ Video: Playing');
       setIsVideoLoading(false);
       setIsVideoReady(true);
     };
 
     const handleError = (e: Event) => {
-      console.error('Video error:', e);
+      console.error('❌ Video error:', e);
       const videoElement = e.target as HTMLVideoElement;
       if (videoElement.error) {
-        console.error('Video error code:', videoElement.error.code);
-        console.error('Video error message:', videoElement.error.message);
+        console.error('❌ Video error code:', videoElement.error.code);
+        console.error('❌ Video error message:', videoElement.error.message);
       }
       setVideoError(true);
       setIsVideoLoading(false);
@@ -955,77 +963,79 @@ const VideoPlayerPage = () => {
     const handlePause = () => setIsPlaying(false);
 
     const handleStalled = () => {
-      console.log('Video: Stalled');
+      console.log('⚠️ Video: Stalled');
       if (video.readyState < 3) {
-        console.log('Attempting to recover from stall...');
+        console.log('🔄 Attempting to recover from stall...');
         video.load();
       }
     };
 
     const handleSuspend = () => {
-      console.log('Video: Suspended');
+      console.log('⏸️ Video: Suspended');
       if (isMobile && video.readyState >= 1) {
         setIsVideoLoading(false);
         setIsVideoReady(true);
       }
     };
 
-    video.addEventListener('loadstart', handleLoadStart);
-    video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    video.addEventListener('loadeddata', handleLoadedData);
-    video.addEventListener('canplay', handleCanPlay);
-    video.addEventListener('canplaythrough', handleCanPlayThrough);
-    video.addEventListener('waiting', handleWaiting);
-    video.addEventListener('playing', handlePlaying);
-    video.addEventListener('error', handleError);
-    video.addEventListener('timeupdate', handleTimeUpdate);
-    video.addEventListener('ended', handleEnded);
-    video.addEventListener('play', handlePlay);
-    video.addEventListener('pause', handlePause);
-    video.addEventListener('stalled', handleStalled);
-    video.addEventListener('suspend', handleSuspend);
+    if (!isYoutube) {
+      video.addEventListener('loadstart', handleLoadStart);
+      video.addEventListener('loadedmetadata', handleLoadedMetadata);
+      video.addEventListener('loadeddata', handleLoadedData);
+      video.addEventListener('canplay', handleCanPlay);
+      video.addEventListener('canplaythrough', handleCanPlayThrough);
+      video.addEventListener('waiting', handleWaiting);
+      video.addEventListener('playing', handlePlaying);
+      video.addEventListener('error', handleError);
+      video.addEventListener('timeupdate', handleTimeUpdate);
+      video.addEventListener('ended', handleEnded);
+      video.addEventListener('play', handlePlay);
+      video.addEventListener('pause', handlePause);
+      video.addEventListener('stalled', handleStalled);
+      video.addEventListener('suspend', handleSuspend);
 
-    if (video.readyState === 0) {
-      console.log('Forcing video load...');
-      video.load();
-    }
-
-    if (video.readyState >= 1) {
-      handleLoadedMetadata();
-    }
-    if (video.readyState >= 2) {
-      handleLoadedData();
-    }
-    if (video.readyState >= 3) {
-      handleCanPlay();
-    }
-
-    const mobileTimeout = setTimeout(() => {
-      if (isMobile && !isVideoReady && !videoError) {
-        console.log('Mobile timeout: Marking video as ready');
-        setIsVideoLoading(false);
-        setIsVideoReady(true);
+      if (video.readyState === 0) {
+        console.log('🔄 Forcing video load...');
+        video.load();
       }
-    }, 3000);
 
-    return () => {
-      clearTimeout(mobileTimeout);
-      video.removeEventListener('loadstart', handleLoadStart);
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      video.removeEventListener('loadeddata', handleLoadedData);
-      video.removeEventListener('canplay', handleCanPlay);
-      video.removeEventListener('canplaythrough', handleCanPlayThrough);
-      video.removeEventListener('waiting', handleWaiting);
-      video.removeEventListener('playing', handlePlaying);
-      video.removeEventListener('error', handleError);
-      video.removeEventListener('timeupdate', handleTimeUpdate);
-      video.removeEventListener('ended', handleEnded);
-      video.removeEventListener('play', handlePlay);
-      video.removeEventListener('pause', handlePause);
-      video.removeEventListener('stalled', handleStalled);
-      video.removeEventListener('suspend', handleSuspend);
-    };
-  }, [formatTime, isPlaying, saveProgress, isVideoReady, videoError, isChangingQuality]);
+      if (video.readyState >= 1) {
+        handleLoadedMetadata();
+      }
+      if (video.readyState >= 2) {
+        handleLoadedData();
+      }
+      if (video.readyState >= 3) {
+        handleCanPlay();
+      }
+
+      const mobileTimeout = setTimeout(() => {
+        if (isMobile && !isVideoReady && !videoError) {
+          console.log('📱 Mobile timeout: Marking video as ready');
+          setIsVideoLoading(false);
+          setIsVideoReady(true);
+        }
+      }, 3000);
+
+      return () => {
+        clearTimeout(mobileTimeout);
+        video.removeEventListener('loadstart', handleLoadStart);
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        video.removeEventListener('loadeddata', handleLoadedData);
+        video.removeEventListener('canplay', handleCanPlay);
+        video.removeEventListener('canplaythrough', handleCanPlayThrough);
+        video.removeEventListener('waiting', handleWaiting);
+        video.removeEventListener('playing', handlePlaying);
+        video.removeEventListener('error', handleError);
+        video.removeEventListener('timeupdate', handleTimeUpdate);
+        video.removeEventListener('ended', handleEnded);
+        video.removeEventListener('play', handlePlay);
+        video.removeEventListener('pause', handlePause);
+        video.removeEventListener('stalled', handleStalled);
+        video.removeEventListener('suspend', handleSuspend);
+      };
+    }
+  }, [formatTime, isPlaying, saveProgress, isVideoReady, videoError, isChangingQuality, isYoutube]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1042,8 +1052,7 @@ const VideoPlayerPage = () => {
         
         if (savedPosition > 0 && savedPosition < video.duration && 
             Math.abs(video.currentTime - savedPosition) > 1) {
-          
-          console.log(`Restoring position to ${savedPosition}s`);
+          console.log(`⏩ Restoring position to ${savedPosition}s`);
           setIsRestoringPosition(true);
           
           video.currentTime = savedPosition;
@@ -1073,7 +1082,7 @@ const VideoPlayerPage = () => {
   }, [lessonData?.lastPosition, formatTime, isVideoReady]);
 
   const handleAddNote = useCallback(() => {
-    if (newNote.trim() && videoRef.current) {
+    if (newNote.trim()) {
       const note: Note = {
         id: Date.now().toString(),
         timestamp: currentTime,
@@ -1092,6 +1101,37 @@ const VideoPlayerPage = () => {
   const handleTabChange = useCallback((tab: "resources" | "transcript" | "notes") => {
     setActiveTab(tab);
   }, []);
+
+  useEffect(() => {
+    if (lessonData?.course?.id) {
+      fetchRoomId(lessonData.course.id);
+    }
+  }, [lessonData?.course?.id]);
+
+  const fetchRoomId = async (courseId: string) => {
+    try {
+      const response = await fetch(`/api/chat/room?courseId=${courseId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setRoomId(data.roomId);
+      }
+    } catch (error) {
+      console.error('Failed to fetch room ID:', error);
+    }
+  };
+
+  const handleQuestionCreated = (question: any) => {
+    console.log('Question created:', question);
+  };
+
+  const handleMarkComplete = async () => {
+    await saveProgress(true);
+    setTimeout(() => {
+      if (lessonData?.module?.id) {
+        router.push(`/users/learning?moduleId=${lessonData.module.id}`);
+      }
+    }, 1000);
+  };
 
   if (enrollmentStatus.checked && !enrollmentStatus.enrolled && !enrollmentStatus.isOwner && enrollmentStatus.courseId) {
     return <NotEnrolledPage courseId={enrollmentStatus.courseId} />;
@@ -1161,7 +1201,6 @@ const VideoPlayerPage = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
               {/* Video Section */}
               <div className="lg:col-span-2 w-full">
-                {/* Video Player with Mobile Tap Controls */}
                 <div 
                   ref={videoContainerRef}
                   className="relative bg-black rounded-lg sm:rounded-xl lg:rounded-2xl md:overflow-hidden overflow-visible mb-4 sm:mb-6 group animate-fadeIn w-full border border-red-500/30 aspect-video touch-action-manipulation"
@@ -1170,17 +1209,9 @@ const VideoPlayerPage = () => {
                   onClick={handleVideoTap}
                   style={{ touchAction: 'manipulation' }}
                 >
-                  {/* Quality Change Skeleton Overlay */}
-                  {isChangingQuality && (
-                    <QualityChangeSkeleton />
-                  )}
+                  {isChangingQuality && <QualityChangeSkeleton />}
+                  {isVideoLoading && !videoError && !isChangingQuality && <VideoLoadingSkeleton />}
 
-                  {/* Initial Loading Skeleton Overlay */}
-                  {isVideoLoading && !videoError && !isChangingQuality && (
-                    <VideoLoadingSkeleton />
-                  )}
-
-                  {/* Error State */}
                   {videoError && (
                     <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50 overflow-hidden rounded-lg sm:rounded-xl lg:rounded-2xl">
                       <div className="text-center px-4">
@@ -1201,23 +1232,36 @@ const VideoPlayerPage = () => {
                     </div>
                   )}
 
-                  <video
-                    ref={videoRef}
-                    key={lessonData.videoUrl}
-                    className="w-full h-full bg-black object-contain rounded-lg sm:rounded-xl lg:rounded-2xl"
-                    preload="metadata"
-                    playsInline
-                    webkit-playsinline="true"
-                    crossOrigin="anonymous"
-                    onContextMenu={(e) => e.preventDefault()}
-                  >
-                    <source src={lessonData.videoUrl} type="video/mp4" />
-                    Your browser does not support the video tag.
-                  </video>
+                  {isYoutube ? (
+                    <div id="youtube-player" className="w-full h-full pointer-events-auto" />
+                  ) : lessonData.videoType === 'mega' ? (
+                    <div className="absolute inset-0 bg-black rounded-lg sm:rounded-xl lg:rounded-2xl overflow-hidden">
+                      <iframe
+                        src={lessonData.videoUrl}
+                        className="w-full h-full"
+                        frameBorder="0"
+                        allowFullScreen
+                        allow="autoplay; fullscreen"
+                        title="MEGA Video Player"
+                      />
+                    </div>
+                  ) : (
+                    <video
+                      ref={videoRef}
+                      key={lessonData.videoUrl}
+                      className="w-full h-full bg-black object-contain rounded-lg sm:rounded-xl lg:rounded-2xl"
+                      preload="metadata"
+                      playsInline
+                      webkit-playsinline="true"
+                      crossOrigin="anonymous"
+                      onContextMenu={(e) => e.preventDefault()}
+                    >
+                      <source src={lessonData.videoUrl} type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
+                  )}
+                  {isYoutube && <FaYoutube className="absolute top-4 right-4 text-4xl text-red-600" />}
 
-              
-
-                  {/* Enhanced Video Controls - Mobile Optimized */}
                   <EnhancedVideoControls
                     isPlaying={isPlaying}
                     progress={progress}
@@ -1694,6 +1738,7 @@ const EnhancedVideoControls = memo(({
   );
 });
 EnhancedVideoControls.displayName = 'EnhancedVideoControls';
+
 // ============================================
 // SIDEBAR COMPONENT
 // ============================================
@@ -1730,15 +1775,13 @@ const Sidebar = memo(({
           </p>
           <button 
             onClick={onAskQuestion}
-            className="w-full py-2 sm:py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg text-white font-semibold text-[11px] sm:text-xs transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-1 sm:gap-1.5"
+            className="w-full py-2 sm:py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg text-white font-semibold text-[11px] sm:text-xs transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             <FaQuestionCircle className="text-[10px] sm:text-xs" />
             Ask a Question
           </button>
         </div>
       </div>
-
-    
     </div>
   );
 });

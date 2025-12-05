@@ -28,15 +28,16 @@ class AutoCacheWarmer {
     errors: [],
   };
   
-private readonly MIN_WARM_INTERVAL = 30 * 1000;// 10 minutes
-private readonly BACKGROUND_REFRESH_INTERVAL = 15 * 1000; // 15 minutes
-  private readonly MAX_CONCURRENT_QUERIES = 1; // ✅ ONE at a time
-  private readonly BATCH_DELAY = 500; // ✅ Longer delays
-  private readonly DB_CONNECTION_TIMEOUT = 5000; // 5 seconds
-  private readonly MAX_RETRIES = 3;
+  // ✅ CRITICAL: Increase intervals to prevent exhausting limit
+  private readonly MIN_WARM_INTERVAL = 60 * 60 * 1000; // 1 hour minimum between full warms
+  private readonly BACKGROUND_REFRESH_INTERVAL = 60 * 60 * 1000; // 1 hour between background refreshes
+  private readonly MAX_CONCURRENT_QUERIES = 1;
+  private readonly BATCH_DELAY = 1000; // 1 second between batches
+  private readonly DB_CONNECTION_TIMEOUT = 5000;
+  private readonly MAX_RETRIES = 2; // Reduce retries
 
   /**
-   * ✅ Initialize - ONLY start background warming, no immediate warming
+   * ✅ Initialize - ONLY start background warming (NO immediate warming)
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -46,7 +47,7 @@ private readonly BACKGROUND_REFRESH_INTERVAL = 15 * 1000; // 15 minutes
 
     console.log('🚀 Initializing cache warming system...');
     
-    // ✅ Test database connection first
+    // Test database connection
     const isDbReady = await this.waitForDatabase();
     if (!isDbReady) {
       console.error('❌ Database not ready, cache warming disabled');
@@ -55,15 +56,12 @@ private readonly BACKGROUND_REFRESH_INTERVAL = 15 * 1000; // 15 minutes
 
     this.isInitialized = true;
     
-    // ✅ Start background refresh (NO immediate warm)
+    // Start background refresh (runs every hour)
     this.startBackgroundWarming();
     
-    console.log('✅ Cache warming system initialized (background only)');
+    console.log('✅ Cache warming system initialized (1-hour intervals)');
   }
 
-  /**
-   * ✅ NEW: Wait for database to be ready
-   */
   private async waitForDatabase(retries = this.MAX_RETRIES): Promise<boolean> {
     for (let i = 0; i < retries; i++) {
       try {
@@ -82,7 +80,7 @@ private readonly BACKGROUND_REFRESH_INTERVAL = 15 * 1000; // 15 minutes
         console.error(`❌ Database connection failed (attempt ${i + 1}):`, error.message);
         
         if (i < retries - 1) {
-          const waitTime = Math.min(1000 * Math.pow(2, i), 10000); // Exponential backoff
+          const waitTime = Math.min(2000 * Math.pow(2, i), 10000);
           console.log(`⏳ Waiting ${waitTime}ms before retry...`);
           await this.delay(waitTime);
         }
@@ -93,25 +91,24 @@ private readonly BACKGROUND_REFRESH_INTERVAL = 15 * 1000; // 15 minutes
   }
 
   /**
-   * ✅ MAIN: Warm ALL caches (with connection checks)
+   * ✅ MAIN: Warm critical caches only (minimal operations)
    */
   async warmAllCaches(): Promise<CacheWarmingStats> {
     const now = Date.now();
     
-    // ✅ Check if already warming
     if (this.isWarming) {
       console.log('⏭️ Cache warming already in progress');
       return this.stats;
     }
 
-    // ✅ Rate limiting
+    // ✅ Strict rate limiting - only warm once per hour
     if (now - this.lastWarmTime < this.MIN_WARM_INTERVAL) {
-      const waitTime = Math.round((this.MIN_WARM_INTERVAL - (now - this.lastWarmTime)) / 1000);
-      console.log(`⏭️ Cache warmed recently, wait ${waitTime}s`);
+      const waitTime = Math.round((this.MIN_WARM_INTERVAL - (now - this.lastWarmTime)) / 60000);
+      console.log(`⏭️ Cache warmed recently, wait ${waitTime} minutes`);
       return this.stats;
     }
 
-    // ✅ Check database health
+    // Check database health
     const isDbHealthy = await this.checkDatabaseHealth();
     if (!isDbHealthy) {
       console.error('❌ Database unhealthy, skipping cache warm');
@@ -119,19 +116,19 @@ private readonly BACKGROUND_REFRESH_INTERVAL = 15 * 1000; // 15 minutes
       return this.stats;
     }
 
-    // ✅ Distributed lock
+    // Distributed lock with longer TTL
     const lockKey = 'cache:warming:lock';
     const lockValue = `${Date.now()}-${Math.random()}`;
     
     try {
-      const lockAcquired = await redis.set(lockKey, lockValue, 'EX', 300, 'NX'); // 5 min lock
+      const lockAcquired = await redis.set(lockKey, lockValue, 'EX', 600, 'NX'); // 10 min lock
       
       if (!lockAcquired) {
         console.log('⏭️ Another instance is warming cache');
         return this.stats;
       }
 
-      console.log('🔥 Starting cache warming...');
+      console.log('🔥 Starting cache warming (limited scope)...');
       const startTime = Date.now();
       this.isWarming = true;
       this.lastWarmTime = now;
@@ -146,8 +143,8 @@ private readonly BACKGROUND_REFRESH_INTERVAL = 15 * 1000; // 15 minutes
         errors: [],
       };
 
-      // ✅ Run sequentially with health checks
-      await this.warmSequentially();
+      // ✅ CRITICAL: Only warm essential caches
+      await this.warmCriticalCachesOnly();
 
       const duration = Date.now() - startTime;
       this.stats.totalTime = duration;
@@ -166,9 +163,6 @@ private readonly BACKGROUND_REFRESH_INTERVAL = 15 * 1000; // 15 minutes
     }
   }
 
-  /**
-   * ✅ Check database health before warming
-   */
   private async checkDatabaseHealth(): Promise<boolean> {
     try {
       await Promise.race([
@@ -185,21 +179,19 @@ private readonly BACKGROUND_REFRESH_INTERVAL = 15 * 1000; // 15 minutes
   }
 
   /**
-   * ✅ Run warming tasks sequentially
+   * ✅ NEW: Only warm the most critical caches
    */
-  private async warmSequentially(): Promise<void> {
+  private async warmCriticalCachesOnly(): Promise<void> {
     const tasks = [
-      { name: 'Courses List', fn: () => this.warmCoursesListPage() },
-      { name: 'Course Details', fn: () => this.warmCourseDetailPages() },
-      { name: 'User Data', fn: () => this.warmUserData() },
-      { name: 'Checkout Data', fn: () => this.warmCheckoutData() },
-      { name: 'Navbar Data', fn: () => this.warmNavbarData() },
+      { name: 'Anonymous Courses List', fn: () => this.warmCoursesListPage() },
+      { name: 'Top 3 Course Details', fn: () => this.warmTopCourseDetailsOnly() },
+      // ✅ REMOVED: User data warming, checkout data, navbar data
     ];
 
     for (const task of tasks) {
       try {
         await task.fn();
-        await this.delay(this.BATCH_DELAY);
+        await this.delay(this.BATCH_DELAY); // 1 second between tasks
       } catch (error: any) {
         console.error(`❌ Failed to warm ${task.name}:`, error.message);
         this.stats.errors.push(`${task.name}: ${error.message}`);
@@ -208,285 +200,114 @@ private readonly BACKGROUND_REFRESH_INTERVAL = 15 * 1000; // 15 minutes
   }
 
   /**
-   * ✅ Warm courses list page
+   * ✅ Warm courses list page (anonymous only)
    */
-private async warmCoursesListPage(): Promise<void> {
-  try {
-    console.log('  📚 [1/5] Warming /courses page...');
-    const startTime = Date.now();
-
-    // ✅ FIX: Warm anonymous cache with shorter TTL (PRIORITY)
-    const anonymousCacheKey = courseCacheKeys.publicCoursesAnonymous();
-    const data = await loadCompleteCoursesData(); // No userId = anonymous
-    
-    await this.setCacheData(
-      anonymousCacheKey, 
-      data, 
-      COURSE_CACHE_TIMES.PUBLIC_COURSES_ANONYMOUS // ✅ Use shorter TTL
-    );
-    
-    const duration = Date.now() - startTime;
-    this.stats.coursesListWarmed = true;
-    
-    console.log(`    ✓ Anonymous /courses warmed in ${duration}ms (TTL: ${COURSE_CACHE_TIMES.PUBLIC_COURSES_ANONYMOUS}s)`);
-  } catch (error: any) {
-    console.error('    ✗ Failed to warm /courses:', error.message);
-    throw error;
-  }
-}
-
-  /**
-   * ✅ Warm course detail pages with retry logic
-   */
-private async warmCourseDetailPages(): Promise<void> {
-  try {
-    console.log('  🏆 [2/5] Warming /courses/[id] pages...');
-    const startTime = Date.now();
-
-    const topCourses = await this.safeQuery(
-      () => prisma.course.findMany({
-        where: {
-          status: 'PUBLISHED',
-          isPublished: true,
-        },
-        select: {
-          id: true,
-          title: true,
-          _count: { select: { enrollments: true } },
-        },
-        orderBy: [
-          { enrollments: { _count: 'desc' } },
-          { updatedAt: 'desc' },
-        ],
-        take: 10,
-      }),
-      []
-    );
-
-    console.log(`    ℹ️ Found ${topCourses.length} courses`);
-
-    for (const course of topCourses) {
-      try {
-        // ✅ FIX: Warm anonymous cache with shorter TTL
-        const anonymousCacheKey = courseCacheKeys.courseDetailAnonymous(course.id);
-        const data = await loadCompleteCourseDetail(course.id); // No userId = anonymous
-        
-        await this.setCacheData(
-          anonymousCacheKey, 
-          data, 
-          COURSE_CACHE_TIMES.COURSE_DETAIL_ANONYMOUS // ✅ Use shorter TTL
-        );
-        
-        this.stats.courseDetailsWarmed++;
-        console.log(`    ✓ Warmed (anonymous): ${course.title.substring(0, 40)}...`);
-        
-        await this.delay(this.BATCH_DELAY);
-      } catch (error: any) {
-        console.error(`    ✗ Failed: ${course.title}`, error.message);
-      }
-    }
-
-    const duration = Date.now() - startTime;
-    console.log(`    ✓ Course details warmed in ${duration}ms`);
-  } catch (error: any) {
-    console.error('    ✗ Failed to warm course details:', error.message);
-    throw error;
-  }
-}
-
-  /**
-   * ✅ Warm user data
-   */
-  private async warmUserData(): Promise<void> {
+  private async warmCoursesListPage(): Promise<void> {
     try {
-      console.log('  👥 [3/5] Warming user data...');
+      console.log('  📚 [1/2] Warming anonymous /courses page...');
       const startTime = Date.now();
 
-      const recentDate = new Date();
-      recentDate.setDate(recentDate.getDate() - 30);
-
-      const activeUsers = await this.safeQuery(
-        () => prisma.student.findMany({
-          where: {
-            OR: [
-              { lastLogin: { gte: recentDate } },
-              { enrollments: { some: { lastAccessedAt: { gte: recentDate } } } },
-            ],
-          },
-          select: { id: true, username: true },
-          take: 20, // ✅ Reduced from 30
-        }),
-        []
-      );
-
-      console.log(`    ℹ️ Found ${activeUsers.length} active users`);
-
-      // ✅ Process ONE at a time
-      for (const user of activeUsers) {
-        try {
-          await this.warmSingleUserData(user.id);
-          this.stats.userDataWarmed++;
-          await this.delay(100); // Small delay between users
-        } catch (error) {
-          // Silent fail
-        }
+      const anonymousCacheKey = courseCacheKeys.publicCoursesAnonymous();
+      
+      // Check if already cached
+      const exists = await redis.exists(anonymousCacheKey);
+      if (exists) {
+        console.log('    ⏭️ Already cached, skipping');
+        this.stats.coursesListWarmed = true;
+        return;
       }
 
+      const data = await loadCompleteCoursesData();
+      
+      await this.setCacheData(
+        anonymousCacheKey, 
+        data, 
+        COURSE_CACHE_TIMES.PUBLIC_COURSES_ANONYMOUS
+      );
+      
       const duration = Date.now() - startTime;
-      console.log(`    ✓ User data warmed in ${duration}ms`);
+      this.stats.coursesListWarmed = true;
+      
+      console.log(`    ✓ Anonymous /courses warmed in ${duration}ms`);
     } catch (error: any) {
-      console.error('    ✗ Failed to warm user data:', error.message);
+      console.error('    ✗ Failed to warm /courses:', error.message);
       throw error;
     }
   }
 
   /**
-   * ✅ Warm single user with retries
+   * ✅ NEW: Only warm top 3 course details (not 10)
    */
-  private async warmSingleUserData(userId: string, retries = 2): Promise<void> {
+  private async warmTopCourseDetailsOnly(): Promise<void> {
     try {
-      await this.delay(100);
-      
-      const avatars = await this.safeQuery(
-        () => prisma.avatar.findMany({
-          where: { userId },
-          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+      console.log('  🏆 [2/2] Warming top 3 /courses/[id] pages...');
+      const startTime = Date.now();
+
+      const topCourses = await this.safeQuery(
+        () => prisma.course.findMany({
+          where: {
+            status: 'PUBLISHED',
+            isPublished: true,
+          },
           select: {
             id: true,
-            avatarIndex: true,
-            avatarSeed: true,
-            avatarStyle: true,
-            isPrimary: true,
-            isCustomUpload: true,
-            customImageUrl: true,
+            title: true,
+            _count: { select: { enrollments: true } },
           },
-        }),
-        []
-      );
-      
-      const avatarKey = courseCacheKeys.userAvatars(userId);
-      await this.setCacheData(avatarKey, avatars, COURSE_CACHE_TIMES.USER_AVATARS);
-
-      await this.delay(100);
-
-      const enrollments = await this.safeQuery(
-        () => prisma.courseEnrollment.findMany({
-          where: { userId, status: 'active' },
-          select: { courseId: true },
-        }),
-        []
-      );
-      
-      const enrollmentKey = courseCacheKeys.bulkEnrollments(userId);
-      const enrollmentIds = enrollments.map(e => e.courseId);
-      await this.setCacheData(enrollmentKey, enrollmentIds, COURSE_CACHE_TIMES.ENROLLMENT_STATUS);
-
-    } catch (error: any) {
-      if (retries > 0 && error.message?.includes('connection')) {
-        await this.delay(2000);
-        return this.warmSingleUserData(userId, retries - 1);
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * ✅ Warm checkout data
-   */
-  private async warmCheckoutData(): Promise<void> {
-    try {
-      console.log('  💳 [4/5] Warming checkout data...');
-      const startTime = Date.now();
-
-      const popularPurchases = await this.safeQuery(
-        () => prisma.payment.groupBy({
-          by: ['courseId'],
-          _count: { courseId: true },
-          where: {
-            status: 'succeeded',
-            createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-          },
-          orderBy: { _count: { courseId: 'desc' } },
-          take: 5, // ✅ Reduced from 10
+          orderBy: [
+            { enrollments: { _count: 'desc' } },
+            { updatedAt: 'desc' },
+          ],
+          take: 3, // ✅ REDUCED from 10 to 3
         }),
         []
       );
 
-      for (const purchase of popularPurchases) {
+      console.log(`    ℹ️ Found ${topCourses.length} top courses`);
+
+      for (const course of topCourses) {
         try {
-          const courseKey = courseCacheKeys.courseDetail(purchase.courseId);
-          const exists = await redis.exists(courseKey);
+          const anonymousCacheKey = courseCacheKeys.courseDetailAnonymous(course.id);
           
-          if (!exists) {
-            const data = await loadCompleteCourseDetail(purchase.courseId);
-            await this.setCacheData(courseKey, data, COURSE_CACHE_TIMES.COURSE_DETAIL);
+          // Check if already cached
+          const exists = await redis.exists(anonymousCacheKey);
+          if (exists) {
+            console.log(`    ⏭️ Already cached: ${course.title.substring(0, 30)}...`);
+            continue;
           }
+
+          const data = await loadCompleteCourseDetail(course.id);
           
-          await this.delay(200);
-        } catch (error) {
-          // Silent fail
+          await this.setCacheData(
+            anonymousCacheKey, 
+            data, 
+            COURSE_CACHE_TIMES.COURSE_DETAIL_ANONYMOUS
+          );
+          
+          this.stats.courseDetailsWarmed++;
+          console.log(`    ✓ Warmed: ${course.title.substring(0, 40)}...`);
+          
+          await this.delay(this.BATCH_DELAY); // 1 second between courses
+        } catch (error: any) {
+          console.error(`    ✗ Failed: ${course.title}`, error.message);
         }
       }
 
       const duration = Date.now() - startTime;
-      console.log(`    ✓ Checkout data warmed in ${duration}ms`);
+      console.log(`    ✓ Course details warmed in ${duration}ms`);
     } catch (error: any) {
-      console.error('    ✗ Failed to warm checkout data:', error.message);
+      console.error('    ✗ Failed to warm course details:', error.message);
       throw error;
     }
   }
 
   /**
-   * ✅ Warm navbar data
-   */
-  private async warmNavbarData(): Promise<void> {
-    try {
-      console.log('  📊 [5/5] Warming navbar data...');
-      const startTime = Date.now();
-
-      const recentDate = new Date();
-      recentDate.setDate(recentDate.getDate() - 7);
-
-      const activeUsers = await this.safeQuery(
-        () => prisma.student.findMany({
-          where: {
-            OR: [
-              { lastLogin: { gte: recentDate } },
-              { sessions: { some: { lastUsed: { gte: recentDate } } } },
-            ],
-          },
-          select: { id: true },
-          take: 20, // ✅ Reduced from 50
-        }),
-        []
-      );
-
-      const { batchLoadNavbarData } = await import('@/lib/loaders/navbar-loader');
-      const userIds = activeUsers.map(u => u.id);
-      
-      // ✅ Process in small batches
-      for (let i = 0; i < userIds.length; i += 5) {
-        const batch = userIds.slice(i, i + 5);
-        await batchLoadNavbarData(batch);
-        this.stats.navbarDataWarmed += batch.length;
-        await this.delay(this.BATCH_DELAY);
-      }
-
-      const duration = Date.now() - startTime;
-      console.log(`    ✓ Navbar data warmed in ${duration}ms`);
-    } catch (error: any) {
-      console.error('    ✗ Failed to warm navbar data:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * ✅ Safe query wrapper with timeout and retry
+   * ✅ Safe query wrapper
    */
   private async safeQuery<T>(
     queryFn: () => Promise<T>,
     fallback: T,
-    retries = 2
+    retries = 1 // Reduced from 2
   ): Promise<T> {
     for (let i = 0; i < retries; i++) {
       try {
@@ -501,7 +322,7 @@ private async warmCourseDetailPages(): Promise<void> {
           console.error(`Query failed after ${retries} attempts:`, error.message);
           return fallback;
         }
-        await this.delay(1000 * (i + 1));
+        await this.delay(2000 * (i + 1));
       }
     }
     return fallback;
@@ -523,9 +344,6 @@ private async warmCourseDetailPages(): Promise<void> {
     }
   }
 
-  /**
-   * ✅ Serialize Maps
-   */
   private serializeMapsForCache(data: any): any {
     if (data === null || data === undefined) return data;
     if (data instanceof Map) return Array.from(data.entries());
@@ -540,18 +358,15 @@ private async warmCourseDetailPages(): Promise<void> {
     return data;
   }
 
-  /**
-   * ✅ Delay helper
-   */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
-   * ✅ Background warming (conservative)
+   * ✅ Background warming (HOURLY instead of 15 minutes)
    */
   private startBackgroundWarming(): void {
-    console.log(`🔄 Starting background refresh (every ${this.BACKGROUND_REFRESH_INTERVAL / 1000}s)`);
+    console.log(`🔄 Starting background refresh (every ${this.BACKGROUND_REFRESH_INTERVAL / 60000} minutes)`);
     
     this.warmingInterval = setInterval(() => {
       if (this.isWarming) {
@@ -574,9 +389,6 @@ private async warmCourseDetailPages(): Promise<void> {
     process.on('SIGINT', () => this.shutdown());
   }
 
-  /**
-   * ✅ Shutdown
-   */
   private shutdown(): void {
     console.log('🛑 Shutting down cache warming...');
     if (this.warmingInterval) {
@@ -586,9 +398,6 @@ private async warmCourseDetailPages(): Promise<void> {
     console.log('✅ Cache warming stopped');
   }
 
-  /**
-   * ✅ Get stats
-   */
   getStats(): CacheWarmingStats {
     return { ...this.stats };
   }

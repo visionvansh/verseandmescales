@@ -1,4 +1,4 @@
-// components/ModulesComponents.tsx
+// components/course-builder/ModulesComponents.tsx
 "use client";
 
 import React, { memo, useMemo, useCallback } from 'react';
@@ -39,7 +39,8 @@ interface ResourceFile {
 interface Lesson {
   id: string;
   title: string;
-  duration: string;
+  duration: string | number; // Can be seconds (number) or formatted string
+  durationFormatted?: string; // ✅ ADD THIS: Pre-formatted duration string
   moduleId: string;
   moduleTitle: string;
   questionCount: number;
@@ -53,10 +54,10 @@ export interface Module {
   title: string;
   description: string;
   difficulty: "Beginner" | "Intermediate" | "Advanced";
-  duration: string;
+  duration: string; // ✅ This should be formatted string like "5m 30s"
   lessonCount: number;
   videoCount: number;
-  totalDuration: string;
+  totalDuration: string; // ✅ This should be formatted string
   skills: string[];
   prerequisites: string[];
   lessons: Lesson[];
@@ -66,13 +67,69 @@ export interface Module {
   certificate?: boolean;
   color: string;
   learningOutcomes?: string[];
+  completedLessons?: number;
+  totalLessons?: number;
 }
+
+// ============================================
+// UTILITY FUNCTION
+// ============================================
+
+/**
+ * ✅ Format duration from seconds to readable format
+ * This ensures any raw seconds are converted to proper format
+ */
+const formatDuration = (seconds: string | number | undefined): string => {
+  if (!seconds) return "0m";
+  
+  // Convert to number and round to whole seconds
+  let totalSeconds = typeof seconds === 'string' ? parseFloat(seconds) : seconds;
+  
+  if (isNaN(totalSeconds) || totalSeconds < 0) return "0m";
+  
+  // Round to whole seconds
+  totalSeconds = Math.round(totalSeconds);
+  
+  // Calculate hours, minutes, and seconds
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+  
+  // Format based on largest unit
+  if (hours > 0) {
+    if (minutes > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return `${hours}h`;
+    }
+  } else if (minutes > 0) {
+    if (secs > 0) {
+      return `${minutes}m ${secs}s`;
+    } else {
+      return `${minutes}m`;
+    }
+  } else {
+    return `${secs}s`;
+  }
+};
+
+/**
+ * ✅ Get formatted duration - handles both pre-formatted strings and raw seconds
+ */
+const getFormattedDuration = (lesson: Lesson): string => {
+  // If we have a pre-formatted duration, use it
+  if (lesson.durationFormatted) {
+    return lesson.durationFormatted;
+  }
+  
+  // Otherwise format the raw duration
+  return formatDuration(lesson.duration);
+};
 
 // ============================================
 // SKELETON COMPONENTS
 // ============================================
 
-// Base Skeleton with optimized animation
 const Skeleton = memo(({ className = "", animate = true }: { className?: string; animate?: boolean }) => (
   <div 
     className={`bg-gray-800/50 rounded ${animate ? 'skeleton-pulse' : ''} ${className}`}
@@ -81,69 +138,42 @@ const Skeleton = memo(({ className = "", animate = true }: { className?: string;
 ));
 Skeleton.displayName = 'Skeleton';
 
-// Skeleton for Mobile Module Card
 const ModuleCardMobileSkeleton = memo(() => (
   <div className="relative bg-gradient-to-br from-gray-900/90 to-black/95 border-2 border-gray-800/40 rounded-2xl p-5 h-full backdrop-blur-xl">
-    {/* Image skeleton */}
     <div className="w-full aspect-video bg-gray-800/50 rounded-xl mb-4 skeleton-pulse" />
-    
-    {/* Title skeleton */}
     <Skeleton className="h-6 w-3/4 mb-3" />
-    
-    {/* Badge skeleton */}
     <Skeleton className="h-6 w-20 rounded-full mb-3" />
-    
-    {/* Description skeleton */}
     <Skeleton className="h-4 w-full mb-2" />
     <Skeleton className="h-4 w-5/6 mb-4" />
-    
-    {/* Stats grid skeleton */}
     <div className="grid grid-cols-2 gap-2 mb-4">
       <Skeleton className="h-16 rounded-lg" />
       <Skeleton className="h-16 rounded-lg" />
     </div>
-    
-    {/* Button skeleton */}
     <Skeleton className="h-10 w-full rounded-lg" />
   </div>
 ));
 ModuleCardMobileSkeleton.displayName = 'ModuleCardMobileSkeleton';
 
-// Skeleton for Desktop Module Card
 const ModuleCardDesktopSkeleton = memo(() => (
   <div className="relative bg-gradient-to-br from-gray-900/95 to-black/95 rounded-2xl border border-gray-800/30 overflow-hidden backdrop-blur-xl">
-    {/* Image Section */}
     <div className="h-48 bg-gray-800/50 skeleton-pulse" />
-    
-    {/* Content */}
     <div className="p-5">
-      {/* Title */}
       <Skeleton className="h-6 w-3/4 mb-3" />
-      
-      {/* Badge */}
       <Skeleton className="h-6 w-24 rounded-full mb-3" />
-      
-      {/* Description */}
       <Skeleton className="h-4 w-full mb-2" />
       <Skeleton className="h-4 w-4/5 mb-4" />
-      
-      {/* Stats */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <Skeleton className="h-16 rounded-lg" />
         <Skeleton className="h-16 rounded-lg" />
       </div>
-      
-      {/* Button */}
       <Skeleton className="h-10 w-full rounded-lg" />
     </div>
   </div>
 ));
 ModuleCardDesktopSkeleton.displayName = 'ModuleCardDesktopSkeleton';
 
-// Skeleton for Full Module Card
 const ModuleCardFullSkeleton = memo(() => (
   <div className="relative bg-gradient-to-br from-gray-900/90 to-black/95 border border-gray-800/30 rounded-xl sm:rounded-2xl overflow-hidden backdrop-blur-xl p-5 sm:p-6">
-    {/* Header */}
     <div className="mb-4">
       <div className="flex items-center gap-2 mb-3">
         <Skeleton className="h-5 w-20 rounded-full" />
@@ -154,7 +184,6 @@ const ModuleCardFullSkeleton = memo(() => (
       <Skeleton className="h-4 w-3/4 mb-3" />
     </div>
 
-    {/* Stats Grid */}
     <div className="grid grid-cols-4 gap-2 sm:gap-3 mb-4">
       <Skeleton className="h-20 rounded-lg" />
       <Skeleton className="h-20 rounded-lg" />
@@ -162,7 +191,6 @@ const ModuleCardFullSkeleton = memo(() => (
       <Skeleton className="h-20 rounded-lg" />
     </div>
 
-    {/* Skills */}
     <div className="mb-4">
       <Skeleton className="h-3 w-20 mb-2" />
       <div className="flex flex-wrap gap-1.5">
@@ -173,7 +201,6 @@ const ModuleCardFullSkeleton = memo(() => (
       </div>
     </div>
 
-    {/* Progress Bar */}
     <div className="mb-4">
       <div className="flex items-center justify-between mb-2">
         <Skeleton className="h-3 w-32" />
@@ -182,14 +209,12 @@ const ModuleCardFullSkeleton = memo(() => (
       <Skeleton className="h-2 w-full rounded-full" />
     </div>
 
-    {/* Buttons */}
     <Skeleton className="h-12 w-full rounded-lg mb-4" />
     <Skeleton className="h-12 w-full rounded-lg" />
   </div>
 ));
-ModuleCardFullSkeleton.displayName = 'ModuleCardFullSkeleton';
+ModuleCardFullSkeleton.displayName = "ModuleCardFullSkeleton";
 
-// Tab Navigation Skeleton
 const TabNavigationSkeleton = memo(() => (
   <div className="relative bg-gradient-to-br from-gray-900/90 to-black/95 border border-gray-800/30 rounded-xl sm:rounded-2xl p-3 sm:p-4 backdrop-blur-xl">
     <div className="grid grid-cols-3 gap-2">
@@ -199,16 +224,12 @@ const TabNavigationSkeleton = memo(() => (
     </div>
   </div>
 ));
-TabNavigationSkeleton.displayName = 'TabNavigationSkeleton';
+TabNavigationSkeleton.displayName = "TabNavigationSkeleton";
 
-// Filters Skeleton
 const FiltersSkeleton = memo(() => (
   <div className="bg-gradient-to-br from-gray-900/90 to-black/95 border border-gray-800/30 rounded-xl sm:rounded-2xl p-4 sm:p-5 backdrop-blur-xl">
     <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-      {/* Search skeleton */}
       <Skeleton className="flex-1 h-12 rounded-lg" />
-      
-      {/* Filter buttons skeleton */}
       <div className="flex gap-2">
         <Skeleton className="h-12 w-24 rounded-lg" />
         <Skeleton className="h-12 w-28 rounded-lg" />
@@ -218,36 +239,29 @@ const FiltersSkeleton = memo(() => (
     </div>
   </div>
 ));
-FiltersSkeleton.displayName = 'FiltersSkeleton';
+FiltersSkeleton.displayName = "FiltersSkeleton";
 
-// Main Loading Skeleton Component
 export const LoadingSkeleton = memo(() => (
   <div className="relative w-full min-h-screen bg-black overflow-x-hidden">
-    {/* Background */}
     <div className="absolute inset-0 z-0">
       <div className="absolute inset-0 bg-gradient-to-br from-red-900/30 via-black to-red-900/20" />
     </div>
 
-    {/* Content */}
     <div className="relative z-10">
-      {/* Tab Navigation Skeleton */}
       <section className="relative w-full py-8 sm:py-10">
         <div className="w-full max-w-[85%] sm:max-w-[80%] md:max-w-[75%] lg:max-w-[65%] xl:max-w-3xl mx-auto px-2 sm:px-3 md:px-4">
           <TabNavigationSkeleton />
         </div>
       </section>
 
-      {/* Featured Modules Skeleton */}
       <section className="relative w-full py-6 sm:py-8 md:py-10">
         <div className="w-full max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-[88%] xl:max-w-[1600px] 2xl:max-w-[1800px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
           <div className="mb-6">
-            {/* Header skeleton */}
             <div className="mb-4">
               <Skeleton className="h-10 w-64 mb-2" />
               <Skeleton className="h-4 w-48" />
             </div>
 
-            {/* Mobile: Horizontal Scroll Skeleton */}
             <div className="md:hidden">
               <div className="flex gap-3 sm:gap-4 overflow-hidden">
                 <div className="min-w-[85vw]">
@@ -259,7 +273,6 @@ export const LoadingSkeleton = memo(() => (
               </div>
             </div>
 
-            {/* Desktop: Grid Skeleton */}
             <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 md:gap-6">
               <ModuleCardDesktopSkeleton />
               <ModuleCardDesktopSkeleton />
@@ -269,18 +282,14 @@ export const LoadingSkeleton = memo(() => (
         </div>
       </section>
 
-      {/* Filters & All Modules Skeleton */}
       <section className="relative w-full py-6 sm:py-8 md:py-10">
         <div className="w-full max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-[88%] xl:max-w-[1600px] 2xl:max-w-[1800px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
-          {/* Filters Skeleton */}
           <div className="mb-6 sm:mb-8">
             <FiltersSkeleton />
           </div>
 
-          {/* All Modules Header */}
           <Skeleton className="h-8 w-48 mb-4 sm:mb-6" />
 
-          {/* All Modules Grid Skeleton */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
             <ModuleCardFullSkeleton />
             <ModuleCardFullSkeleton />
@@ -298,7 +307,6 @@ LoadingSkeleton.displayName = 'LoadingSkeleton';
 // MODULE COMPONENTS
 // ============================================
 
-// Optimized Difficulty Badge - Memoized
 export const DifficultyBadge = memo(({ level }: { level: string }) => {
   const colors = useMemo(() => ({
     Beginner: "from-green-500/20 to-green-600/20 border-green-500/40 text-green-400",
@@ -314,7 +322,6 @@ export const DifficultyBadge = memo(({ level }: { level: string }) => {
 });
 DifficultyBadge.displayName = 'DifficultyBadge';
 
-// Optimized Mobile Module Card - Memoized
 export const ModuleCardMobile = memo(({ 
   module, 
   bookmarked, 
@@ -341,12 +348,20 @@ export const ModuleCardMobile = memo(({
     onExpand(module.id);
   }, [module.id, onExpand]);
 
+  // ✅ FIXED: Use formatted duration
+  const displayDuration = useMemo(() => {
+    // If duration is already formatted (contains letters), use it directly
+    if (typeof module.duration === 'string' && /[a-zA-Z]/.test(module.duration)) {
+      return module.duration;
+    }
+    // Otherwise format it
+    return formatDuration(module.duration);
+  }, [module.duration]);
+
   return (
     <div className="relative bg-gradient-to-br from-gray-900/90 to-black/95 border-2 border-red-500/40 rounded-2xl p-5 h-full backdrop-blur-xl overflow-hidden">
-      {/* Simplified glow effect - only on hover */}
       <div className="absolute -inset-0.5 bg-gradient-to-r from-red-600 to-red-500 rounded-2xl opacity-0 hover:opacity-20 blur-xl transition-opacity duration-500" style={{ willChange: 'opacity' }} />
       
-      {/* Featured Badge - No animation on low-end */}
       {module.isFeatured && (
         <div className="absolute top-3 right-3 z-20">
           <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-black px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center space-x-1">
@@ -356,13 +371,11 @@ export const ModuleCardMobile = memo(({
         </div>
       )}
 
-      {/* Icon & Progress */}
       <div className="relative mb-4">
         <div className="w-full aspect-video bg-gradient-to-br from-red-900/30 via-gray-900/30 to-black/50 rounded-xl flex items-center justify-center relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-red-600/20 to-transparent" />
           <FaRocket className="text-5xl text-red-500/50 relative z-10" />
           
-          {/* Static progress bar */}
           {module.progress > 0 && (
             <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-gray-900/80">
               <div
@@ -373,7 +386,6 @@ export const ModuleCardMobile = memo(({
           )}
         </div>
 
-        {/* Bookmark */}
         <button
           onClick={handleBookmarkClick}
           className="absolute top-2 left-2 z-10 p-2 rounded-lg bg-black/50 backdrop-blur-sm border border-red-500/30 hover:bg-red-600/20 transition-colors"
@@ -387,7 +399,6 @@ export const ModuleCardMobile = memo(({
         </button>
       </div>
 
-      {/* Content */}
       <div className="relative z-10">
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1 min-w-0">
@@ -402,13 +413,12 @@ export const ModuleCardMobile = memo(({
           {module.description}
         </p>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 gap-2 mb-4">
           <div className="flex items-center space-x-1.5 bg-gray-900/50 rounded-lg p-2 border border-red-500/10">
             <FaClock className="text-red-500 text-xs flex-shrink-0" />
             <div className="min-w-0">
               <p className="text-[9px] text-gray-500">Duration</p>
-              <p className="text-xs font-semibold text-white truncate">{module.duration}</p>
+              <p className="text-xs font-semibold text-white truncate">{displayDuration}</p>
             </div>
           </div>
           
@@ -421,7 +431,6 @@ export const ModuleCardMobile = memo(({
           </div>
         </div>
 
-        {/* Action Button - Simplified animation */}
         <button
           onClick={() => onStartModule(module.id)}
           className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center justify-center space-x-2 active:scale-98"
@@ -445,7 +454,6 @@ export const ModuleCardMobile = memo(({
 });
 ModuleCardMobile.displayName = 'ModuleCardMobile';
 
-// Optimized Desktop Module Card - Memoized
 export const ModuleCardDesktop = memo(({ 
   module, 
   bookmarked, 
@@ -471,10 +479,17 @@ export const ModuleCardDesktop = memo(({
     onExpand(module.id);
   }, [module.id, onExpand]);
 
-  // Simplified animation variants
   const cardVariants = shouldReduceMotion ? {} : {
     hover: { y: -5 }
   };
+
+  // ✅ FIXED: Use formatted duration
+  const displayDuration = useMemo(() => {
+    if (typeof module.duration === 'string' && /[a-zA-Z]/.test(module.duration)) {
+      return module.duration;
+    }
+    return formatDuration(module.duration);
+  }, [module.duration]);
 
   return (
     <motion.div
@@ -495,7 +510,6 @@ export const ModuleCardDesktop = memo(({
           </div>
         )}
 
-        {/* Image Section */}
         <div className="relative h-48 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-red-900/50 via-gray-900/50 to-black/90" />
           <div className="absolute inset-0 flex items-center justify-center">
@@ -526,7 +540,6 @@ export const ModuleCardDesktop = memo(({
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-5">
           <div className="flex items-start justify-between mb-3">
             <div className="flex-1 min-w-0">
@@ -546,7 +559,7 @@ export const ModuleCardDesktop = memo(({
               <FaClock className="text-red-500 text-sm flex-shrink-0" />
               <div className="min-w-0">
                 <p className="text-[10px] text-gray-500">Duration</p>
-                <p className="text-xs font-semibold text-white truncate">{module.duration}</p>
+                <p className="text-xs font-semibold text-white truncate">{displayDuration}</p>
               </div>
             </div>
             
@@ -559,7 +572,6 @@ export const ModuleCardDesktop = memo(({
             </div>
           </div>
 
-          {/* Action Button */}
           <button
             onClick={() => onStartModule(module.id)}
             className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center justify-center space-x-2 hover:scale-102 active:scale-98"
@@ -584,7 +596,6 @@ export const ModuleCardDesktop = memo(({
 });
 ModuleCardDesktop.displayName = 'ModuleCardDesktop';
 
-// Optimized Full Module Card - Memoized
 export const ModuleCardFull = memo(({ 
   module, 
   bookmarked, 
@@ -611,6 +622,14 @@ export const ModuleCardFull = memo(({
     onExpand(module.id);
   }, [module.id, onExpand]);
 
+  // ✅ FIXED: Use formatted duration
+  const displayDuration = useMemo(() => {
+    if (typeof module.duration === 'string' && /[a-zA-Z]/.test(module.duration)) {
+      return module.duration;
+    }
+    return formatDuration(module.duration);
+  }, [module.duration]);
+
   return (
     <motion.div
       className="relative bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/30 rounded-xl sm:rounded-2xl overflow-hidden backdrop-blur-xl"
@@ -621,7 +640,6 @@ export const ModuleCardFull = memo(({
       <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent opacity-0 hover:opacity-100 transition-opacity" style={{ willChange: 'opacity' }} />
       
       <div className="relative z-10 p-5 sm:p-6">
-        {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
@@ -652,12 +670,11 @@ export const ModuleCardFull = memo(({
           </button>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-4 gap-2 sm:gap-3 mb-4">
           <div className="bg-gray-900/50 border border-red-500/10 rounded-lg p-2 sm:p-3">
             <FaClock className="text-red-500 text-base mb-1" />
             <p className="text-xs text-gray-500">Duration</p>
-            <p className="text-sm font-bold text-white">{module.duration}</p>
+            <p className="text-sm font-bold text-white">{displayDuration}</p>
           </div>
           <div className="bg-gray-900/50 border border-red-500/10 rounded-lg p-2 sm:p-3">
             <FaVideo className="text-red-500 text-base mb-1" />
@@ -676,7 +693,6 @@ export const ModuleCardFull = memo(({
           </div>
         </div>
 
-        {/* Skills */}
         <div className="mb-4">
           <p className="text-[10px] text-gray-500 mb-2 font-medium">YOU'LL LEARN</p>
           <div className="flex flex-wrap gap-1.5">
@@ -696,7 +712,6 @@ export const ModuleCardFull = memo(({
           </div>
         </div>
 
-        {/* Progress Bar */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-gray-400">{completedLessons} of {module.lessonCount} completed</span>
@@ -710,7 +725,6 @@ export const ModuleCardFull = memo(({
           </div>
         </div>
 
-        {/* Expand Button */}
         <button
           onClick={handleExpandClick}
           className="w-full bg-gray-900/50 border border-red-500/30 py-3 rounded-lg text-white font-bold hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2 text-sm mb-4"
@@ -719,7 +733,6 @@ export const ModuleCardFull = memo(({
           <FaChevronDown className={`transition-transform text-xs ${isExpanded ? 'rotate-180' : ''}`} style={{ willChange: 'transform' }} />
         </button>
 
-        {/* Expanded Lessons */}
         <AnimatePresence mode="wait">
           {isExpanded && (
             <motion.div
@@ -731,88 +744,88 @@ export const ModuleCardFull = memo(({
               className="border-t border-red-500/20 pt-4"
             >
               <div className="space-y-2">
-                {module.lessons.map((lesson, idx) => (
-                  <div
-                    key={lesson.id}
-                    className={`relative group ${lesson.isLocked ? 'opacity-50' : ''}`}
-                  >
-                    <div className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                      lesson.isLocked 
-                        ? 'bg-gray-900/30 cursor-not-allowed' 
-                        : lesson.isCompleted
-                        ? 'bg-green-900/20 border border-green-500/20 hover:bg-green-900/30'
-                        : 'bg-gray-900/50 border border-red-500/20 hover:bg-red-900/30 cursor-pointer'
-                    }`}>
-                      {/* Status Icon */}
-                      <div className="flex-shrink-0">
-                        {lesson.isLocked ? (
-                          <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center">
-                            <FaLock className="text-gray-600 text-xs" />
+                {module.lessons.map((lesson, idx) => {
+                  // ✅ FIXED: Use getFormattedDuration helper
+                  const lessonDuration = getFormattedDuration(lesson);
+                  
+                  return (
+                    <div
+                      key={lesson.id}
+                      className={`relative group ${lesson.isLocked ? 'opacity-50' : ''}`}
+                    >
+                      <div className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                        lesson.isLocked 
+                          ? 'bg-gray-900/30 cursor-not-allowed' 
+                          : lesson.isCompleted
+                          ? 'bg-green-900/20 border border-green-500/20 hover:bg-green-900/30'
+                          : 'bg-gray-900/50 border border-red-500/20 hover:bg-red-900/30 cursor-pointer'
+                      }`}>
+                        <div className="flex-shrink-0">
+                          {lesson.isLocked ? (
+                            <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center">
+                              <FaLock className="text-gray-600 text-xs" />
+                            </div>
+                          ) : lesson.isCompleted ? (
+                            <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center">
+                              <FaCheckCircle className="text-white text-xs" />
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-red-600 to-red-700 flex items-center justify-center group-hover:scale-110 transition-transform" style={{ willChange: 'transform' }}>
+                              <FaPlay className="text-white text-xs ml-0.5" />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <h4 className={`text-sm font-semibold mb-1 ${
+                            lesson.isLocked ? 'text-gray-600' : 'text-white'
+                          }`}>
+                            {lesson.title}
+                          </h4>
+                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <FaClock className="text-[10px]" />
+                              {lessonDuration}
+                            </span>
+                            {lesson.resources && lesson.resources.length > 0 && (
+                              <span className="flex items-center gap-1">
+                                <FaDownload className="text-[10px]" />
+                                {lesson.resources.length} Resources
+                              </span>
+                            )}
                           </div>
-                        ) : lesson.isCompleted ? (
-                          <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center">
-                            <FaCheckCircle className="text-white text-xs" />
-                          </div>
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-red-600 to-red-700 flex items-center justify-center group-hover:scale-110 transition-transform" style={{ willChange: 'transform' }}>
-                            <FaPlay className="text-white text-xs ml-0.5" />
+                        </div>
+
+                        {!lesson.isLocked && (
+                          <div className="flex-shrink-0">
+                            <FaChevronRight className="text-gray-600 group-hover:text-red-400 transition-colors text-xs" />
                           </div>
                         )}
                       </div>
 
-                      {/* Lesson Info */}
-                      <div className="flex-1 min-w-0">
-                        <h4 className={`text-sm font-semibold mb-1 ${
-                          lesson.isLocked ? 'text-gray-600' : 'text-white'
-                        }`}>
-                          {lesson.title}
-                        </h4>
-                        <div className="flex items-center gap-3 text-xs text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <FaClock className="text-[10px]" />
-                            {lesson.duration}
-                          </span>
-                          {lesson.resources && lesson.resources.length > 0 && (
-                            <span className="flex items-center gap-1">
-                              <FaDownload className="text-[10px]" />
-                              {lesson.resources.length} Resources
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Action */}
-                      {!lesson.isLocked && (
-                        <div className="flex-shrink-0">
-                          <FaChevronRight className="text-gray-600 group-hover:text-red-400 transition-colors text-xs" />
+                      {!lesson.isLocked && lesson.resources && lesson.resources.length > 0 && (
+                        <div className="hidden group-hover:block absolute top-full left-0 right-0 mt-1 z-20">
+                          <div className="bg-gray-900 border border-red-500/30 rounded-lg p-3 shadow-xl backdrop-blur-xl">
+                            <p className="text-xs text-gray-400 mb-2 font-medium">Available Resources:</p>
+                            <div className="space-y-1">
+                              {lesson.resources.map((resource: ResourceFile, rIdx: number) => (
+                                <div
+                                  key={rIdx}
+                                  className="flex items-center gap-2 text-xs text-gray-300 hover:text-red-400 transition-colors py-1"
+                                >
+                                  <FaDownload className="text-[10px] text-red-500" />
+                                  <span>{resource.name}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
-
-                    {/* Resources Dropdown */}
-                    {!lesson.isLocked && lesson.resources && lesson.resources.length > 0 && (
-                      <div className="hidden group-hover:block absolute top-full left-0 right-0 mt-1 z-20">
-                        <div className="bg-gray-900 border border-red-500/30 rounded-lg p-3 shadow-xl backdrop-blur-xl">
-                          <p className="text-xs text-gray-400 mb-2 font-medium">Available Resources:</p>
-                          <div className="space-y-1">
-                            {lesson.resources.map((resource: ResourceFile, rIdx: number) => (
-                              <div
-                                key={rIdx}
-                                className="flex items-center gap-2 text-xs text-gray-300 hover:text-red-400 transition-colors py-1"
-                              >
-                                <FaDownload className="text-[10px] text-red-500" />
-                                <span>{resource.name}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              {/* Prerequisites */}
               {module.prerequisites.length > 0 && (
                 <div className="mt-4 p-3 bg-yellow-900/10 border border-yellow-500/20 rounded-lg">
                   <p className="text-xs text-yellow-400 font-medium mb-2 flex items-center gap-1.5">
@@ -826,12 +839,10 @@ export const ModuleCardFull = memo(({
                   </div>
                 </div>
               )}
-
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Action Buttons */}
         <div className="flex gap-2 mt-4">
           <button
             onClick={() => onStartModule(module.id)}

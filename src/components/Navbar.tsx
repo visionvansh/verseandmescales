@@ -6,12 +6,26 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-  FaBell, FaUserCircle, FaSignOutAlt, FaCog,
-  FaChartLine, FaMoneyBillWave, FaVideo, FaBookOpen, FaSearch,
-  FaHome, FaQuestionCircle, FaUserFriends,
-  FaChevronRight, FaStar, FaGraduationCap,
-  FaPlus, FaArrowRight, FaClock, FaLock
+import {
+  FaBell,
+  FaUserCircle,
+  FaSignOutAlt,
+  FaCog,
+  FaChartLine,
+  FaMoneyBillWave,
+  FaVideo,
+  FaBookOpen,
+  FaSearch,
+  FaHome,
+  FaQuestionCircle,
+  FaUserFriends,
+  FaChevronRight,
+  FaStar,
+  FaGraduationCap,
+  FaPlus,
+  FaArrowRight,
+  FaClock,
+  FaLock,
 } from "react-icons/fa";
 import { IconType } from "react-icons";
 import AvatarGenerator from "@/components/settings/AvatarGenerator";
@@ -85,28 +99,30 @@ function useAtomicNavbarData() {
       }
 
       try {
-        console.log('⚡ Loading atomic navbar data...');
+        console.log("⚡ Loading atomic navbar data...");
         const startTime = Date.now();
 
-        const response = await fetch('/api/atomic/navbar', {
-          credentials: 'include',
+        const response = await fetch("/api/atomic/navbar", {
+          credentials: "include",
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch navbar data');
+          throw new Error("Failed to fetch navbar data");
         }
 
         const atomicData = await response.json();
         const loadTime = Date.now() - startTime;
 
-        console.log(`⚡ Navbar loaded in ${loadTime}ms (cache age: ${atomicData.cacheAge}ms)`);
+        console.log(
+          `⚡ Navbar loaded in ${loadTime}ms (cache age: ${atomicData.cacheAge}ms)`
+        );
 
         if (isMounted) {
           setData(atomicData);
           setLoading(false);
         }
       } catch (error) {
-        console.error('❌ Navbar load error:', error);
+        console.error("❌ Navbar load error:", error);
         if (isMounted) {
           setLoading(false);
         }
@@ -184,7 +200,9 @@ const LockedCommandPalette = ({ onClose }: { onClose: () => void }) => {
               >
                 <FaLock className="text-3xl sm:text-4xl text-red-400" />
               </motion.div>
-              <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">Sign in Required</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">
+                Sign in Required
+              </h3>
               <p className="text-sm sm:text-base text-gray-400 mb-6">
                 Create an account or sign in to access search and navigation
               </p>
@@ -214,20 +232,17 @@ const LockedCommandPalette = ({ onClose }: { onClose: () => void }) => {
 const LockedProfileDropdown = ({ onClose }: { onClose: () => void }) => {
   return (
     <>
-      <div 
-        className="fixed inset-0 z-[100000]" 
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 z-[100000]" onClick={onClose} />
       <motion.div
         initial={{ opacity: 0, y: 10, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 10, scale: 0.95 }}
         className="absolute right-0 mt-2 w-72 rounded-xl sm:rounded-2xl overflow-hidden z-[100001]"
-        style={{ top: 'calc(100% + 0.5rem)' }}
+        style={{ top: "calc(100% + 0.5rem)" }}
       >
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
         <div className="absolute inset-0 border border-red-500/20 rounded-xl sm:rounded-2xl" />
-        
+
         <div className="relative">
           <div className="p-3 sm:p-4 border-b border-gray-800 relative">
             <div className="absolute inset-0 backdrop-blur-sm bg-gray-900/30" />
@@ -244,7 +259,9 @@ const LockedProfileDropdown = ({ onClose }: { onClose: () => void }) => {
             <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-red-600/20 to-red-800/20 border-2 border-red-500/30 flex items-center justify-center">
               <FaLock className="text-xl text-red-400" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Sign in to Continue</h3>
+            <h3 className="text-lg font-bold text-white mb-2">
+              Sign in to Continue
+            </h3>
             <p className="text-sm text-gray-400 mb-4">
               Access your profile, courses, and more
             </p>
@@ -277,7 +294,7 @@ const NavbarSkeleton = () => {
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       className="fixed top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 z-[99999]"
-      style={{ isolation: 'isolate' }}
+      style={{ isolation: "isolate" }}
     >
       <div className="max-w-[1800px] mx-auto">
         <div className="relative rounded-xl sm:rounded-2xl overflow-visible">
@@ -285,39 +302,58 @@ const NavbarSkeleton = () => {
           <div className="absolute inset-0 bg-gradient-to-br from-red-600/5 to-transparent rounded-xl sm:rounded-2xl" />
           <div className="absolute inset-0 border border-red-500/20 rounded-xl sm:rounded-2xl" />
 
-          <div className="relative px-3 sm:px-4 md:px-6 py-2 sm:py-3">
+          {/* Adjusted padding for mobile skeleton */}
+          <div className="relative px-3 sm:px-4 md:px-6 py-1.5 sm:py-3">
             <div className="hidden md:grid md:grid-cols-[auto_1fr_auto] items-center gap-4">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-gray-800/40 rounded-xl animate-pulse" 
-                       style={{ animationDelay: '0ms' }} />
-                  <div className="hidden lg:block w-24 h-4 bg-gray-800/40 rounded animate-pulse"
-                       style={{ animationDelay: '100ms' }} />
+                  <div
+                    className="w-8 h-8 bg-gray-800/40 rounded-xl animate-pulse"
+                    style={{ animationDelay: "0ms" }}
+                  />
+                  <div
+                    className="hidden lg:block w-32 h-4 bg-gray-800/40 rounded animate-pulse"
+                    style={{ animationDelay: "100ms" }}
+                  />
                 </div>
               </div>
 
               <div className="flex justify-center">
-                <div className="w-full max-w-lg h-11 bg-gray-800/40 rounded-xl animate-pulse"
-                     style={{ animationDelay: '200ms' }} />
+                <div
+                  className="w-full max-w-lg h-11 bg-gray-800/40 rounded-xl animate-pulse"
+                  style={{ animationDelay: "200ms" }}
+                />
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="w-20 h-9 bg-gray-800/40 rounded-xl animate-pulse"
-                     style={{ animationDelay: '300ms' }} />
-                <div className="w-10 h-10 bg-gray-800/40 rounded-xl animate-pulse"
-                     style={{ animationDelay: '400ms' }} />
-                <div className="w-32 h-10 bg-gray-800/40 rounded-xl animate-pulse"
-                     style={{ animationDelay: '500ms' }} />
+                <div
+                  className="w-20 h-9 bg-gray-800/40 rounded-xl animate-pulse"
+                  style={{ animationDelay: "300ms" }}
+                />
+                <div
+                  className="w-10 h-10 bg-gray-800/40 rounded-xl animate-pulse"
+                  style={{ animationDelay: "400ms" }}
+                />
+                <div
+                  className="w-32 h-10 bg-gray-800/40 rounded-xl animate-pulse"
+                  style={{ animationDelay: "500ms" }}
+                />
               </div>
             </div>
 
             <div className="flex md:hidden items-center justify-between gap-2">
-              <div className="w-7 h-7 bg-gray-800/40 rounded-lg animate-pulse"
-                   style={{ animationDelay: '0ms' }} />
-              <div className="flex-1 max-w-[200px] sm:max-w-xs mx-auto h-9 bg-gray-800/40 rounded-lg animate-pulse"
-                   style={{ animationDelay: '100ms' }} />
-              <div className="w-7 h-7 bg-gray-800/40 rounded-lg animate-pulse"
-                   style={{ animationDelay: '200ms' }} />
+              <div
+                className="w-7 h-7 bg-gray-800/40 rounded-lg animate-pulse"
+                style={{ animationDelay: "0ms" }}
+              />
+              <div
+                className="flex-1 max-w-[200px] sm:max-w-xs mx-auto h-9 bg-gray-800/40 rounded-lg animate-pulse"
+                style={{ animationDelay: "100ms" }}
+              />
+              <div
+                className="w-7 h-7 bg-gray-800/40 rounded-lg animate-pulse"
+                style={{ animationDelay: "200ms" }}
+              />
             </div>
           </div>
         </div>
@@ -327,13 +363,13 @@ const NavbarSkeleton = () => {
 };
 
 // ✅ Profile Avatar Component
-const ProfileAvatar = ({ 
-  customImage, 
-  avatar, 
-  userId, 
+const ProfileAvatar = ({
+  customImage,
+  avatar,
+  userId,
   size = 32,
-  className = ""
-}: { 
+  className = "",
+}: {
   customImage?: string | null;
   avatar?: UserAvatar | null;
   userId: string;
@@ -342,11 +378,11 @@ const ProfileAvatar = ({
 }) => {
   if (customImage) {
     return (
-      <Image 
-        src={customImage} 
-        alt="Profile" 
-        width={size} 
-        height={size} 
+      <Image
+        src={customImage}
+        alt="Profile"
+        width={size}
+        height={size}
         className={`object-cover rounded-full ${className}`}
         unoptimized
       />
@@ -355,11 +391,11 @@ const ProfileAvatar = ({
 
   if (avatar?.isCustomUpload && avatar.customImageUrl) {
     return (
-      <Image 
-        src={avatar.customImageUrl} 
-        alt="Profile" 
-        width={size} 
-        height={size} 
+      <Image
+        src={avatar.customImageUrl}
+        alt="Profile"
+        width={size}
+        height={size}
         className={`object-cover rounded-full ${className}`}
         unoptimized
       />
@@ -372,7 +408,7 @@ const ProfileAvatar = ({
         userId={userId}
         avatarIndex={avatar.avatarIndex}
         size={size}
-        style={avatar.avatarStyle as 'avataaars'}
+        style={avatar.avatarStyle as "avataaars"}
         className={className}
       />
     );
@@ -392,9 +428,15 @@ const ProfileAvatar = ({
 const CommandHeader = () => {
   const { user, logout, isLoading: authLoading, authChecked } = useAuth();
   const pathname = usePathname();
-  
-  const { navbarUser, userGoals, primaryAvatar, sessions, loading: navbarLoading } = useAtomicNavbarData();
-  
+
+  const {
+    navbarUser,
+    userGoals,
+    primaryAvatar,
+    sessions,
+    loading: navbarLoading,
+  } = useAtomicNavbarData();
+
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -414,19 +456,19 @@ const CommandHeader = () => {
   }, [logout]);
 
   const userRole = useCallback(() => {
-    if (!userGoals?.purpose) return 'Learner';
-    if (userGoals.purpose === 'teach') return 'Tutor';
-    if (userGoals.purpose === 'both') return 'Tutor & Learner';
-    return 'Learner';
+    if (!userGoals?.purpose) return "Learner";
+    if (userGoals.purpose === "teach") return "Tutor";
+    if (userGoals.purpose === "both") return "Tutor & Learner";
+    return "Learner";
   }, [userGoals]);
 
   const getRoleBadgeColor = useCallback((role: string) => {
-    if (role.includes('Tutor') && role.includes('Learner')) {
-      return 'bg-gradient-to-r from-purple-500 to-blue-500';
-    } else if (role.includes('Tutor')) {
-      return 'bg-gradient-to-r from-red-500 to-orange-500';
+    if (role.includes("Tutor") && role.includes("Learner")) {
+      return "bg-gradient-to-r from-purple-500 to-blue-500";
+    } else if (role.includes("Tutor")) {
+      return "bg-gradient-to-r from-red-500 to-orange-500";
     } else {
-      return 'bg-gradient-to-r from-blue-500 to-cyan-500';
+      return "bg-gradient-to-r from-blue-500 to-cyan-500";
     }
   }, []);
 
@@ -436,21 +478,21 @@ const CommandHeader = () => {
 
   useEffect(() => {
     const handleRefresh = async () => {
-      console.log('🔄 Navbar refresh triggered');
+      console.log("🔄 Navbar refresh triggered");
       window.location.reload();
     };
 
-    window.addEventListener('navbar-refresh', handleRefresh);
-    return () => window.removeEventListener('navbar-refresh', handleRefresh);
+    window.addEventListener("navbar-refresh", handleRefresh);
+    return () => window.removeEventListener("navbar-refresh", handleRefresh);
   }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setIsCommandOpen(true);
       }
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         setIsCommandOpen(false);
         setIsProfileOpen(false);
         setIsNotificationsOpen(false);
@@ -458,37 +500,38 @@ const CommandHeader = () => {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('.dropdown-container')) {
+      if (!target.closest(".dropdown-container")) {
         setIsProfileOpen(false);
         setIsNotificationsOpen(false);
       }
     };
 
     if (isProfileOpen || isNotificationsOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [isProfileOpen, isNotificationsOpen]);
 
   useEffect(() => {
     const handleAuthChange = async (event: Event) => {
       if (!(event instanceof CustomEvent)) return;
-      
+
       const { user: newUser } = event.detail;
-      console.log('[Navbar] 🔥 Auth state changed:', newUser?.email)
+      console.log("[Navbar] 🔥 Auth state changed:", newUser?.email);
     };
 
-    window.addEventListener('auth-state-changed', handleAuthChange);
-    
+    window.addEventListener("auth-state-changed", handleAuthChange);
+
     return () => {
-      window.removeEventListener('auth-state-changed', handleAuthChange);
+      window.removeEventListener("auth-state-changed", handleAuthChange);
     };
   }, []);
 
@@ -500,11 +543,11 @@ const CommandHeader = () => {
   }
 
   if (isLoading) {
-    console.log('[Navbar] Loading state, showing skeleton');
+    console.log("[Navbar] Loading state, showing skeleton");
     return <NavbarSkeleton />;
   }
 
-  console.log('[Navbar] Render:', {
+  console.log("[Navbar] Render:", {
     hasUser: !!user,
     hasNavbarUser: !!navbarUser,
     hasDisplayUser: !!displayUser,
@@ -516,29 +559,65 @@ const CommandHeader = () => {
   // Command Palette Items
   const commandItems: CommandCategory[] = [
     {
-      category: 'Quick Actions',
+      category: "Quick Actions",
       items: [
-        { icon: FaHome, label: 'Home', shortcut: 'H', href: '/users', color: 'text-red-400' },
-        { icon: FaPlus, label: 'Create new course', shortcut: 'C', href: '/users/management', color: 'text-yellow-400' },
-        { icon: FaVideo, label: 'Explore Courses', shortcut: 'E', href: '/users/courses', color: 'text-blue-400' },
-        { icon: FaChartLine, label: 'Your Profile', shortcut: 'P', href: '/users/profile', color: 'text-purple-400' },
-      ]
+        {
+          icon: FaHome,
+          label: "Home",
+          shortcut: "H",
+          href: "/users",
+          color: "text-red-400",
+        },
+        {
+          icon: FaPlus,
+          label: "Create new course",
+          shortcut: "C",
+          href: "/users/management",
+          color: "text-yellow-400",
+        },
+        {
+          icon: FaVideo,
+          label: "Explore Courses",
+          shortcut: "E",
+          href: "/users/courses",
+          color: "text-blue-400",
+        },
+        {
+          icon: FaChartLine,
+          label: "Your Profile",
+          shortcut: "P",
+          href: "/users/profile",
+          color: "text-purple-400",
+        },
+      ],
     },
     {
-      category: 'Navigation',
+      category: "Navigation",
       items: [
-        { icon: FaBookOpen, label: 'My Courses', href: '/users/my-courses', color: 'text-green-400' },
-        { icon: FaCog, label: 'Settings', href: '/users/settings', color: 'text-gray-400' },
-      ]
+        {
+          icon: FaBookOpen,
+          label: "My Courses",
+          href: "/users/my-courses",
+          color: "text-green-400",
+        },
+        {
+          icon: FaCog,
+          label: "Settings",
+          href: "/users/settings",
+          color: "text-gray-400",
+        },
+      ],
     },
   ];
 
-  const filteredCommands = commandItems.map(category => ({
-    ...category,
-    items: category.items.filter(item => 
-      item.label.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  })).filter(category => category.items.length > 0);
+  const filteredCommands = commandItems
+    .map((category) => ({
+      ...category,
+      items: category.items.filter((item) =>
+        item.label.toLowerCase().includes(searchQuery.toLowerCase())
+      ),
+    }))
+    .filter((category) => category.items.length > 0);
 
   return (
     <>
@@ -546,34 +625,28 @@ const CommandHeader = () => {
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         className="fixed top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 z-[99999]"
-        style={{ isolation: 'isolate' }}
+        style={{ isolation: "isolate" }}
       >
         <div className="max-w-[1800px] mx-auto">
           <div className="relative rounded-xl sm:rounded-2xl overflow-visible">
-            {/* ✅ REMOVED: shadow-2xl shadow-red-500/5 */}
             <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 backdrop-blur-2xl rounded-xl sm:rounded-2xl" />
             <div className="absolute inset-0 bg-gradient-to-br from-red-600/5 to-transparent rounded-xl sm:rounded-2xl" />
             <div className="absolute inset-0 border border-red-500/20 rounded-xl sm:rounded-2xl" />
 
-            <div className="relative px-3 sm:px-4 md:px-6 py-2 sm:py-3">
+            {/* ✅ MODIFIED: Reduced padding for mobile (py-1.5) */}
+            <div className="relative px-3 sm:px-4 md:px-6 py-1.5 sm:py-3">
               {/* Desktop Layout */}
               <div className="hidden md:grid md:grid-cols-[auto_1fr_auto] items-center gap-4">
-                
-                {/* Left: Logo */}
-                <div className="flex items-center gap-4">
-                  <Link href={displayUser ? "/users/dashboard" : "/"} className="flex items-center gap-2 group">
-                    <motion.div 
-                      className="relative w-8 h-8 flex items-center justify-center"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      {/* ✅ REMOVED: shadow-lg shadow-red-500/30 */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-red-600 to-red-800 rounded-xl" />
-                      <div className="absolute inset-0 border border-red-500/30 rounded-xl" />
-                      <div className="relative z-10 text-white font-bold text-xs">VS</div>
-                    </motion.div>
-                    <span className="hidden lg:block text-sm font-semibold text-white group-hover:text-red-400 transition-colors">
-                      Verseandme
+                {/* ✅ CHANGED: Left Logo Text to Match Footer */}
+                <div>
+                  <Link
+                    href="/"
+                    className="inline-block font-black text-xl tracking-tighter hover:opacity-80 transition-opacity"
+                    aria-label="Verse and Me Scales home"
+                  >
+                    <span className="text-white">
+                      VERSE<span className="text-red-500">&</span>ME
+                      <span className="text-gray-500">SCALES</span>
                     </span>
                   </Link>
                 </div>
@@ -588,15 +661,17 @@ const CommandHeader = () => {
                   >
                     <div className="absolute inset-0 bg-gradient-to-br from-gray-900/50 to-black/70 backdrop-blur-sm" />
                     <div className="absolute inset-0 border border-red-500/20 group-hover:border-red-500/40 rounded-xl transition-all" />
-                    <motion.div 
+                    <motion.div
                       className="absolute inset-0 bg-gradient-to-br from-red-600/0 to-transparent group-hover:from-red-600/5"
                       whileHover={{ opacity: 1 }}
                     />
-                    
+
                     <div className="relative flex items-center gap-3 px-4 py-2.5">
                       <FaSearch className="text-gray-500 text-sm" />
                       <span className="flex-1 text-left text-sm text-gray-500">
-                        {shouldLockFeatures ? 'Sign in to search...' : 'Search or jump to...'}
+                        {shouldLockFeatures
+                          ? "Sign in to search..."
+                          : "Search or jump to..."}
                       </span>
                       {shouldLockFeatures ? (
                         <FaLock className="text-gray-600 text-xs" />
@@ -611,7 +686,6 @@ const CommandHeader = () => {
 
                 {/* Right: Actions */}
                 <div className="flex items-center gap-2">
-                  
                   {displayUser ? (
                     <>
                       {/* Quick Create */}
@@ -623,11 +697,11 @@ const CommandHeader = () => {
                         >
                           <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-700" />
                           <div className="absolute inset-0 border border-red-500/30 rounded-xl" />
-                          <motion.div 
-                            className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-all"
-                          />
+                          <motion.div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-all" />
                           <FaPlus className="text-xs text-white relative z-10" />
-                          <span className="text-sm font-medium text-white relative z-10">Create</span>
+                          <span className="text-sm font-medium text-white relative z-10">
+                            Create
+                          </span>
                         </motion.button>
                       </Link>
 
@@ -660,8 +734,8 @@ const CommandHeader = () => {
                         <AnimatePresence>
                           {isNotificationsOpen && (
                             <>
-                              <div 
-                                className="fixed inset-0 z-[100000]" 
+                              <div
+                                className="fixed inset-0 z-[100000]"
                                 onClick={() => setIsNotificationsOpen(false)}
                               />
                               <motion.div
@@ -669,47 +743,59 @@ const CommandHeader = () => {
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                                 className="absolute right-0 mt-2 w-96 rounded-xl sm:rounded-2xl overflow-hidden z-[100001]"
-                                style={{ top: 'calc(100% + 0.5rem)' }}
+                                style={{ top: "calc(100% + 0.5rem)" }}
                               >
                                 <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
                                 <div className="absolute inset-0 border border-red-500/20 rounded-xl sm:rounded-2xl" />
-                                
+
                                 <div className="relative">
                                   <div className="p-3 sm:p-4 border-b border-gray-800">
                                     <div className="flex items-center justify-between">
-                                      <h3 className="text-xs sm:text-sm font-semibold text-white">Notifications</h3>
+                                      <h3 className="text-xs sm:text-sm font-semibold text-white">
+                                        Notifications
+                                      </h3>
                                       <button className="text-[10px] sm:text-xs text-red-400 hover:text-red-300 font-medium">
                                         Mark all read
                                       </button>
                                     </div>
                                   </div>
-                                  {/* ✅ ADDED: scrollbar-hide class */}
-                                  <div className="max-h-[60vh] sm:max-h-96 overflow-y-auto scrollbar-hide">
-                                    {notifications.map((notification, index) => (
-                                      <motion.div
-                                        key={notification.id}
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: index * 0.05 }}
-                                        className="p-3 sm:p-4 border-b border-gray-800 hover:bg-red-600/5 transition-all cursor-pointer"
-                                      >
-                                        <div className="flex gap-2 sm:gap-3">
-                                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center ${notification.iconColor} bg-gray-900/50 border border-gray-800 flex-shrink-0`}>
-                                            <notification.icon className="text-xs sm:text-sm" />
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <div className="flex items-start justify-between gap-2 mb-1">
-                                              <h4 className="text-xs sm:text-sm font-medium text-white">{notification.title}</h4>
-                                              {!notification.read && (
-                                                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-red-500 rounded-full flex-shrink-0 mt-1.5" />
-                                              )}
+                                  {/* ✅ ADDED: Remove scrollbar with custom CSS */}
+                                  <div className="max-h-[60vh] sm:max-h-96 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                                    {notifications.map(
+                                      (notification, index) => (
+                                        <motion.div
+                                          key={notification.id}
+                                          initial={{ opacity: 0, x: -10 }}
+                                          animate={{ opacity: 1, x: 0 }}
+                                          transition={{ delay: index * 0.05 }}
+                                          className="p-3 sm:p-4 border-b border-gray-800 hover:bg-red-600/5 transition-all cursor-pointer"
+                                        >
+                                          <div className="flex gap-2 sm:gap-3">
+                                            <div
+                                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center ${notification.iconColor} bg-gray-900/50 border border-gray-800 flex-shrink-0`}
+                                            >
+                                              <notification.icon className="text-xs sm:text-sm" />
                                             </div>
-                                            <p className="text-xs sm:text-sm text-gray-400 mb-1">{notification.message}</p>
-                                            <span className="text-[10px] sm:text-xs text-gray-500">{notification.time}</span>
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-start justify-between gap-2 mb-1">
+                                                <h4 className="text-xs sm:text-sm font-medium text-white">
+                                                  {notification.title}
+                                                </h4>
+                                                {!notification.read && (
+                                                  <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-red-500 rounded-full flex-shrink-0 mt-1.5" />
+                                                )}
+                                              </div>
+                                              <p className="text-xs sm:text-sm text-gray-400 mb-1">
+                                                {notification.message}
+                                              </p>
+                                              <span className="text-[10px] sm:text-xs text-gray-500">
+                                                {notification.time}
+                                              </span>
+                                            </div>
                                           </div>
-                                        </div>
-                                      </motion.div>
-                                    ))}
+                                        </motion.div>
+                                      )
+                                    )}
                                   </div>
                                 </div>
                               </motion.div>
@@ -731,23 +817,27 @@ const CommandHeader = () => {
                         >
                           <div className="absolute inset-0 bg-gray-900/30 hover:bg-gray-900/50 rounded-xl transition-all" />
                           <div className="absolute inset-0 border border-gray-700/30 hover:border-gray-600/50 rounded-xl transition-all" />
-                          
+
                           <div className="relative w-8 h-8 rounded-full border-2 border-red-500/50 overflow-hidden bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center">
                             <ProfileAvatar
                               customImage={displayUser?.img}
                               avatar={primaryAvatar}
-                              userId={displayUser?.id || 'default'}
+                              userId={displayUser?.id || "default"}
                               size={32}
                             />
                             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-gray-900 rounded-full" />
                           </div>
-                          
+
                           <div className="text-left pr-2">
                             <div className="text-xs font-medium text-white leading-tight truncate max-w-[120px]">
                               {displayUser?.username}
                             </div>
                             <div className="flex items-center gap-1">
-                              <div className={`w-1.5 h-1.5 rounded-full ${getRoleBadgeColor(userRole())}`} />
+                              <div
+                                className={`w-1.5 h-1.5 rounded-full ${getRoleBadgeColor(
+                                  userRole()
+                                )}`}
+                              />
                               <div className="text-[10px] text-gray-500 leading-tight">
                                 {userRole()}
                               </div>
@@ -759,8 +849,8 @@ const CommandHeader = () => {
                         <AnimatePresence>
                           {isProfileOpen && (
                             <>
-                              <div 
-                                className="fixed inset-0 z-[100000]" 
+                              <div
+                                className="fixed inset-0 z-[100000]"
                                 onClick={() => setIsProfileOpen(false)}
                               />
                               <motion.div
@@ -768,11 +858,11 @@ const CommandHeader = () => {
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                                 className="absolute right-0 mt-2 w-72 rounded-xl sm:rounded-2xl overflow-hidden z-[100001]"
-                                style={{ top: 'calc(100% + 0.5rem)' }}
+                                style={{ top: "calc(100% + 0.5rem)" }}
                               >
                                 <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
                                 <div className="absolute inset-0 border border-red-500/20 rounded-xl sm:rounded-2xl" />
-                                
+
                                 <div className="relative">
                                   <div className="p-3 sm:p-4 border-b border-gray-800">
                                     <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
@@ -780,19 +870,24 @@ const CommandHeader = () => {
                                         <ProfileAvatar
                                           customImage={displayUser?.img}
                                           avatar={primaryAvatar}
-                                          userId={displayUser?.id || 'default'}
+                                          userId={displayUser?.id || "default"}
                                           size={48}
                                         />
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <h3 className="text-xs sm:text-sm font-bold text-white truncate">
-                                          {displayUser?.name || displayUser?.username}
+                                          {displayUser?.name ||
+                                            displayUser?.username}
                                         </h3>
                                         <p className="text-[10px] sm:text-xs text-gray-400 truncate">
                                           {displayUser?.email}
                                         </p>
                                         <div className="flex items-center gap-1 mt-1">
-                                          <div className={`w-1.5 h-1.5 rounded-full ${getRoleBadgeColor(userRole())}`} />
+                                          <div
+                                            className={`w-1.5 h-1.5 rounded-full ${getRoleBadgeColor(
+                                              userRole()
+                                            )}`}
+                                          />
                                           <span className="text-[10px] text-gray-500">
                                             {userRole()}
                                           </span>
@@ -811,10 +906,26 @@ const CommandHeader = () => {
 
                                   <div className="p-2">
                                     {[
-                                      { icon: FaMoneyBillWave, label: 'Earnings', href: '/users/payout' },
-                                      { icon: FaBookOpen, label: 'My Courses', href: '/users/my-courses' },
-                                      { icon: FaCog, label: 'Settings', href: '/users/settings' },
-                                      { icon: FaQuestionCircle, label: 'Help', href: '/help' },
+                                      {
+                                        icon: FaMoneyBillWave,
+                                        label: "Earnings",
+                                        href: "/users/payout",
+                                      },
+                                      {
+                                        icon: FaBookOpen,
+                                        label: "My Courses",
+                                        href: "/users/my-courses",
+                                      },
+                                      {
+                                        icon: FaCog,
+                                        label: "Settings",
+                                        href: "/users/settings",
+                                      },
+                                      {
+                                        icon: FaQuestionCircle,
+                                        label: "Help",
+                                        href: "/help",
+                                      },
                                     ].map((item) => (
                                       <Link
                                         key={item.label}
@@ -823,7 +934,9 @@ const CommandHeader = () => {
                                         className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg sm:rounded-xl hover:bg-gray-800/50 transition-all group"
                                       >
                                         <item.icon className="text-xs sm:text-sm text-gray-400 group-hover:text-red-400 transition-colors" />
-                                        <span className="text-xs sm:text-sm text-white">{item.label}</span>
+                                        <span className="text-xs sm:text-sm text-white">
+                                          {item.label}
+                                        </span>
                                       </Link>
                                     ))}
                                   </div>
@@ -837,7 +950,9 @@ const CommandHeader = () => {
                                       className="flex items-center gap-2 sm:gap-3 w-full px-2 sm:px-3 py-2 rounded-lg sm:rounded-xl hover:bg-red-600/10 transition-all group"
                                     >
                                       <FaSignOutAlt className="text-xs sm:text-sm text-gray-400 group-hover:text-red-400 transition-colors" />
-                                      <span className="text-xs sm:text-sm text-white">Sign out</span>
+                                      <span className="text-xs sm:text-sm text-white">
+                                        Sign out
+                                      </span>
                                     </button>
                                   </div>
                                 </div>
@@ -859,7 +974,11 @@ const CommandHeader = () => {
                         >
                           <div className="absolute inset-0 bg-gray-900/30 hover:bg-gray-900/50 backdrop-blur-sm rounded-xl transition-all" />
                           <div className="absolute inset-0 border border-gray-700/30 hover:border-gray-600/50 rounded-xl transition-all" />
-                          <FaUserCircle className={`w-5 h-5 relative z-10 ${shouldLockFeatures ? 'text-gray-600' : ''}`} />
+                          <FaUserCircle
+                            className={`w-5 h-5 relative z-10 ${
+                              shouldLockFeatures ? "text-gray-600" : ""
+                            }`}
+                          />
                           {shouldLockFeatures && (
                             <FaLock className="absolute top-0 right-0 text-red-500 text-xs bg-gray-900 rounded-full p-0.5" />
                           )}
@@ -867,7 +986,9 @@ const CommandHeader = () => {
 
                         <AnimatePresence>
                           {isProfileOpen && shouldLockFeatures && (
-                            <LockedProfileDropdown onClose={() => setIsProfileOpen(false)} />
+                            <LockedProfileDropdown
+                              onClose={() => setIsProfileOpen(false)}
+                            />
                           )}
                         </AnimatePresence>
                       </div>
@@ -876,15 +997,20 @@ const CommandHeader = () => {
                 </div>
               </div>
 
-              {/* Mobile Layout */}
+              {/* ✅ CHANGED: Mobile Layout Logo - Added mt-1 to fix visual alignment */}
               <div className="flex md:hidden items-center justify-between gap-2">
-                <Link href={displayUser ? "/users/dashboard" : "/"} className="flex items-center gap-2">
-                  <div className="relative w-7 h-7 flex items-center justify-center">
-                    {/* ✅ REMOVED: shadow-lg shadow-red-500/30 */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-red-600 to-red-800 rounded-lg" />
-                    <div className="relative z-10 text-white font-bold text-[10px]">VS</div>
-                  </div>
-                </Link>
+                <div>
+                  <Link
+                    href="/users"
+                    className="inline-block font-black text-xs tracking-tighter hover:opacity-80 transition-opacity mt-6" // Added mt-1 here
+                    aria-label="Verse and Me Scales home"
+                  >
+                    <span className="text-white">
+                      VERSE<span className="text-red-500">&</span>ME
+                      <span className="text-gray-500">SCALES</span>
+                    </span>
+                  </Link>
+                </div>
 
                 {/* Mobile search button */}
                 <motion.button
@@ -894,13 +1020,16 @@ const CommandHeader = () => {
                 >
                   <div className="absolute inset-0 bg-gradient-to-br from-gray-900/50 to-black/70 backdrop-blur-sm" />
                   <div className="absolute inset-0 border border-red-500/20 rounded-lg" />
-                  
-                  <div className="relative flex items-center gap-2 px-3 py-2">
+
+                  {/* ✅ CHANGED: Reduced padding for mobile search (px-3 py-1.5) */}
+                  <div className="relative flex items-center gap-2 px-3 py-1.5">
                     <FaSearch className="text-gray-500 text-xs flex-shrink-0" />
                     <span className="flex-1 text-left text-xs text-gray-500 truncate">
-                      {shouldLockFeatures ? 'Sign in...' : 'Search...'}
+                      {shouldLockFeatures ? "Sign in..." : "Search..."}
                     </span>
-                    {shouldLockFeatures && <FaLock className="text-gray-600 text-[10px]" />}
+                    {shouldLockFeatures && (
+                      <FaLock className="text-gray-600 text-[10px]" />
+                    )}
                   </div>
                 </motion.button>
 
@@ -919,7 +1048,7 @@ const CommandHeader = () => {
                         <ProfileAvatar
                           customImage={displayUser?.img}
                           avatar={primaryAvatar}
-                          userId={displayUser?.id || 'default'}
+                          userId={displayUser?.id || "default"}
                           size={28}
                         />
                       </div>
@@ -934,11 +1063,11 @@ const CommandHeader = () => {
                   </motion.button>
 
                   <AnimatePresence>
-                    {isProfileOpen && (
-                      displayUser ? (
+                    {isProfileOpen &&
+                      (displayUser ? (
                         <>
-                          <div 
-                            className="fixed inset-0 z-[100000]" 
+                          <div
+                            className="fixed inset-0 z-[100000]"
                             onClick={() => setIsProfileOpen(false)}
                           />
                           <motion.div
@@ -946,11 +1075,11 @@ const CommandHeader = () => {
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
                             className="fixed right-2 mt-2 w-[calc(100vw - 1rem)] max-w-xs rounded-xl overflow-hidden z-[100001]"
-                            style={{ top: '60px' }}
+                            style={{ top: "60px" }}
                           >
                             <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
                             <div className="absolute inset-0 border border-red-500/20 rounded-xl" />
-                            
+
                             <div className="relative">
                               <div className="p-3 border-b border-gray-800">
                                 <div className="flex items-center gap-2 mb-2">
@@ -958,19 +1087,24 @@ const CommandHeader = () => {
                                     <ProfileAvatar
                                       customImage={displayUser?.img}
                                       avatar={primaryAvatar}
-                                      userId={displayUser?.id || 'default'}
+                                      userId={displayUser?.id || "default"}
                                       size={40}
                                     />
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <h3 className="text-xs font-bold text-white truncate">
-                                      {displayUser?.name || displayUser?.username}
+                                      {displayUser?.name ||
+                                        displayUser?.username}
                                     </h3>
                                     <p className="text-[10px] text-gray-400 truncate">
                                       {displayUser?.email}
                                     </p>
                                     <div className="flex items-center gap-1 mt-0.5">
-                                      <div className={`w-1.5 h-1.5 rounded-full ${getRoleBadgeColor(userRole())}`} />
+                                      <div
+                                        className={`w-1.5 h-1.5 rounded-full ${getRoleBadgeColor(
+                                          userRole()
+                                        )}`}
+                                      />
                                       <span className="text-[9px] text-gray-500">
                                         {userRole()}
                                       </span>
@@ -989,11 +1123,32 @@ const CommandHeader = () => {
 
                               <div className="p-2">
                                 {[
-                                  { icon: FaHome, label: 'Home', href: '/users/dashboard' },
-                                  { icon: FaBookOpen, label: 'My Courses', href: '/users/my-courses' },
-                                  { icon: FaMoneyBillWave, label: 'Earnings', href: '/users/payout' },
-                                  { icon: FaBell, label: 'Notifications', href: '#', badge: unreadCount },
-                                  { icon: FaCog, label: 'Settings', href: '/users/settings' },
+                                  {
+                                    icon: FaHome,
+                                    label: "Home",
+                                    href: "/users/dashboard",
+                                  },
+                                  {
+                                    icon: FaBookOpen,
+                                    label: "My Courses",
+                                    href: "/users/my-courses",
+                                  },
+                                  {
+                                    icon: FaMoneyBillWave,
+                                    label: "Earnings",
+                                    href: "/users/payout",
+                                  },
+                                  {
+                                    icon: FaBell,
+                                    label: "Notifications",
+                                    href: "#",
+                                    badge: unreadCount,
+                                  },
+                                  {
+                                    icon: FaCog,
+                                    label: "Settings",
+                                    href: "/users/settings",
+                                  },
                                 ].map((item) => (
                                   <Link
                                     key={item.label}
@@ -1003,7 +1158,9 @@ const CommandHeader = () => {
                                   >
                                     <div className="flex items-center gap-2">
                                       <item.icon className="text-xs text-gray-400 group-hover:text-red-400 transition-colors" />
-                                      <span className="text-xs text-white">{item.label}</span>
+                                      <span className="text-xs text-white">
+                                        {item.label}
+                                      </span>
                                     </div>
                                     {item.badge && item.badge > 0 && (
                                       <span className="px-2 py-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full">
@@ -1023,7 +1180,9 @@ const CommandHeader = () => {
                                   className="flex items-center gap-2 w-full px-3 py-2 rounded-lg hover:bg-red-600/10 transition-all group"
                                 >
                                   <FaSignOutAlt className="text-xs text-gray-400 group-hover:text-red-400 transition-colors" />
-                                  <span className="text-xs text-white">Sign out</span>
+                                  <span className="text-xs text-white">
+                                    Sign out
+                                  </span>
                                 </button>
                               </div>
                             </div>
@@ -1032,8 +1191,8 @@ const CommandHeader = () => {
                       ) : (
                         shouldLockFeatures && (
                           <>
-                            <div 
-                              className="fixed inset-0 z-[100000]" 
+                            <div
+                              className="fixed inset-0 z-[100000]"
                               onClick={() => setIsProfileOpen(false)}
                             />
                             <motion.div
@@ -1041,16 +1200,18 @@ const CommandHeader = () => {
                               animate={{ opacity: 1, y: 0, scale: 1 }}
                               exit={{ opacity: 0, y: 10, scale: 0.95 }}
                               className="fixed right-2 left-2 mt-2 mx-auto w-[calc(100vw - 1rem)] max-w-xs rounded-xl overflow-hidden z-[100001]"
-                              style={{ top: '60px' }}
+                              style={{ top: "60px" }}
                             >
                               <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-2xl" />
                               <div className="absolute inset-0 border border-red-500/20 rounded-xl" />
-                              
+
                               <div className="relative p-6 text-center">
                                 <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-red-600/20 to-red-800/20 border-2 border-red-500/30 flex items-center justify-center">
                                   <FaLock className="text-2xl text-red-400" />
                                 </div>
-                                <h3 className="text-lg font-bold text-white mb-2">Welcome to Verseandme</h3>
+                                <h3 className="text-lg font-bold text-white mb-2">
+                                  Welcome to Verseandme
+                                </h3>
                                 <p className="text-sm text-gray-400 mb-4">
                                   Sign in to access your profile and courses
                                 </p>
@@ -1070,8 +1231,7 @@ const CommandHeader = () => {
                             </motion.div>
                           </>
                         )
-                      )
-                    )}
+                      ))}
                   </AnimatePresence>
                 </div>
               </div>
@@ -1082,8 +1242,8 @@ const CommandHeader = () => {
 
       {/* Command Palette */}
       <AnimatePresence>
-        {isCommandOpen && (
-          shouldLockFeatures ? (
+        {isCommandOpen &&
+          (shouldLockFeatures ? (
             <LockedCommandPalette onClose={() => setIsCommandOpen(false)} />
           ) : (
             <>
@@ -1123,8 +1283,8 @@ const CommandHeader = () => {
                       </kbd>
                     </div>
 
-                    {/* ✅ ADDED: scrollbar-hide class */}
-                    <div className="max-h-[60vh] overflow-y-auto scrollbar-hide">
+                    {/* ✅ ADDED: Remove scrollbar with custom CSS */}
+                    <div className="max-h-[60vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                       {filteredCommands.length > 0 ? (
                         filteredCommands.map((category) => (
                           <div key={category.category} className="py-2 sm:py-3">
@@ -1145,14 +1305,20 @@ const CommandHeader = () => {
                                   className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-2.5 sm:py-3 hover:bg-gradient-to-r hover:from-red-600/10 hover:to-transparent transition-all group"
                                 >
                                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gray-900/50 border border-gray-800 flex items-center justify-center group-hover:border-red-500/30 transition-all flex-shrink-0">
-                                    <item.icon className={`text-sm sm:text-lg ${item.color || 'text-gray-400'} group-hover:scale-110 transition-transform`} />
+                                    <item.icon
+                                      className={`text-sm sm:text-lg ${
+                                        item.color || "text-gray-400"
+                                      } group-hover:scale-110 transition-transform`}
+                                    />
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="text-xs sm:text-sm font-medium text-white group-hover:text-red-400 transition-colors truncate">
                                       {item.label}
                                     </div>
                                     {item.subtext && (
-                                      <div className="text-[10px] sm:text-xs text-gray-500 truncate">{item.subtext}</div>
+                                      <div className="text-[10px] sm:text-xs text-gray-500 truncate">
+                                        {item.subtext}
+                                      </div>
                                     )}
                                   </div>
                                   {item.shortcut && (
@@ -1167,33 +1333,49 @@ const CommandHeader = () => {
                         ))
                       ) : (
                         <div className="py-12 sm:py-16 text-center">
-                          <div className="text-3xl sm:text-4xl mb-3 sm:mb-4">🔍</div>
-                          <p className="text-xs sm:text-sm text-gray-400">No results found</p>
-                                                </div>
+                          <div className="text-3xl sm:text-4xl mb-3 sm:mb-4">
+                            🔍
+                          </div>
+                          <p className="text-xs sm:text-sm text-gray-400">
+                            No results found
+                          </p>
+                        </div>
                       )}
                     </div>
 
                     <div className="px-4 sm:px-6 py-2 sm:py-3 border-t border-gray-800/50 flex items-center justify-between">
                       <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-gray-500">
                         <div className="hidden sm:flex items-center gap-1">
-                          <kbd className="px-1.5 py-0.5 bg-gray-800/50 border border-gray-700/50 rounded text-[10px] font-mono">↑↓</kbd>
+                          <kbd className="px-1.5 py-0.5 bg-gray-800/50 border border-gray-700/50 rounded text-[10px] font-mono">
+                            ↑↓
+                          </kbd>
                           <span>Navigate</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <kbd className="px-1.5 py-0.5 bg-gray-800/50 border border-gray-700/50 rounded text-[10px] font-mono">↵</kbd>
+                          <kbd className="px-1.5 py-0.5 bg-gray-800/50 border border-gray-700/50 rounded text-[10px] font-mono">
+                            ↵
+                          </kbd>
                           <span>Select</span>
                         </div>
                       </div>
-                      <div className="text-[10px] sm:text-xs text-gray-500">
-                        Verseandme
+                      <div>
+                        <Link
+                          href="/users"
+                          className="inline-block font-black text-sm tracking-tighter hover:opacity-80 transition-opacity"
+                          aria-label="Verse and Me Scales home"
+                        >
+                          <span className="text-white">
+                            VERSE<span className="text-red-500">&</span>ME
+                            <span className="text-gray-500">SCALES</span>
+                          </span>
+                        </Link>
                       </div>
                     </div>
                   </div>
                 </motion.div>
               </div>
             </>
-          )
-        )}
+          ))}
       </AnimatePresence>
     </>
   );

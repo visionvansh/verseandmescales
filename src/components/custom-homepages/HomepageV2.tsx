@@ -17,7 +17,7 @@ interface HomepageV2Props {
 
 // ===== HARDCODED MEDIA PATHS - EDIT THESE =====
 const HERO_IMAGE = "/images/jesus-bread.jpg";
-const HERO_VIDEO = "/videos/recipe-demo.mp4";
+const HERO_VIDEO = "/videos/jesus12.mp4";
 const BACKGROUND_JESUS_IMAGE_DESKTOP = "/jesus.jpeg";
 const BACKGROUND_JESUS_IMAGE_MOBILE = "/jesus2.png";
 // ==============================================
