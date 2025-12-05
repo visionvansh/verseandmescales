@@ -1361,7 +1361,7 @@ const CommandHeader = () => {
                       <div>
                         <Link
                           href="/users"
-                          className="inline-block font-black text-sm tracking-tighter hover:opacity-80 transition-opacity"
+                          className="inline-block font-black text-sm tracking-tighter hover:opacity-80 transition-opacity mt-6 sm:mt-0"
                           aria-label="Verse and Me Scales home"
                         >
                           <span className="text-white">

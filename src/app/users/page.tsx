@@ -568,12 +568,12 @@ const PublishedCoursesArea = ({ courses }: { courses: PublishedCourseData[] }) =
         <div className="max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto">
           
           {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-4 sm:mb-6 md:mb-8"
-          >
-            <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-black text-white leading-tight">
+        <motion.div
+  initial={{ opacity: 0, y: -20 }}
+  animate={{ opacity: 1, y: 0 }}
+  className="text-center mb-4 sm:mb-6 md:mb-8"
+>
+  <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-black text-white leading-tight mt-20 lg:mt-0">
               <span className="bg-gradient-to-r from-red-400 via-red-500 to-red-600 bg-clip-text text-transparent">
                 YOUR PUBLISHING
               </span>{" "}
@@ -669,7 +669,7 @@ const PublishedCoursesArea = ({ courses }: { courses: PublishedCourseData[] }) =
 };
 
 // ============================================
-// ✅ PUBLISHED COURSE CARD
+// ✅ PUBLISHED COURSE CARD WITH HOMEPAGE BUILDER BUTTON
 // ============================================
 const PublishedCourseCard = ({ 
   course, 
@@ -842,22 +842,31 @@ const PublishedCourseCard = ({
               </div>
             )}
 
-            {/* Action Buttons */}
+            {/* ✅ UPDATED: Action Buttons - NOW WITH 4 BUTTONS INCLUDING HOMEPAGE BUILDER & MODULES */}
             {!isBlurred && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 lg:gap-4 pt-1 sm:pt-2">
+              <div className="grid grid-cols-2 sm:grid-cols-2 gap-2 sm:gap-2 lg:gap-4 pt-1 sm:pt-2">
+               
+
+                {/* ✅ NEW: Modules Button */}
                 <button
-                  onClick={() => router?.push(`/users/courses-management`)}
+                  onClick={() => router?.push(`/users/courseinside?courseId=${course.id}`)}
                   className="relative overflow-hidden group"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-700 rounded-lg sm:rounded-xl" />
-                  <div className="absolute inset-0 bg-gradient-to-r from-red-700 to-red-800 rounded-lg sm:rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg sm:rounded-xl" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-blue-800 rounded-lg sm:rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   
-                  <div className="relative px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3.5 flex items-center justify-center gap-1.5 sm:gap-2 lg:gap-3">
-                    <FaEdit className="text-white text-xs sm:text-sm lg:text-base" />
-                    <span className="text-white font-bold text-xs sm:text-sm lg:text-base">Manage Course</span>
+                  <div className="relative px-2 py-2 sm:px-3 sm:py-2.5 lg:px-4 lg:py-3 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 lg:gap-2">
+                    <FaBook className="text-white text-xs sm:text-sm lg:text-base" />
+                    <span className="text-white font-bold text-[10px] sm:text-xs lg:text-sm whitespace-nowrap">
+                      Inside Course
+                    </span>
                   </div>
                 </button>
+
+                {/* Manage Course Button */}
+         
                 
+                {/* View Page Button */}
                 <button
                   onClick={() => router?.push(`/users/courses/${course.id}`)}
                   className="relative overflow-hidden group"
@@ -865,9 +874,11 @@ const PublishedCourseCard = ({
                   <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 rounded-lg sm:rounded-xl border border-red-500/30 backdrop-blur-2xl" />
                   <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-lg sm:rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   
-                  <div className="relative px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3.5 flex items-center justify-center gap-1.5 sm:gap-2 lg:gap-3">
+                  <div className="relative px-2 py-2 sm:px-3 sm:py-2.5 lg:px-4 lg:py-3 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 lg:gap-2">
                     <FaEye className="text-red-400 text-xs sm:text-sm lg:text-base group-hover:text-red-300 transition-colors" />
-                    <span className="text-white font-bold text-xs sm:text-sm lg:text-base">View Page</span>
+                    <span className="text-white font-bold text-[10px] sm:text-xs lg:text-sm whitespace-nowrap">
+                      View
+                    </span>
                   </div>
                 </button>
               </div>
@@ -1593,7 +1604,7 @@ const PlatformPreview = ({ answers }: { answers: Record<string, string> }) => {
             >
               <p className="text-gray-300 text-xs xs:text-sm sm:text-base md:text-lg lg:text-xl font-medium mb-2">
                 {sections[activeSection].description}
-                            </p>
+              </p>
             </motion.div>
           </motion.div>
         </AnimatePresence>
@@ -1701,7 +1712,7 @@ const CoursesPreview = () => {
 
               {/* Price & Button */}
               <div className="flex items-center justify-between">
-                <div className="text-red-400 font-black text-sm xs:text-base sm:text-lg md:text-xl">$49</div>
+                <div className="text-red-400 font-black text-sm xs:text-base sm:text-lg md:text-xl">\$49</div>
                 <div className="bg-gradient-to-r from-red-600/30 to-red-700/30 rounded xs:rounded-md sm:rounded-lg px-1.5 xs:px-2 sm:px-3 md:px-4 py-1 xs:py-1.5 sm:py-2 border border-red-500/30 text-[8px] xs:text-[10px] sm:text-xs md:text-sm font-bold whitespace-nowrap">
                   <span className="hidden sm:inline">View Course</span>
                   <span className="sm:hidden">View</span>
