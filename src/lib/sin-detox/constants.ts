@@ -45,8 +45,8 @@ export const HERO_CONFIG: HeroConfig = {
     line2: "DETOX",
   },
   subheadline: {
-    text: "The battle isn't outside, your enemy is inside.",
-    highlight: "Rewrite identity. Reset dopamine. Conquer the urge.",
+    text: "",
+    highlight: "30-DAY DISCIPLINE BLUEPRINT",
   },
   cta: {
     primary: {

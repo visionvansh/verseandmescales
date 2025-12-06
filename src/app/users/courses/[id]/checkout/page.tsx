@@ -104,7 +104,7 @@ const ProfileAvatar = ({
 
 const CheckoutSkeleton = () => {
   return (
-    <div className="container mx-auto px-3 xs:px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 py-4 sm:py-6 md:py-8 lg:py-12 mt-20">
+    <div className="container mx-auto px-5 py-4 sm:py-6 md:py-8 lg:py-12 mt-20">
       <div className="max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto">
         <div className="mb-6 sm:mb-8 md:mb-10 lg:mb-12">
           <div className="h-12 sm:h-16 md:h-20 lg:h-24 w-full max-w-2xl bg-gray-800/40 rounded-xl sm:rounded-2xl animate-pulse mb-4 sm:mb-6" />
@@ -113,7 +113,7 @@ const CheckoutSkeleton = () => {
         <div className="mb-4 sm:mb-6 h-6 sm:h-8 w-24 sm:w-32 bg-gray-800/40 rounded-lg animate-pulse" />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 md:gap-6 lg:gap-8">
-          <div className="lg:col-span-7 space-y-3 sm:space-y-4 md:space-y-5">
+          <div className="hidden lg:block lg:col-span-7 space-y-3 sm:space-y-4 md:space-y-5">
             <div className="relative overflow-hidden rounded-lg sm:rounded-xl bg-gradient-to-br from-gray-900/90 to-black/95 border border-red-500/20">
               <div className="p-3 sm:p-4 md:p-5 lg:p-6 space-y-3 sm:space-y-4">
                 <div className="aspect-video rounded-lg bg-gray-800/40 animate-pulse" />
@@ -790,7 +790,7 @@ export default function CheckoutPage() {
 
   if (error && !courseData) {
     return (
-      <div className="container mx-auto px-3 xs:px-4 sm:px-6 md:px-8 lg:px-12 py-4 sm:py-6 md:py-8 lg:py-10 mt-20">
+      <div className="container mx-auto px-5 py-4 sm:py-6 md:py-8 lg:py-10 mt-20">
         <div className="max-w-2xl mx-auto">
           <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-red-500/30 bg-gradient-to-br from-gray-900/90 to-black/95 backdrop-blur-2xl">
             <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent" />
@@ -842,7 +842,7 @@ export default function CheckoutPage() {
   });
 
   return (
-    <div className="container mx-auto px-3 xs:px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 py-4 sm:py-6 md:py-8 lg:py-12 mt-20">
+    <div className="container mx-auto px-5 py-4 sm:py-6 md:py-8 lg:py-12 mt-20">
       <div className="max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto">
         {/* Header */}
         <motion.div
@@ -856,7 +856,7 @@ export default function CheckoutPage() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight">
+            <h1 className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight mt-3">
               <span className="inline-block text-white">COMPLETE YOUR</span>
               <span className="inline-block text-red-600 ml-2 sm:ml-3 md:ml-4 lg:ml-6">
                 PURCHASE
@@ -886,9 +886,9 @@ export default function CheckoutPage() {
 
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 md:gap-6 lg:gap-8">
-          {/* Course Details - Left Side */}
+          {/* Course Details - Left Side - HIDDEN ON MOBILE */}
           <motion.div
-            className="lg:col-span-7 space-y-3 sm:space-y-4 md:space-y-5"
+            className="hidden lg:block lg:col-span-7 space-y-3 sm:space-y-4 md:space-y-5"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
@@ -972,7 +972,7 @@ export default function CheckoutPage() {
             </div>
           </motion.div>
 
-          {/* Payment Section - Right Side */}
+          {/* Payment Section - Right Side - FULL WIDTH ON MOBILE */}
           <motion.div
             className="lg:col-span-5"
             initial={{ opacity: 0, x: 20 }}
@@ -1034,45 +1034,20 @@ export default function CheckoutPage() {
                     </div>
                   </div>
 
-                  {/* ✅ UPDATED: Show Email Verification Section for Unauthenticated Users */}
+                  {/* ✅ UPDATED: Email Entry Section for Unauthenticated Users */}
                   {needsEmailVerification && (
                     <div id="email-verification-section" className="mb-4 sm:mb-5 md:mb-6 scroll-mt-24">
-                      {!showEmailVerification ? (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-4"
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-                              <FaEnvelope className="text-yellow-400 text-lg" />
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="text-white font-bold text-sm mb-1">
-                                Email Verification Required
-                              </h4>
-                              <p className="text-gray-400 text-xs mb-3">
-                                Please verify your email to unlock payment options and complete your purchase.
-                              </p>
-                              <motion.button
-                                onClick={() => setShowEmailVerification(true)}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                className="w-full bg-gradient-to-r from-yellow-600 to-yellow-700 text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 text-sm"
-                              >
-                                <FaEnvelope />
-                                Verify Email to Continue
-                              </motion.button>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ) : (
-                        <EmailVerificationFlow
-                          courseId={courseId}
-                          onVerified={handleEmailVerified}
-                          onCancel={() => setShowEmailVerification(false)}
-                        />
-                      )}
+                      <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 mb-4">
+                        <p className="text-blue-300 text-sm font-medium text-center">
+                          Please verify your email before proceeding with payment
+                        </p>
+                      </div>
+                      
+                      <EmailVerificationFlow
+                        courseId={courseId}
+                        onVerified={handleEmailVerified}
+                        onCancel={() => setShowEmailVerification(false)}
+                      />
                     </div>
                   )}
 

@@ -1,4 +1,3 @@
-//Volumes/vision/codes/course/my-app/src/app/page.tsx
 "use client";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,7 +9,8 @@ import { FaCheckCircle, FaGraduationCap, FaMoneyBillWave, FaUserGraduate,
          FaLock, FaRegClock, FaPhoneAlt, FaEnvelope, FaRocket, FaTrophy,
          FaUsers, FaVideo, FaCertificate, FaShieldAlt, FaGlobe, FaMobileAlt,
          FaHeadset, FaStar, FaArrowRight, FaPlay, FaDollarSign, FaHandHoldingUsd, 
-         FaQuestionCircle, FaInstagram, FaLaptopCode, FaSearch } from "react-icons/fa";
+         FaQuestionCircle, FaInstagram, FaLaptopCode, FaSearch, FaUserCircle, 
+         FaSignOutAlt} from "react-icons/fa";
 import { Spotlight } from "@/components/ui/Spotlight";
 import Image from "next/image";
 import MainContent from "@/components/MainContent";
@@ -20,6 +20,8 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const [isCommandOpen, setIsCommandOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [earningCalculator, setEarningCalculator] = useState({
     students: 100,
     coursePrice: 49,
@@ -42,6 +44,23 @@ export default function HomePage() {
       setActiveTestimonial(prev => (prev + 1) % testimonials.length);
     }, 5000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setIsCommandOpen(true);
+      }
+      if (e.key === "Escape") {
+        setIsCommandOpen(false);
+        setSearchQuery("");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   // Calculate potential earnings
@@ -109,7 +128,7 @@ export default function HomePage() {
       name: "Alex Thompson",
       role: "Content Creator",
       image: "https://randomuser.me/api/portraits/men/32.jpg",
-      text: "After listing my course on Verseandme, my monthly income tripled! The platform made it incredibly easy to reach thousands of students who were eager to learn. I went from $2K to $6K per month in just 3 months!",
+      text: "After listing my course on Verseandme, my monthly income tripled! The platform made it incredibly easy to reach thousands of students who were eager to learn. I went from \$2K to \$6K per month in just 3 months!",
       earning: "\$6,000/mo",
       students: 423,
     },
@@ -127,7 +146,7 @@ export default function HomePage() {
       name: "Marcus Johnson",
       role: "Digital Entrepreneur",
       image: "https://randomuser.me/api/portraits/men/22.jpg",
-      text: "Both teaching and learning on Verseandme has transformed my business. I now have multiple income streams and a network of amazing professionals. My courses generate $12K monthly on autopilot!",
+      text: "Both teaching and learning on Verseandme has transformed my business. I now have multiple income streams and a network of amazing professionals. My courses generate \$12K monthly on autopilot!",
       earning: "\$12,000/mo",
       courses: 4,
     },
@@ -292,11 +311,41 @@ export default function HomePage() {
 
   // Success metrics
   const successMetrics = [
-    { value: "$127K", label: "Highest Monthly Earnings", sublabel: "by top instructor" },
+    { value: "\$127K", label: "Highest Monthly Earnings", sublabel: "by top instructor" },
     { value: "89%", label: "Course Completion Rate", sublabel: "above industry average" },
     { value: "4.7★", label: "Average Course Rating", sublabel: "from 2M+ reviews" },
     { value: "32min", label: "Average Daily Learning", sublabel: "per active student" },
   ];
+
+  // Command Palette Items
+  const commandItems = [
+    {
+      category: "Quick Actions",
+      items: [
+        { icon: FaGraduationCap, label: "Browse Courses", href: "/users/courses", color: "text-blue-400" },
+        { icon: FaDollarSign, label: "Start Selling", href: "/courses/management", color: "text-red-400" },
+        { icon: FaSignOutAlt, label: "Create New Account", href: "/auth/signup", color: "text-purple-400" },
+        { icon: FaSignInAlt, label: "Log In", href: "/auth/signin", color: "text-green-400" },
+      ],
+    },
+    {
+      category: "Features",
+      items: [
+        //{ icon: FaVideo, label: "How It Works", href: "#features", color: "text-yellow-400" },
+        //{ icon: FaUsers, label: "Success Stories", href: "#testimonials", color: "text-pink-400" },
+        //{ icon: FaDollarSign, label: "Pricing", href: "#pricing", color: "text-green-400" },
+      ],
+    },
+  ];
+
+  const filteredCommands = commandItems
+    .map((category) => ({
+      ...category,
+      items: category.items.filter((item) =>
+        item.label.toLowerCase().includes(searchQuery.toLowerCase())
+      ),
+    }))
+    .filter((category) => category.items.length > 0);
 
   // Skeletal Loading State
   if (isLoading || authLoading) {
@@ -316,45 +365,45 @@ export default function HomePage() {
           <div className="absolute inset-0 bg-gradient-to-tr from-black via-gray-900/50 to-black" />
         </div>
 
-        <div className="relative z-10 container mx-auto px-4 py-16">
-          {/* Hero Skeleton */}
-          <div className="text-center mb-12">
-            <div className="h-12 bg-gray-800/50 rounded-lg w-3/4 mx-auto mb-4 mt-8 animate-pulse" />
-            <div className="h-6 bg-gray-800/50 rounded-lg w-1/2 mx-auto animate-pulse" />
-            <div className="h-10 bg-gray-800/50 rounded-lg w-64 mx-auto mt-8 animate-pulse" />
-          </div>
+        {/* Header Skeleton */}
+        <motion.header
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="fixed top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 z-[99999]"
+        >
+          <div className="max-w-[1800px] mx-auto">
+            <div className="relative rounded-xl sm:rounded-2xl overflow-visible">
+              <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 backdrop-blur-2xl rounded-xl sm:rounded-2xl" />
+              <div className="absolute inset-0 border border-red-500/20 rounded-xl sm:rounded-2xl" />
 
-          {/* Features Skeleton */}
-          <div className="max-w-6xl mx-auto mt-20">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[...Array(3)].map((_, index) => (
-                <div key={index} className="bg-gray-800/30 rounded-2xl p-6 animate-pulse">
-                  <div className="h-10 w-10 bg-red-600/30 rounded-full mb-4" />
-                  <div className="h-6 bg-gray-700/50 rounded w-1/2 mb-3" />
-                  <div className="h-4 bg-gray-700/50 rounded w-full mb-2" />
-                  <div className="h-4 bg-gray-700/50 rounded w-5/6 mb-2" />
-                  <div className="h-4 bg-gray-700/50 rounded w-4/6" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Course Cards Skeleton */}
-          <div className="max-w-6xl mx-auto mt-20">
-            <div className="h-8 bg-gray-800/50 rounded-lg w-1/3 mb-6 animate-pulse" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[...Array(3)].map((_, index) => (
-                <div key={index} className="bg-gray-800/30 rounded-2xl overflow-hidden animate-pulse">
-                  <div className="h-40 bg-gray-700/50" />
-                  <div className="p-5">
-                    <div className="h-5 bg-gray-700/50 rounded w-3/4 mb-3" />
-                    <div className="h-4 bg-gray-700/50 rounded w-1/2 mb-3" />
-                    <div className="h-4 bg-gray-700/50 rounded w-1/3 mb-3" />
-                    <div className="h-8 bg-red-600/30 rounded-lg w-full mt-4" />
+              <div className="relative px-3 sm:px-4 md:px-6 py-2 sm:py-3">
+                {/* Desktop Skeleton */}
+                <div className="hidden md:grid md:grid-cols-[auto_1fr_auto] items-center gap-4">
+                  <div className="w-32 h-6 bg-gray-800/40 rounded animate-pulse" />
+                  <div className="w-full max-w-lg h-11 bg-gray-800/40 rounded-xl animate-pulse mx-auto" />
+                  <div className="flex items-center gap-2">
+                    <div className="w-20 h-9 bg-gray-800/40 rounded-xl animate-pulse" />
+                    <div className="w-24 h-9 bg-gray-800/40 rounded-xl animate-pulse" />
                   </div>
                 </div>
-              ))}
+
+                {/* Mobile Skeleton */}
+                <div className="flex md:hidden items-center justify-between gap-2">
+                  <div className="w-20 h-5 bg-gray-800/40 rounded-lg animate-pulse" />
+                  <div className="flex-1 max-w-[200px] h-9 bg-gray-800/40 rounded-lg animate-pulse" />
+                  <div className="w-7 h-7 bg-gray-800/40 rounded-lg animate-pulse" />
+                </div>
+              </div>
             </div>
+          </div>
+        </motion.header>
+
+        <div className="relative z-10 container mx-auto px-4 pt-20 sm:pt-24 md:pt-28 lg:pt-32">
+          {/* Hero Skeleton */}
+          <div className="text-center mb-12">
+            <div className="h-12 bg-gray-800/50 rounded-lg w-3/4 mx-auto mb-4 animate-pulse" />
+            <div className="h-6 bg-gray-800/50 rounded-lg w-1/2 mx-auto animate-pulse" />
+            <div className="h-10 bg-gray-800/50 rounded-lg w-64 mx-auto mt-8 animate-pulse" />
           </div>
         </div>
       </div>
@@ -417,98 +466,286 @@ export default function HomePage() {
             backgroundSize: '60px 60px'
           }}
         />
-        
-        <motion.div 
-          className="absolute inset-0 opacity-15"
-          animate={{ opacity: [0.08, 0.22, 0.08] }}
-          transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(255, 50, 50, 0.3) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255, 50, 50, 0.3) 1px, transparent 1px)
-            `,
-            backgroundSize: '120px 120px'
-          }}
-        />
       </div>
 
-      {/* Header - CONDITIONAL BUTTON RENDERING */}
-      <header className="relative z-10 py-3 sm:py-4 top-0 bg-black/80 backdrop-blur-lg border-b border-gray-800/50">
-        <div className="container mx-auto px-3 sm:px-4">
-          <div className="flex items-center justify-between gap-2">
-            {/* Logo */}
-            <div className="flex items-center space-x-2 flex-shrink-0">
-              <motion.div
-                initial={{ rotate: -10, scale: 0.9 }}
-                animate={{ rotate: 0, scale: 1 }}
-                transition={{ duration: 0.5 }}
-              >
-                <div className="bg-red-600 text-white h-8 w-8 sm:h-10 sm:w-10 rounded-lg flex items-center justify-center font-bold text-base sm:text-xl">
-                  VS
+      {/* Updated Header */}
+      <motion.header
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="fixed top-6 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 z-[99999]"
+        style={{ isolation: "isolate" }}
+      >
+        <div className="max-w-[1800px] mx-auto ">
+          <div className="relative rounded-xl sm:rounded-2xl overflow-visible">
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 to-black/95 backdrop-blur-2xl rounded-xl sm:rounded-2xl" />
+            <div className="absolute inset-0 bg-gradient-to-br from-red-600/5 to-transparent rounded-xl sm:rounded-2xl" />
+            <div className="absolute inset-0 border border-red-500/20 rounded-xl sm:rounded-2xl" />
+
+            <div className="relative px-3 sm:px-4 md:px-6 py-2 sm:py-3">
+              {/* Desktop Layout */}
+              <div className="hidden md:grid md:grid-cols-[auto_1fr_auto] items-center gap-4">
+                {/* Logo */}
+                <div>
+                  <Link
+                    href="/"
+                    className="inline-block font-black text-xl tracking-tighter hover:opacity-80 transition-opacity"
+                    aria-label="Verse and Me Scales home"
+                  >
+                    <span className="text-white">
+                      VERSE<span className="text-red-500">&</span>ME
+                      <span className="text-gray-500">SCALES</span>
+                    </span>
+                  </Link>
                 </div>
-              </motion.div>
-              <h1 className="text-white font-bold text-sm sm:text-base md:text-xl">
-                <span className="hidden sm:inline">Verseandme <span className="text-red-500">Scales</span></span>
-                <span className="sm:hidden">VS <span className="text-red-500">Scales</span></span>
-              </h1>
-            </div>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden lg:flex items-center space-x-6 xl:space-x-8">
-              <a href="#features" className="text-gray-300 hover:text-white transition-colors text-sm xl:text-base">How It Works</a>
-              <a href="#courses" className="text-gray-300 hover:text-white transition-colors text-sm xl:text-base">Courses</a>
-              <a href="#earn" className="text-gray-300 hover:text-white transition-colors text-sm xl:text-base">Start Earning</a>
-              <a href="#testimonials" className="text-gray-300 hover:text-white transition-colors text-sm xl:text-base">Success Stories</a>
-              <a href="#pricing" className="text-gray-300 hover:text-white transition-colors text-sm xl:text-base">Pricing</a>
-            </nav>
+                {/* Center: Command Bar */}
+                <div className="flex justify-center">
+                  <motion.button
+                    onClick={() => setIsCommandOpen(true)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full max-w-lg relative rounded-xl overflow-hidden group"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-gray-900/50 to-black/70 backdrop-blur-sm" />
+                    <div className="absolute inset-0 border border-red-500/20 group-hover:border-red-500/40 rounded-xl transition-all" />
+                    <motion.div
+                      className="absolute inset-0 bg-gradient-to-br from-red-600/0 to-transparent group-hover:from-red-600/5"
+                      whileHover={{ opacity: 1 }}
+                    />
 
-            {/* Auth Buttons - Conditional Rendering */}
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-              {isAuthenticated ? (
-                // When authenticated, show only "Get in" button
-                <motion.button 
-                  className="bg-gradient-to-r from-red-600 to-red-700 text-white px-3 xs:px-4 sm:px-5 md:px-6 py-1.5 sm:py-2 rounded-md sm:rounded-lg hover:from-red-500 hover:to-red-600 transition-all text-[11px] xs:text-xs sm:text-sm md:text-base whitespace-nowrap font-medium shadow-md sm:shadow-lg"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  style={{ boxShadow: "0 5px 15px rgba(220, 38, 38, 0.3)" }}
-                  onClick={() => router.push('/users')}
+                    <div className="relative flex items-center gap-3 px-4 py-2.5">
+                      <FaSearch className="text-gray-500 text-sm" />
+                      <span className="flex-1 text-left text-sm text-gray-500">
+                        Search courses, topics...
+                      </span>
+                      <kbd className="px-2 py-1 bg-gray-800/50 border border-gray-700/50 rounded text-xs text-gray-400 font-mono">
+                        ⌘K
+                      </kbd>
+                    </div>
+                  </motion.button>
+                </div>
+
+                {/* Right: Auth Buttons */}
+                <div className="flex items-center gap-2">
+                  {isAuthenticated ? (
+                    <motion.button 
+                      className="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg hover:from-red-500 hover:to-red-600 transition-all text-sm font-medium shadow-lg"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => router.push('/users')}
+                    >
+                      Get in
+                    </motion.button>
+                  ) : (
+                    <>
+                      <motion.button 
+                        className="bg-transparent border border-red-500 text-red-500 px-4 py-2 rounded-lg hover:bg-red-500/10 transition-all text-sm font-medium"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => router.push('/auth/signin')}
+                      >
+                        Log In
+                      </motion.button>
+                      
+                      <motion.button 
+                        className="bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-2 rounded-lg hover:from-red-500 hover:to-red-600 transition-all text-sm font-medium shadow-lg"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        style={{ boxShadow: "0 5px 15px rgba(220, 38, 38, 0.3)" }}
+                        onClick={() => router.push('/auth/signup')}
+                      >
+                        Sign Up Free
+                      </motion.button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Mobile Layout - UPDATED */}
+              <div className="flex md:hidden items-center justify-between gap-2">
+                <div>
+                  <Link
+                    href="/"
+                    className="inline-block font-black text-xs tracking-tighter hover:opacity-80 transition-opacity mt-6"
+                    aria-label="Verse and Me Scales home"
+                  >
+                    <span className="text-white">
+                      VERSE<span className="text-red-500">&</span>ME
+                      <span className="text-gray-500">SCALES</span>
+                    </span>
+                  </Link>
+                </div>
+
+                {/* Mobile search button */}
+                <motion.button
+                  onClick={() => setIsCommandOpen(true)}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex-1 max-w-[200px] sm:max-w-xs mx-auto relative rounded-lg overflow-hidden"
                 >
-                  Get in
+                  <div className="absolute inset-0 bg-gradient-to-br from-gray-900/50 to-black/70 backdrop-blur-sm" />
+                  <div className="absolute inset-0 border border-red-500/20 rounded-lg" />
+
+                  <div className="relative flex items-center gap-2 px-3 py-1.5">
+                    <FaSearch className="text-gray-500 text-xs flex-shrink-0" />
+                    <span className="flex-1 text-left text-xs text-gray-500 truncate">
+                      Search...
+                    </span>
+                  </div>
                 </motion.button>
-              ) : (
-                // When not authenticated, show both "Log In" and "Sign Up" buttons
-                <>
+
+                {/* Mobile auth button - UPDATED: Removed border */}
+                {isAuthenticated ? (
                   <motion.button 
-                    className="bg-transparent border border-red-500 text-red-500 px-2 xs:px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-md sm:rounded-lg hover:bg-red-500/10 transition-all text-[10px] xs:text-xs sm:text-sm md:text-base whitespace-nowrap font-medium"
-                    whileHover={{ scale: 1.05 }}
+                    className="bg-gradient-to-r from-red-600 to-red-700 text-white px-3 py-1.5 rounded-md text-xs font-medium shadow-md"
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => router.push('/users')}
+                  >
+                    Get in
+                  </motion.button>
+                ) : (
+                  <motion.button 
+                    className="bg-transparent text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 transition-all"
                     whileTap={{ scale: 0.95 }}
                     onClick={() => router.push('/auth/signin')}
                   >
-                    Log In
+                    <FaUserCircle className="w-5 h-5" />
                   </motion.button>
-                  
-                  <motion.button 
-                    className="bg-gradient-to-r from-red-600 to-red-700 text-white px-2 xs:px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-md sm:rounded-lg hover:from-red-500 hover:to-red-600 transition-all text-[10px] xs:text-xs sm:text-sm md:text-base whitespace-nowrap font-medium shadow-md sm:shadow-lg"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    style={{ boxShadow: "0 5px 15px rgba(220, 38, 38, 0.3)" }}
-                    onClick={() => router.push('/auth/signup')}
-                  >
-                    <span className="hidden xs:inline">Sign Up Free</span>
-                    <span className="xs:hidden">Sign Up</span>
-                  </motion.button>
-                </>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </header>
+      </motion.header>
 
-      {/* Main Content Component */}
-      <MainContent {...commonProps} />
+      {/* Command Palette */}
+      <AnimatePresence>
+        {isCommandOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsCommandOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200000]"
+            />
 
-      {/* Footer Component */}
-      <Footer />
+            <div className="fixed inset-0 z-[200001] flex items-start justify-center pt-[10vh] px-4">
+              <motion.div
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                className="w-full max-w-2xl rounded-xl sm:rounded-2xl overflow-hidden relative"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-900/98 to-black/98 backdrop-blur-3xl" />
+                <div className="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent" />
+                <div className="absolute inset-0 border border-red-500/30 rounded-xl sm:rounded-2xl" />
+
+                <div className="relative">
+                  <div className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-800/50">
+                    <FaSearch className="text-gray-400 text-base sm:text-lg flex-shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Type a command or search..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      autoFocus
+                      className="flex-1 bg-transparent text-sm sm:text-base text-white placeholder-gray-500 outline-none"
+                    />
+                    <kbd className="hidden sm:block px-2 py-1 bg-gray-800/50 border border-gray-700/50 rounded text-xs text-gray-400 font-mono">
+                      ESC
+                    </kbd>
+                  </div>
+
+                  <div className="max-h-[60vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    {filteredCommands.length > 0 ? (
+                      filteredCommands.map((category) => (
+                        <div key={category.category} className="py-2 sm:py-3">
+                          <div className="px-4 sm:px-6 py-1.5 sm:py-2">
+                            <h3 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                              {category.category}
+                            </h3>
+                          </div>
+                          <div>
+                            {category.items.map((item, index) => (
+                              <Link
+                                key={index}
+                                href={item.href}
+                                onClick={() => {
+                                  setIsCommandOpen(false);
+                                  setSearchQuery("");
+                                }}
+                                className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-2.5 sm:py-3 hover:bg-gradient-to-r hover:from-red-600/10 hover:to-transparent transition-all group"
+                              >
+                                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gray-900/50 border border-gray-800 flex items-center justify-center group-hover:border-red-500/30 transition-all flex-shrink-0">
+                                  <item.icon
+                                    className={`text-sm sm:text-lg ${
+                                      item.color || "text-gray-400"
+                                    } group-hover:scale-110 transition-transform`}
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-xs sm:text-sm font-medium text-white group-hover:text-red-400 transition-colors truncate">
+                                    {item.label}
+                                  </div>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="py-12 sm:py-16 text-center">
+                        <div className="text-3xl sm:text-4xl mb-3 sm:mb-4">
+                          🔍
+                        </div>
+                        <p className="text-xs sm:text-sm text-gray-400">
+                          No results found
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="px-4 sm:px-6 py-2 sm:py-3 border-t border-gray-800/50 flex items-center justify-between">
+                    <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-gray-500">
+                      <div className="hidden sm:flex items-center gap-1">
+                        <kbd className="px-1.5 py-0.5 bg-gray-800/50 border border-gray-700/50 rounded text-[10px] font-mono">
+                          ↑↓
+                        </kbd>
+                        <span>Navigate</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <kbd className="px-1.5 py-0.5 bg-gray-800/50 border border-gray-700/50 rounded text-[10px] font-mono">
+                          ↵
+                        </kbd>
+                        <span>Select</span>
+                      </div>
+                    </div>
+                    <div>
+                      <Link
+                        href="/"
+                        className="inline-block font-black text-sm tracking-tighter hover:opacity-80 transition-opacity"
+                        aria-label="Verse and Me Scales home"
+                      >
+                        <span className="text-white">
+                          VERSE<span className="text-red-500">&</span>ME
+                          <span className="text-gray-500">SCALES</span>
+                        </span>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Main Content with responsive top margin */}
+      <div className="pt-16 sm:pt-16 md:pt-24 lg:pt-28 mt-14 sm:mt-0">
+        <MainContent {...commonProps} />
+        <Footer />
+      </div>
     </div>
   );
 }
