@@ -1,3 +1,4 @@
+// /Volumes/vision/codes/course/my-app/next.config.ts
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
@@ -37,19 +38,20 @@ const nextConfig: NextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
   reactStrictMode: true,
-  serverActions: {
-    bodySizeLimit: '3gb', // ✅ Increased from 20mb to 3gb
-  },
   serverExternalPackages: ['@prisma/client', 'bcrypt'],
+  
+  // ✅ Add empty Turbopack config to silence the warning
+  turbopack: {},
+  
+  // Keep webpack config for when using --webpack flag
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push('@prisma/client', 'bcrypt');
     }
     return config;
   },
-  // ✅ Additional configuration for large file uploads
+  
   experimental: {
-    // Disable body size limit for API routes
     serverComponentsExternalPackages: ['@prisma/client', 'bcrypt'],
   },
 };

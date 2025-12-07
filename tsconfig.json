@@ -1,30 +1,46 @@
 {
   "compilerOptions": {
-    "target": "ES2020",  // Updated from ES2017 for better ESM support (e.g., dynamic imports)
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "target": "ES2020", // Updated from ES2017 for better ESM support (e.g., dynamic imports)
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,  // Added for smoother default imports (helps with next/font)
+    "allowSyntheticDefaultImports": true, // Added for smoother default imports (helps with next/font)
     "module": "esnext",
-    "moduleResolution": "node",  // Changed from "bundler" – uses Node-style resolution (file:// URLs, better for custom servers/ts-node)
+    "moduleResolution": "node", // Changed from "bundler" – uses Node-style resolution (file:// URLs, better for custom servers/ts-node)
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
       {
         "name": "next"
       }
     ],
-    "baseUrl": ".",  // Added explicitly (helps with paths)
+    "baseUrl": ".", // Added explicitly (helps with paths)
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     },
-    "forceConsistentCasingInFileNames": true  // Added (prevents case-sensitivity issues on macOS/Linux)
+    "forceConsistentCasingInFileNames": true // Added (prevents case-sensitivity issues on macOS/Linux)
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "websocket-server.js", "src/lib/prisma-wa.js"],
-  "exclude": ["node_modules"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "websocket-server.js",
+    "src/lib/prisma-wa.js",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

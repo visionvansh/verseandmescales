@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"next dev\" \"node websocket-server.js\"",
+    "dev": "concurrently \"next dev --webpack\" \"node websocket-server.js\"",
     "ws": "node websocket-server.js",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "type-check": "tsc --noEmit --pretty"
   },
